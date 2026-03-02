@@ -194,57 +194,101 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
   );
 }
 
+/** Max time (ms) for a single pipeline stage before aborting */
+const STAGE_TIMEOUT_MS = 90_000;
+/** Max inactivity (ms) — if no SSE data arrives for this long, abort */
+const STREAM_IDLE_TIMEOUT_MS = 30_000;
+/** Max chars kept per previous-stage summary to prevent prompt bloat */
+const MAX_PREV_OUTPUT_CHARS = 1500;
+
+/**
+ * Truncate a stage output to keep prompts manageable.
+ * Keeps the first portion and a tail so the model sees both start and end.
+ */
+function truncateOutput(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const half = Math.floor(maxChars / 2);
+  return text.slice(0, half) + '\n\n... (truncated) ...\n\n' + text.slice(-half);
+}
+
 async function runStageWithChat(
   featureDescription: string,
   stage: { id: PipelineStage; label: string; description: string; model: string },
   previousOutputs: string[],
   abortSignal: AbortSignal,
 ): Promise<{ output: string; tokens: number }> {
+  // Build prompt with truncated previous outputs to prevent bloat
+  const trimmedPrevious = previousOutputs.map(o => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
   const prompt = [
     `You are building: ${featureDescription}`,
     `Current stage: ${stage.label} — ${stage.description}`,
-    previousOutputs.length > 0 ? `\nPrevious stage outputs:\n${previousOutputs.join('\n---\n')}` : '',
+    trimmedPrevious.length > 0 ? `\nPrevious stage outputs:\n${trimmedPrevious.join('\n---\n')}` : '',
     `\nGenerate the ${stage.label.toLowerCase()} code/output for this feature. Be concise and production-ready.`,
   ].join('\n');
 
-  const response = await fetch('/api/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], mode: 'chat' }),
-    signal: abortSignal,
-  });
+  // Create a per-stage abort that fires on timeout OR user cancel
+  const stageAbort = new AbortController();
+  const stageTimer = setTimeout(() => stageAbort.abort(), STAGE_TIMEOUT_MS);
+  // Forward user cancel to stage abort
+  const onUserAbort = () => stageAbort.abort();
+  abortSignal.addEventListener('abort', onUserAbort, { once: true });
 
-  if (!response.ok) throw new Error(`Chat API error: ${response.status}`);
-  if (!response.body) throw new Error('No response body');
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], mode: 'chat' }),
+      signal: stageAbort.signal,
+    });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let output = '';
-  let tokens = 0;
-  let buffer = '';
+    if (!response.ok) throw new Error(`Chat API error: ${response.status}`);
+    if (!response.body) throw new Error('No response body');
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const payload = line.slice(6).trim();
-      if (payload === '[DONE]') continue;
-      try {
-        const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number };
-        if (parsed.content) output += parsed.content;
-        if (parsed.eval_count) tokens = parsed.eval_count;
-        else if (parsed.tokens) tokens = parsed.tokens;
-      } catch {
-        // skip unparseable
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let output = '';
+    let tokens = 0;
+    let buffer = '';
+
+    // Streaming inactivity timeout — resets on every chunk
+    let idleTimer: ReturnType<typeof setTimeout> | null = null;
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => stageAbort.abort(), STREAM_IDLE_TIMEOUT_MS);
+    };
+    resetIdleTimer();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        resetIdleTimer();
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number };
+            if (parsed.content) output += parsed.content;
+            if (parsed.eval_count) tokens = parsed.eval_count;
+            else if (parsed.tokens) tokens = parsed.tokens;
+          } catch {
+            // skip unparseable
+          }
+        }
       }
+    } finally {
+      if (idleTimer) clearTimeout(idleTimer);
     }
-  }
 
-  return { output: output || '(No output generated)', tokens };
+    return { output: output || '(No output generated)', tokens };
+  } finally {
+    clearTimeout(stageTimer);
+    abortSignal.removeEventListener('abort', onUserAbort);
+  }
 }
 
 export function PipelineView() {
@@ -294,22 +338,28 @@ export function PipelineView() {
           previousOutputs.push(`## ${stage.label}\n${result.output}`);
         } catch (stageError) {
           if (controller.signal.aborted) break;
+          const errorMsg = stageError instanceof Error ? stageError.message : 'Stage failed';
+          const isTimeout = errorMsg.includes('abort') || errorMsg.includes('timeout');
           updateStage(runId, stage.id, {
             status: 'failed',
-            output: stageError instanceof Error ? stageError.message : 'Stage failed',
+            output: isTimeout
+              ? `Stage timed out after ${STAGE_TIMEOUT_MS / 1000}s (API may be slow — skipping to next stage)`
+              : errorMsg,
             completedAt: Date.now(),
           });
           useMetricsStore.getState().recordRequest(false);
-          completeRun(runId, 'failed');
-          setIsBuilding(false);
-          abortRef.current = null;
-          return;
+          // Continue to next stage instead of killing the entire pipeline
+          previousOutputs.push(`## ${stage.label}\n(failed: ${isTimeout ? 'timeout' : 'error'})`);
+          continue;
         }
       }
 
       if (!controller.signal.aborted) {
-        completeRun(runId, 'completed');
-        useMetricsStore.getState().incrementFeatures();
+        // Determine final status: 'completed' if at least one stage succeeded
+        const currentRun = usePipelineStore.getState().runs.find(r => r.id === runId);
+        const anyCompleted = currentRun?.stages.some(s => s.status === 'completed') ?? false;
+        completeRun(runId, anyCompleted ? 'completed' : 'failed');
+        if (anyCompleted) useMetricsStore.getState().incrementFeatures();
 
         // AI → Editor bridge: parse generated files from all stage outputs and open as tabs
         const completedRun = usePipelineStore.getState().runs.find(r => r.id === runId);
