@@ -1,7 +1,13 @@
 import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+/**
+ * Use NextAuth v5 lazy initialization so that process.env is read at request
+ * time instead of module-init time.  On Cloudflare Workers the env bindings
+ * (vars + secrets) are only populated inside a request context, so the eager
+ * `NextAuth({ … })` pattern would see empty env vars and fail.
+ */
+export const { handlers, signIn, signOut, auth } = NextAuth(() => ({
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID,
@@ -30,4 +36,4 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       };
     },
   },
-});
+}));
