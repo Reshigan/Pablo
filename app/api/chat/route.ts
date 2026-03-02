@@ -224,7 +224,7 @@ async function tryExternalAPIStreaming(
   }
 
   const isOpenAICompatible =
-    apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('pawan');
+    apiUrl.includes('/v1') || apiUrl.includes('openai');
 
   try {
     const apiResponse = isOpenAICompatible
@@ -553,9 +553,12 @@ export async function GET() {
       'Auto-fix loop (up to 3 iterations)',
     ],
     models: {
-      reasoning: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-      code_generation: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-      fast_chat: '@cf/zai-org/glm-4.7-flash',
+      reasoning: 'deepseek-v3.2 (Ollama Cloud)',
+      code_generation: 'qwen3-coder:480b (Ollama Cloud)',
+      fast_chat: 'gpt-oss:120b (Ollama Cloud)',
+      fallback_reasoning: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b (Workers AI)',
+      fallback_code: '@cf/meta/llama-3.3-70b-instruct-fp8-fast (Workers AI)',
+      fallback_chat: '@cf/zai-org/glm-4.7-flash (Workers AI)',
     },
   });
 }

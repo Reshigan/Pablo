@@ -68,22 +68,30 @@ const MODELS = {
     estimated_speed: '60-80 TPS',
   },
 
-  // Ollama Cloud models (flat rate, frontier quality)
+  // Ollama Cloud models (hosted at ollama.com, frontier quality)
   ollama_qwen_coder: {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3-coder-next',
-    description: 'Qwen3-Coder-Next 80B-A3B - frontier coding agent, 70.6% SWE-bench',
+    model: 'qwen3-coder:480b',
+    description: 'Qwen3-Coder 480B - frontier coding agent',
     max_tokens: 16384,
     temperature: 0.1,
     estimated_speed: '30-100 TPS',
   },
   ollama_deepseek_r1: {
     provider: 'ollama_cloud' as const,
-    model: 'deepseek-r1',
-    description: 'DeepSeek R1 - deep reasoning, complex planning',
+    model: 'deepseek-v3.2',
+    description: 'DeepSeek V3.2 - deep reasoning, complex planning',
     max_tokens: 16384,
     temperature: 0.2,
     estimated_speed: '20-50 TPS',
+  },
+  ollama_gpt_oss: {
+    provider: 'ollama_cloud' as const,
+    model: 'gpt-oss:120b',
+    description: 'GPT-OSS 120B - general purpose, fast',
+    max_tokens: 8192,
+    temperature: 0.3,
+    estimated_speed: '40-80 TPS',
   },
 };
 
@@ -115,39 +123,39 @@ const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   },
   test: {
     task_type: 'test',
-    primary: MODELS.workers_llama70b,
-    fallback: MODELS.ollama_qwen_coder,
-    reasoning: 'Test generation is structured. 70B on Workers AI is fast enough.',
+    primary: MODELS.ollama_qwen_coder,
+    fallback: MODELS.workers_llama70b,
+    reasoning: 'Test generation via Qwen3-Coder on Ollama Cloud. Workers AI 70B fallback.',
   },
   review: {
     task_type: 'review',
-    primary: MODELS.workers_r1_32b,
-    fallback: MODELS.ollama_deepseek_r1,
-    reasoning: 'Review needs reasoning. Workers R1 is fast for this.',
+    primary: MODELS.ollama_deepseek_r1,
+    fallback: MODELS.workers_r1_32b,
+    reasoning: 'Review needs reasoning. DeepSeek V3.2 on Ollama primary, Workers R1 fallback.',
   },
   explain: {
     task_type: 'explain',
-    primary: MODELS.workers_glm_flash,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'Explanations are simple text tasks. Use the fastest model.',
+    primary: MODELS.ollama_gpt_oss,
+    fallback: MODELS.workers_glm_flash,
+    reasoning: 'Explanations via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
   },
   chat: {
     task_type: 'chat',
-    primary: MODELS.workers_glm_flash,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'General chat is simple. Use the fastest model.',
+    primary: MODELS.ollama_gpt_oss,
+    fallback: MODELS.workers_glm_flash,
+    reasoning: 'General chat via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
   },
   seed_data: {
     task_type: 'seed_data',
-    primary: MODELS.workers_glm_flash,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'Seed data generation is templated. Fast model is sufficient.',
+    primary: MODELS.ollama_gpt_oss,
+    fallback: MODELS.workers_glm_flash,
+    reasoning: 'Seed data via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
   },
   document: {
     task_type: 'document',
-    primary: MODELS.workers_glm_flash,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'Documentation is structured text. Fast model handles it well.',
+    primary: MODELS.ollama_gpt_oss,
+    fallback: MODELS.workers_glm_flash,
+    reasoning: 'Documentation via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
   },
 };
 
@@ -341,10 +349,10 @@ interface OllamaCloudResult {
 }
 
 async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig): Promise<LLMResponse> {
-  const OLLAMA_URL = env.OLLAMA_URL || 'https://api.pawan.krd/cosmosrp/v1';
+  const OLLAMA_URL = env.OLLAMA_URL || 'https://ollama.com';
   const OLLAMA_KEY = env.OLLAMA_API_KEY;
 
-  const isOpenAICompatible = OLLAMA_URL.includes('/v1') || OLLAMA_URL.includes('openai') || OLLAMA_URL.includes('pawan');
+  const isOpenAICompatible = OLLAMA_URL.includes('/v1') || OLLAMA_URL.includes('openai');
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (OLLAMA_KEY) {
