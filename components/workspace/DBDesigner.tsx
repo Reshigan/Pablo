@@ -1,0 +1,211 @@
+'use client';
+
+import {
+  Database,
+  Table2,
+  Key,
+  Link2,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+} from 'lucide-react';
+import { useState, useCallback } from 'react';
+
+interface Column {
+  name: string;
+  type: string;
+  primaryKey: boolean;
+  nullable: boolean;
+  defaultValue?: string;
+  foreignKey?: { table: string; column: string };
+}
+
+interface TableSchema {
+  name: string;
+  columns: Column[];
+}
+
+const DEMO_TABLES: TableSchema[] = [
+  {
+    name: 'users',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'email', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'name', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'role', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'user'" },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+    ],
+  },
+  {
+    name: 'projects',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'name', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'owner_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'users', column: 'id' } },
+      { name: 'status', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'active'" },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+    ],
+  },
+  {
+    name: 'tasks',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'title', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'project_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'projects', column: 'id' } },
+      { name: 'assignee_id', type: 'TEXT', primaryKey: false, nullable: true, foreignKey: { table: 'users', column: 'id' } },
+      { name: 'priority', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
+      { name: 'completed', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
+    ],
+  },
+];
+
+function TableCard({ table, isSelected, onClick }: { table: TableSchema; isSelected: boolean; onClick: () => void }) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div
+      className={`rounded-lg border transition-colors ${
+        isSelected ? 'border-pablo-gold/50 bg-pablo-gold/5' : 'border-pablo-border bg-pablo-panel'
+      }`}
+    >
+      {/* Table header */}
+      <button
+        onClick={() => {
+          onClick();
+          setExpanded(!expanded);
+        }}
+        className="flex w-full items-center gap-2 px-3 py-2 text-left"
+      >
+        {expanded ? (
+          <ChevronDown size={12} className="shrink-0 text-pablo-text-muted" />
+        ) : (
+          <ChevronRight size={12} className="shrink-0 text-pablo-text-muted" />
+        )}
+        <Table2 size={14} className="shrink-0 text-pablo-gold" />
+        <span className="font-code text-xs font-medium text-pablo-text">{table.name}</span>
+        <span className="ml-auto font-code text-[10px] text-pablo-text-muted">
+          {table.columns.length} cols
+        </span>
+      </button>
+
+      {/* Columns */}
+      {expanded && (
+        <div className="border-t border-pablo-border">
+          {table.columns.map((col) => (
+            <div
+              key={col.name}
+              className="flex items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-pablo-hover"
+            >
+              {col.primaryKey ? (
+                <Key size={10} className="shrink-0 text-pablo-gold" />
+              ) : col.foreignKey ? (
+                <Link2 size={10} className="shrink-0 text-pablo-blue" />
+              ) : (
+                <span className="w-2.5 shrink-0" />
+              )}
+              <span className="font-code text-[11px] text-pablo-text-dim">{col.name}</span>
+              <span className="ml-auto font-code text-[10px] text-pablo-text-muted">{col.type}</span>
+              {col.nullable && (
+                <span className="font-code text-[9px] text-pablo-orange">NULL</span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function DBDesigner() {
+  const [tables] = useState<TableSchema[]>(DEMO_TABLES);
+  const [selectedTable, setSelectedTable] = useState<string | null>(null);
+  const [showSQL, setShowSQL] = useState(false);
+
+  const generateSQL = useCallback(() => {
+    return tables
+      .map((table) => {
+        const cols = table.columns
+          .map((col) => {
+            let def = `  ${col.name} ${col.type}`;
+            if (col.primaryKey) def += ' PRIMARY KEY';
+            if (!col.nullable) def += ' NOT NULL';
+            if (col.defaultValue) def += ` DEFAULT ${col.defaultValue}`;
+            return def;
+          })
+          .join(',\n');
+
+        const fks = table.columns
+          .filter((c) => c.foreignKey)
+          .map((c) => `  FOREIGN KEY (${c.name}) REFERENCES ${c.foreignKey?.table}(${c.foreignKey?.column})`)
+          .join(',\n');
+
+        const allDefs = fks ? `${cols},\n${fks}` : cols;
+        return `CREATE TABLE ${table.name} (\n${allDefs}\n);`;
+      })
+      .join('\n\n');
+  }, [tables]);
+
+  if (tables.length === 0) {
+    return (
+      <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-pablo-bg text-center">
+        <Database size={40} className="text-pablo-text-muted" />
+        <p className="font-ui text-sm text-pablo-text-dim">Database Designer</p>
+        <p className="font-ui text-xs text-pablo-text-muted">
+          Design your schema visually. Tables will appear here.
+        </p>
+        <button className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim">
+          <Plus size={12} className="mr-1 inline" />
+          Add Table
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden bg-pablo-bg">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 border-b border-pablo-border bg-pablo-panel px-3 py-1.5">
+        <Database size={14} className="text-pablo-gold" />
+        <span className="font-ui text-xs text-pablo-text-dim">
+          {tables.length} table{tables.length !== 1 ? 's' : ''}
+        </span>
+        <div className="ml-auto flex items-center gap-1">
+          <button
+            onClick={() => setShowSQL(!showSQL)}
+            className={`rounded px-2 py-0.5 font-ui text-[10px] transition-colors ${
+              showSQL ? 'bg-pablo-gold/20 text-pablo-gold' : 'text-pablo-text-muted hover:bg-pablo-hover'
+            }`}
+          >
+            SQL
+          </button>
+          <button className="flex h-5 items-center gap-1 rounded bg-pablo-gold/10 px-2 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20">
+            <Plus size={10} />
+            Table
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Table list */}
+        <div className="flex w-full flex-col gap-2 overflow-y-auto p-3">
+          {showSQL ? (
+            <pre className="whitespace-pre-wrap rounded-lg border border-pablo-border bg-pablo-panel p-3 font-code text-[11px] text-pablo-text-dim leading-relaxed">
+              {generateSQL()}
+            </pre>
+          ) : (
+            tables.map((table) => (
+              <TableCard
+                key={table.name}
+                table={table}
+                isSelected={selectedTable === table.name}
+                onClick={() => setSelectedTable(table.name === selectedTable ? null : table.name)}
+              />
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
