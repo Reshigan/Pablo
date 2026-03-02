@@ -9,6 +9,9 @@
     "binding": "ASSETS"
   },
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "OLLAMA_URL": "https://api.pawan.krd/cosmosrp/v1",
+    "GITHUB_CLIENT_ID": "Ov23liug5kR3fkNrlxXd",
+    "NEXTAUTH_URL": "https://pablo.vantax.co.za"
   }
 }
