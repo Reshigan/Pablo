@@ -8,6 +8,7 @@ import { DiffViewer } from './DiffViewer';
 import { DBDesigner } from './DBDesigner';
 import { APITester } from './APITester';
 import { LivePreview } from './LivePreview';
+import { PipelineView } from '@/components/pipeline/PipelineView';
 import { useUIStore } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
 
@@ -42,6 +43,7 @@ export function WorkspaceArea() {
     'db-designer': DBDesigner,
     'api-tester': APITester,
     preview: LivePreview,
+    pipeline: PipelineView,
   };
 
   const ActivePanel = panels[activeWorkspaceTab];

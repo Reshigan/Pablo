@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 
 export type SidebarTab = 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp';
-export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview';
+export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline';
 
 interface UIState {
   // Sidebar
