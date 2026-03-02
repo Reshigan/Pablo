@@ -12,9 +12,6 @@ import {
   ChevronDown,
   ChevronRight,
   StopCircle,
-  Pause,
-  SkipForwardIcon,
-  Edit3,
 } from 'lucide-react';
 import { useState, useCallback, useRef } from 'react';
 import {

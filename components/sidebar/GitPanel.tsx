@@ -67,7 +67,7 @@ export function GitPanel() {
 
   const handleCommitAndPush = useCallback(async () => {
     if (!selectedRepo || !commitMessage.trim()) return;
-    const filesToCommit = tabs.filter((t) => t.content && t.path);
+    const filesToCommit = tabs.filter((t) => t.isDirty && t.content && t.path);
     if (filesToCommit.length === 0) {
       toast('No files to commit', 'Open some files first.');
       return;
@@ -247,7 +247,7 @@ export function GitPanel() {
         {showCommitForm && (
           <div className="border-t border-pablo-border/50 px-3 py-2">
             <p className="mb-1.5 font-ui text-[10px] text-pablo-text-muted">
-              {tabs.filter(t => t.content && t.path).length} file(s) will be committed to <span className="text-pablo-gold">{selectedBranch}</span>
+              {dirtyTabs.length} file(s) will be committed to <span className="text-pablo-gold">{selectedBranch}</span>
             </p>
             <input
               type="text"
