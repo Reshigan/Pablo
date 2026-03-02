@@ -4,6 +4,8 @@ import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRo
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
 import { buildSystemPrompt } from '@/lib/domain-kb/loader';
 import { getDB } from '@/lib/db/drizzle';
+import { buildContext, patternSource, fileSource, conversationSource, domainKBSource } from '@/lib/context-builder';
+import { getRelevantKnowledge } from '@/lib/domain-kb/loader';
 
 // Master system prompt (inlined to avoid fs reads in Workers)
 const MASTER_PROMPT_RAW = `You are Pablo, an AI software engineer built by GONXT (a division of Vanta X, South Africa). You build production-ready, enterprise-grade software with a specialisation in South African business systems.
@@ -494,8 +496,19 @@ async function handleSmartChat(
     } catch { /* non-blocking */ }
   }
 
+  // Build enriched context via context-builder with token budgeting
+  const relevantKB = getRelevantKnowledge(userMessage);
+  const contextSources = [
+    conversationSource(messages, 10),
+    ...openFiles.map(f => fileSource(f.path, f.content, 0.8)),
+    patternSource(patterns),
+    domainKBSource(relevantKB.map(e => ({ domain: e.category, key: e.title, value: e.content }))),
+  ].filter(s => s.tokenEstimate > 0);
+  const enrichedContext = buildContext(contextSources, { maxTokens: 4096 });
+
   // Build system prompt with domain knowledge + patterns + codebase context
-  const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW, patterns, openFiles);
+  const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW, patterns, openFiles)
+    + (enrichedContext ? `\n\n## ENRICHED CONTEXT\n${enrichedContext}` : '');
 
   // Replace the system message with our enhanced prompt
   const enhancedMessages = [

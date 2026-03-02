@@ -24,6 +24,7 @@ import {
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
 import { useToastStore } from '@/stores/toast';
+import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
 import { getDB } from '@/lib/db/drizzle';
@@ -361,7 +362,8 @@ export function PipelineView() {
         completeRun(runId, anyCompleted ? 'completed' : 'failed');
         if (anyCompleted) useMetricsStore.getState().incrementFeatures();
 
-        // AI → Editor bridge: parse generated files from all stage outputs and open as tabs
+        // AI → Editor bridge: parse generated files from all stage outputs
+        // Creates diffs for review (accept/reject) instead of directly opening
         const completedRun = usePipelineStore.getState().runs.find(r => r.id === runId);
         if (completedRun) {
           const allOutput = completedRun.stages
@@ -371,21 +373,67 @@ export function PipelineView() {
           const parsedFiles = parseGeneratedFiles(allOutput);
           if (parsedFiles.length > 0) {
             const editorStore = useEditorStore.getState();
+
+            // Create diffs for each generated file (AI-Apply Diff system)
             for (const file of parsedFiles) {
-              editorStore.openFile({
-                id: generateId('pipe'),
-                path: file.filename,
-                name: file.filename.split('/').pop() || file.filename,
+              const fileId = generateId('diff');
+              const existingTab = editorStore.tabs.find(t => t.path === file.filename);
+              editorStore.addDiff({
+                fileId,
+                filename: file.filename,
                 language: file.language,
-                content: file.content,
+                oldContent: existingTab?.content ?? '',
+                newContent: file.content,
               });
             }
+
             useToastStore.getState().addToast({
               type: 'success',
               title: 'Pipeline Complete',
-              message: `${parsedFiles.length} file(s) generated and opened in editor`,
-              duration: 4000,
+              message: `${parsedFiles.length} file(s) ready for review in Diff tab`,
+              duration: 5000,
             });
+
+            // Auto-capture patterns from generated code (Self-Learning)
+            try {
+              const learningStore = useLearningStore.getState();
+              for (const file of parsedFiles) {
+                const baseTags = [file.language, 'pipeline-generated'];
+                // Extract architecture patterns from generated code
+                if (file.filename.includes('api/') || file.filename.includes('route')) {
+                  learningStore.addPattern({
+                    type: 'architecture',
+                    trigger: `API route: ${file.filename}`,
+                    action: `Generated ${file.language} API route with ${file.content.split('\n').length} lines`,
+                    confidence: 0.6,
+                    tags: [...baseTags, 'api'],
+                    context: description,
+                  });
+                }
+                if (file.filename.includes('schema') || file.filename.includes('migration') || file.filename.includes('.sql')) {
+                  learningStore.addPattern({
+                    type: 'code_pattern',
+                    trigger: `DB schema: ${file.filename}`,
+                    action: `Generated ${file.language} database schema`,
+                    confidence: 0.6,
+                    tags: [...baseTags, 'database'],
+                    context: description,
+                  });
+                }
+                if (file.filename.includes('test') || file.filename.includes('spec')) {
+                  learningStore.addPattern({
+                    type: 'code_pattern',
+                    trigger: `Test: ${file.filename}`,
+                    action: `Generated test file in ${file.language}`,
+                    confidence: 0.6,
+                    tags: [...baseTags, 'tests'],
+                    context: description,
+                  });
+                }
+              }
+            } catch {
+              // Non-blocking
+            }
           }
 
           // Persist pipeline run to DB
