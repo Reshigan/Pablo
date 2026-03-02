@@ -11,10 +11,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "OLLAMA_URL": "https://api.pawan.krd/cosmosrp/v1",
-    "OLLAMA_API_KEY": "10de1d281ad64799ac449d3f8cdd5e9a._zdjtz8A7Zh39ckMT85uvVdB",
     "GITHUB_CLIENT_ID": "Ov23liug5kR3fkNrlxXd",
-    "GITHUB_CLIENT_SECRET": "a3ee03dd96f9174a7ddacaa0c7cf7bf99ae52018",
-    "AUTH_SECRET": "6vuD7RmLIa6y63YWAKns0axRlwcp89fXf0t0cvw+Q30=",
     "NEXTAUTH_URL": "https://pablo.vantax.co.za"
   }
 }
