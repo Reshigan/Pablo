@@ -31,8 +31,8 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Build Next.js
-        run: npm run build
+      - name: Build with OpenNext (Cloudflare)
+        run: npx @opennextjs/cloudflare build
         env:
           GITHUB_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
           GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
