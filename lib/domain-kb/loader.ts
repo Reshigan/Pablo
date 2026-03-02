@@ -107,9 +107,9 @@ export function buildSystemPrompt(userMessage: string, basePrompt: string): stri
 
   // Replace placeholders in base prompt
   let prompt = basePrompt;
-  prompt = prompt.replace('{domain_knowledge}', formattedKB);
-  prompt = prompt.replace('{patterns}', ''); // Will be populated from learned patterns later
-  prompt = prompt.replace('{codebase_context}', ''); // Will be populated from file context later
+  prompt = prompt.replace('{domain_knowledge}', () => formattedKB);
+  prompt = prompt.replace('{patterns}', () => ''); // Will be populated from learned patterns later
+  prompt = prompt.replace('{codebase_context}', () => ''); // Will be populated from file context later
 
   return prompt;
 }

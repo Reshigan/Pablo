@@ -224,7 +224,7 @@ export function extractFiles(content: string, stepName: string): ParsedFile[] {
   const files: ParsedFile[] = [];
 
   // Try to match ```filename.ext\n...``` or ```python\n...```
-  const codeBlockRegex = /```(?:python|sql|typescript|javascript|json)?\s*\n([\s\S]*?)```/g;
+  const codeBlockRegex = /```[a-zA-Z0-9_]*\s*\n([\s\S]*?)```/g;
   const fileHeaderRegex = /(?:#+\s*)?(?:File:\s*|Filename:\s*)?([a-zA-Z0-9_\-/.]+\.(?:py|ts|js|sql|json))/gi;
 
   let match: RegExpExecArray | null;
@@ -339,7 +339,7 @@ export async function generateFeature(
     for (const dep of step.depends_on) {
       const depResult = stepResults[dep];
       if (depResult) {
-        prompt = prompt.replace(`{step_${dep}}`, depResult.content);
+        prompt = prompt.replace(`{step_${dep}}`, () => depResult.content);
       }
     }
 
