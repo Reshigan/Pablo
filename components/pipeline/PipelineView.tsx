@@ -13,7 +13,7 @@ import {
   ChevronRight,
   StopCircle,
 } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   usePipelineStore,
   PIPELINE_STAGES,
@@ -21,6 +21,7 @@ import {
   type StageStatus,
   type PipelineRun,
 } from '@/stores/pipeline';
+import { useMetricsStore } from '@/stores/metrics';
 
 const STATUS_ICONS: Record<StageStatus, typeof Circle> = {
   pending: Circle,
@@ -189,15 +190,129 @@ function RunCard({ run }: { run: PipelineRun }) {
   );
 }
 
-export function PipelineView() {
-  const { runs, startRun } = usePipelineStore();
-  const [featureInput, setFeatureInput] = useState('');
+async function runStageWithChat(
+  featureDescription: string,
+  stage: { id: PipelineStage; label: string; description: string; model: string },
+  previousOutputs: string[],
+  abortSignal: AbortSignal,
+): Promise<{ output: string; tokens: number }> {
+  const prompt = [
+    `You are building: ${featureDescription}`,
+    `Current stage: ${stage.label} — ${stage.description}`,
+    previousOutputs.length > 0 ? `\nPrevious stage outputs:\n${previousOutputs.join('\n---\n')}` : '',
+    `\nGenerate the ${stage.label.toLowerCase()} code/output for this feature. Be concise and production-ready.`,
+  ].join('\n');
 
-  const handleStart = useCallback(() => {
-    if (!featureInput.trim()) return;
-    startRun(featureInput.trim());
+  const response = await fetch('/api/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }),
+    signal: abortSignal,
+  });
+
+  if (!response.ok) throw new Error(`Chat API error: ${response.status}`);
+  if (!response.body) throw new Error('No response body');
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let output = '';
+  let tokens = 0;
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') continue;
+      try {
+        const parsed = JSON.parse(payload) as { content?: string; tokens?: number };
+        if (parsed.content) output += parsed.content;
+        if (parsed.tokens) tokens = parsed.tokens;
+      } catch {
+        // skip unparseable
+      }
+    }
+  }
+
+  return { output: output || '(No output generated)', tokens };
+}
+
+export function PipelineView() {
+  const { runs, startRun, updateStage, advanceStage, completeRun } = usePipelineStore();
+  const [featureInput, setFeatureInput] = useState('');
+  const [isBuilding, setIsBuilding] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleStart = useCallback(async () => {
+    if (!featureInput.trim() || isBuilding) return;
+    const description = featureInput.trim();
+    const runId = startRun(description);
     setFeatureInput('');
-  }, [featureInput, startRun]);
+    setIsBuilding(true);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const previousOutputs: string[] = [];
+
+    try {
+      for (let i = 0; i < PIPELINE_STAGES.length; i++) {
+        if (controller.signal.aborted) break;
+        const stage = PIPELINE_STAGES[i];
+
+        if (i > 0) advanceStage(runId);
+        updateStage(runId, stage.id, { status: 'running', startedAt: Date.now() });
+
+        try {
+          const startTime = Date.now();
+          const result = await runStageWithChat(description, stage, previousOutputs, controller.signal);
+          const durationMs = Date.now() - startTime;
+
+          updateStage(runId, stage.id, {
+            status: 'completed',
+            output: result.output,
+            tokens: result.tokens,
+            durationMs,
+            model: stage.model,
+            completedAt: Date.now(),
+          });
+
+          useMetricsStore.getState().addTokens(result.tokens);
+          useMetricsStore.getState().recordRequest(true);
+          useMetricsStore.getState().recordModelCall(stage.model);
+          useMetricsStore.getState().recordPipelineStage(stage.id);
+
+          previousOutputs.push(`## ${stage.label}\n${result.output}`);
+        } catch (stageError) {
+          if (controller.signal.aborted) break;
+          updateStage(runId, stage.id, {
+            status: 'failed',
+            output: stageError instanceof Error ? stageError.message : 'Stage failed',
+            completedAt: Date.now(),
+          });
+          useMetricsStore.getState().recordRequest(false);
+          completeRun(runId, 'failed');
+          setIsBuilding(false);
+          abortRef.current = null;
+          return;
+        }
+      }
+
+      if (!controller.signal.aborted) {
+        completeRun(runId, 'completed');
+        useMetricsStore.getState().incrementFeatures();
+      }
+    } catch {
+      completeRun(runId, 'failed');
+    } finally {
+      setIsBuilding(false);
+      abortRef.current = null;
+    }
+  }, [featureInput, isBuilding, startRun, updateStage, advanceStage, completeRun]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -234,11 +349,11 @@ export function PipelineView() {
           />
           <button
             onClick={handleStart}
-            disabled={!featureInput.trim()}
+            disabled={!featureInput.trim() || isBuilding}
             className="flex h-8 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            <Play size={12} />
-            Build
+            {isBuilding ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+            {isBuilding ? 'Building...' : 'Build'}
           </button>
         </div>
         <div className="mt-1.5 flex items-center gap-2">

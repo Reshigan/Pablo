@@ -11,6 +11,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
+import { toastSuccess, toastError } from '@/stores/toast';
 
 interface Column {
   name: string;
@@ -60,12 +61,12 @@ const DEMO_TABLES: TableSchema[] = [
   },
 ];
 
-function TableCard({ table, isSelected, onClick }: { table: TableSchema; isSelected: boolean; onClick: () => void }) {
+function TableCard({ table, isSelected, onClick, onDelete }: { table: TableSchema; isSelected: boolean; onClick: () => void; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(true);
 
   return (
     <div
-      className={`rounded-lg border transition-colors ${
+      className={`group rounded-lg border transition-colors ${
         isSelected ? 'border-pablo-gold/50 bg-pablo-gold/5' : 'border-pablo-border bg-pablo-panel'
       }`}
     >
@@ -87,6 +88,13 @@ function TableCard({ table, isSelected, onClick }: { table: TableSchema; isSelec
         <span className="ml-auto font-code text-[10px] text-pablo-text-muted">
           {table.columns.length} cols
         </span>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="ml-1 flex h-4 w-4 items-center justify-center rounded text-pablo-text-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-pablo-red"
+          aria-label={`Delete ${table.name}`}
+        >
+          <Trash2 size={10} />
+        </button>
       </button>
 
       {/* Columns */}
@@ -118,9 +126,34 @@ function TableCard({ table, isSelected, onClick }: { table: TableSchema; isSelec
 }
 
 export function DBDesigner() {
-  const [tables] = useState<TableSchema[]>(DEMO_TABLES);
+  const [tables, setTables] = useState<TableSchema[]>(DEMO_TABLES);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [showSQL, setShowSQL] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newTableName, setNewTableName] = useState('');
+
+  const handleAddTable = useCallback(() => {
+    const name = newTableName.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (!name) { toastError('Invalid name', 'Table name cannot be empty'); return; }
+    if (tables.some((t) => t.name === name)) { toastError('Duplicate', `Table "${name}" already exists`); return; }
+    const newTable: TableSchema = {
+      name,
+      columns: [
+        { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+        { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+      ],
+    };
+    setTables((prev) => [...prev, newTable]);
+    setNewTableName('');
+    setShowAddForm(false);
+    toastSuccess('Table added', `"${name}" created with id and created_at columns`);
+  }, [newTableName, tables]);
+
+  const handleDeleteTable = useCallback((tableName: string) => {
+    setTables((prev) => prev.filter((t) => t.name !== tableName));
+    if (selectedTable === tableName) setSelectedTable(null);
+    toastSuccess('Table removed', `"${tableName}" deleted`);
+  }, [selectedTable]);
 
   const generateSQL = useCallback(() => {
     return tables
@@ -154,10 +187,28 @@ export function DBDesigner() {
         <p className="font-ui text-xs text-pablo-text-muted">
           Design your schema visually. Tables will appear here.
         </p>
-        <button className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim">
-          <Plus size={12} className="mr-1 inline" />
-          Add Table
-        </button>
+        {showAddForm ? (
+          <div className="flex flex-col gap-2 w-full max-w-[240px]">
+            <input
+              type="text"
+              value={newTableName}
+              onChange={(e) => setNewTableName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleAddTable(); }}
+              placeholder="Table name (e.g., orders)"
+              className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-code text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
+              autoFocus
+            />
+            <div className="flex gap-1">
+              <button onClick={handleAddTable} className="flex-1 rounded bg-pablo-gold py-1 font-ui text-[10px] font-medium text-pablo-bg hover:bg-pablo-gold-dim">Create</button>
+              <button onClick={() => { setShowAddForm(false); setNewTableName(''); }} className="flex-1 rounded bg-pablo-hover py-1 font-ui text-[10px] text-pablo-text-dim hover:bg-pablo-active">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <button onClick={() => setShowAddForm(true)} className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim">
+            <Plus size={12} className="mr-1 inline" />
+            Add Table
+          </button>
+        )}
       </div>
     );
   }
@@ -179,7 +230,10 @@ export function DBDesigner() {
           >
             SQL
           </button>
-          <button className="flex h-5 items-center gap-1 rounded bg-pablo-gold/10 px-2 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20">
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex h-5 items-center gap-1 rounded bg-pablo-gold/10 px-2 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+          >
             <Plus size={10} />
             Table
           </button>
@@ -201,6 +255,7 @@ export function DBDesigner() {
                 table={table}
                 isSelected={selectedTable === table.name}
                 onClick={() => setSelectedTable(table.name === selectedTable ? null : table.name)}
+                onDelete={() => handleDeleteTable(table.name)}
               />
             ))
           )}

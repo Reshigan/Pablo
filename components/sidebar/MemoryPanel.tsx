@@ -1,7 +1,7 @@
 'use client';
 
 import { Brain, Zap, TrendingUp, Clock, ChevronRight } from 'lucide-react';
-import { useState } from 'react';
+import { useLearningStore } from '@/stores/learning';
 
 interface PatternEntry {
   id: string;
@@ -21,12 +21,22 @@ const TYPE_STYLES: Record<string, { color: string; label: string }> = {
 };
 
 export function MemoryPanel() {
-  const [patterns] = useState<PatternEntry[]>([]);
-  const [stats] = useState({
-    totalPatterns: 0,
-    sessionsAnalyzed: 0,
-    avgConfidence: 0,
-  });
+  const { patterns: rawPatterns, totalPatterns, avgConfidence, sessionsAnalyzed } = useLearningStore();
+
+  const patterns: PatternEntry[] = rawPatterns.map((p) => ({
+    id: p.id,
+    type: p.type === 'preference' ? 'convention' : p.type,
+    trigger: p.trigger,
+    action: p.action,
+    confidence: p.confidence,
+    usageCount: p.usageCount,
+  }));
+
+  const stats = {
+    totalPatterns,
+    sessionsAnalyzed,
+    avgConfidence: Math.round(avgConfidence * 100),
+  };
 
   if (patterns.length === 0) {
     return (

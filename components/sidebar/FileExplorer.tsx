@@ -365,10 +365,20 @@ export function FileExplorer() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-end gap-1 border-b border-pablo-border px-2 py-1">
-        <button className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim" aria-label="New file">
+        <button
+          disabled
+          title="File creation via GitHub API is read-only. Use git push to add files."
+          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted opacity-40 cursor-not-allowed"
+          aria-label="New file (disabled)"
+        >
           <FilePlus size={14} />
         </button>
-        <button className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim" aria-label="New folder">
+        <button
+          disabled
+          title="Folder creation via GitHub API is read-only. Use git push to add folders."
+          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted opacity-40 cursor-not-allowed"
+          aria-label="New folder (disabled)"
+        >
           <FolderPlus size={14} />
         </button>
       </div>

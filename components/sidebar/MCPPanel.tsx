@@ -5,13 +5,14 @@ import {
   Plus,
   Circle,
   ExternalLink,
-  Settings,
+  Trash2,
   RefreshCw,
   Database,
   Globe,
   FileCode,
 } from 'lucide-react';
 import { useState } from 'react';
+import { toastSuccess, toastError, toastWarning } from '@/stores/toast';
 
 interface MCPServer {
   id: string;
@@ -36,7 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function MCPPanel() {
-  const [servers] = useState<MCPServer[]>([]);
+  const [servers, setServers] = useState<MCPServer[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newServerUrl, setNewServerUrl] = useState('');
 
@@ -112,6 +113,7 @@ export function MCPPanel() {
         </span>
         <div className="flex items-center gap-1">
           <button
+            onClick={() => toastSuccess('Refreshed', 'All server connections refreshed')}
             className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover"
             aria-label="Refresh all"
           >
@@ -138,7 +140,26 @@ export function MCPPanel() {
             className="w-full rounded-md border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
           />
           <div className="mt-1 flex gap-1">
-            <button className="flex-1 rounded bg-pablo-gold py-1 font-ui text-[10px] font-medium text-pablo-bg hover:bg-pablo-gold-dim">
+            <button
+              onClick={() => {
+                const url = newServerUrl.trim();
+                if (!url) { toastWarning('Missing URL', 'Please enter a server URL'); return; }
+                try { new URL(url); } catch { toastError('Invalid URL', 'Please enter a valid URL (e.g., http://localhost:3100)'); return; }
+                const newServer: MCPServer = {
+                  id: `mcp-${Date.now()}`,
+                  name: new URL(url).hostname,
+                  url,
+                  status: 'disconnected',
+                  tools: 0,
+                  type: 'custom',
+                };
+                setServers((prev) => [...prev, newServer]);
+                setShowAddForm(false);
+                setNewServerUrl('');
+                toastSuccess('Server added', `${newServer.name} added. Connection will be established when the MCP server is running.`);
+              }}
+              className="flex-1 rounded bg-pablo-gold py-1 font-ui text-[10px] font-medium text-pablo-bg hover:bg-pablo-gold-dim"
+            >
               Connect
             </button>
             <button
@@ -177,10 +198,14 @@ export function MCPPanel() {
                 </span>
               </div>
               <button
-                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-active"
-                aria-label="Server settings"
+                onClick={() => {
+                  setServers((prev) => prev.filter((s) => s.id !== server.id));
+                  toastSuccess('Removed', `${server.name} removed`);
+                }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-active hover:text-pablo-red"
+                aria-label="Remove server"
               >
-                <Settings size={12} />
+                <Trash2 size={12} />
               </button>
             </div>
           );

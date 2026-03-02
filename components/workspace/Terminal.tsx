@@ -68,7 +68,34 @@ export function TerminalPanel() {
     term.writeln('');
     term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
 
-    // Handle input (echo for now - will connect to Docker sandbox in Phase 6)
+    // Built-in commands for local terminal
+    const COMMANDS: Record<string, () => string> = {
+      help: () => [
+        '\x1b[1;38;2;212;168;67mAvailable Commands:\x1b[0m',
+        '  \x1b[38;2;96;165;250mhelp\x1b[0m       Show this help message',
+        '  \x1b[38;2;96;165;250mclear\x1b[0m      Clear the terminal',
+        '  \x1b[38;2;96;165;250mversion\x1b[0m    Show Pablo version info',
+        '  \x1b[38;2;96;165;250mmodels\x1b[0m     List available AI models',
+        '  \x1b[38;2;96;165;250mstatus\x1b[0m     Show session status',
+        '  \x1b[38;2;96;165;250mecho\x1b[0m       Echo text back',
+        '',
+        '\x1b[38;2;100;116;139m  Tip: Full shell access requires a Docker sandbox connection.\x1b[0m',
+      ].join('\r\n'),
+      version: () => '\x1b[38;2;212;168;67mPablo IDE\x1b[0m v5.0 — AI-Powered Development Environment',
+      models: () => [
+        '\x1b[1;38;2;212;168;67mConfigured Models:\x1b[0m',
+        '  \x1b[38;2;167;139;250m●\x1b[0m deepseek-v3.2    \x1b[38;2;100;116;139m(reasoning & planning)\x1b[0m',
+        '  \x1b[38;2;59;130;246m●\x1b[0m qwen3-coder:480b \x1b[38;2;100;116;139m(code generation)\x1b[0m',
+        '  \x1b[38;2;34;197;94m●\x1b[0m gpt-oss:120b     \x1b[38;2;100;116;139m(chat & docs)\x1b[0m',
+      ].join('\r\n'),
+      status: () => [
+        '\x1b[1;38;2;212;168;67mSession Status:\x1b[0m',
+        `  Runtime:  \x1b[38;2;212;168;67m${Math.floor((Date.now() - performance.timeOrigin) / 60000)}m\x1b[0m`,
+        '  Backend:  \x1b[38;2;34;197;94mOllama Cloud\x1b[0m',
+        '  Terminal: \x1b[38;2;100;116;139mLocal (no sandbox)\x1b[0m',
+      ].join('\r\n'),
+    };
+
     let currentLine = '';
     term.onData((data) => {
       const code = data.charCodeAt(0);
@@ -76,8 +103,16 @@ export function TerminalPanel() {
       if (code === 13) {
         // Enter
         term.writeln('');
-        if (currentLine.trim()) {
-          term.writeln(`\x1b[38;2;100;116;139m  Command will execute in Docker sandbox (Phase 6)\x1b[0m`);
+        const trimmed = currentLine.trim();
+        if (trimmed === 'clear') {
+          term.clear();
+        } else if (trimmed.startsWith('echo ')) {
+          term.writeln(trimmed.slice(5));
+        } else if (trimmed in COMMANDS) {
+          term.writeln(COMMANDS[trimmed]());
+        } else if (trimmed) {
+          term.writeln(`\x1b[38;2;239;68;68mpablo:\x1b[0m command not found: ${trimmed}`);
+          term.writeln('\x1b[38;2;100;116;139m  Type "help" for available commands\x1b[0m');
         }
         term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
         currentLine = '';
