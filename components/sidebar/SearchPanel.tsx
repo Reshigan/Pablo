@@ -1,7 +1,10 @@
 'use client';
 
-import { Search, Filter, Replace, ChevronDown, ChevronRight, File } from 'lucide-react';
+import { Search, Filter, Replace, ChevronDown, ChevronRight, File, Loader2 } from 'lucide-react';
 import { useState, useCallback } from 'react';
+import { useRepoStore } from '@/stores/repo';
+import { useEditorStore } from '@/stores/editor';
+import { toast } from '@/stores/toast';
 
 interface SearchResult {
   file: string;
@@ -9,6 +12,16 @@ interface SearchResult {
   content: string;
   matchStart: number;
   matchEnd: number;
+}
+
+interface GitHubSearchItem {
+  name: string;
+  path: string;
+  html_url: string;
+  text_matches?: Array<{
+    fragment: string;
+    matches: Array<{ text: string; indices: [number, number] }>;
+  }>;
 }
 
 export function SearchPanel() {
@@ -20,21 +33,78 @@ export function SearchPanel() {
   const [useRegex, setUseRegex] = useState(false);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
+  const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = useCallback(() => {
+  const selectedRepo = useRepoStore((s) => s.selectedRepo);
+  const openFile = useEditorStore((s) => s.openFile);
+
+  const handleSearch = useCallback(async () => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
-    // Demo search results
-    const demoResults: SearchResult[] = [
-      { file: '/src/app/page.tsx', line: 5, content: `import { ${query} } from './lib'`, matchStart: 10, matchEnd: 10 + query.length },
-      { file: '/src/app/page.tsx', line: 12, content: `const result = ${query}()`, matchStart: 16, matchEnd: 16 + query.length },
-      { file: '/src/lib/utils.ts', line: 3, content: `export function ${query}() {`, matchStart: 17, matchEnd: 17 + query.length },
-    ];
-    setResults(demoResults);
-    setExpandedFiles(new Set(demoResults.map((r) => r.file)));
-  }, [query]);
+
+    if (!selectedRepo) {
+      toast('Select a repository first', 'Open a repo from the file explorer to search its files.');
+      return;
+    }
+
+    setIsSearching(true);
+    setHasSearched(true);
+
+    try {
+      const searchQuery = `${query} repo:${selectedRepo.full_name}`;
+      const response = await fetch(
+        `/api/github/search?q=${encodeURIComponent(searchQuery)}`
+      );
+
+      if (!response.ok) {
+        throw new Error(`Search failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { items: GitHubSearchItem[] };
+      const searchResults: SearchResult[] = [];
+
+      for (const item of data.items ?? []) {
+        if (item.text_matches && item.text_matches.length > 0) {
+          for (const match of item.text_matches) {
+            const lines = match.fragment.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+              const lowerLine = caseSensitive ? lines[i] : lines[i].toLowerCase();
+              const lowerQuery = caseSensitive ? query : query.toLowerCase();
+              const matchIdx = lowerLine.indexOf(lowerQuery);
+              if (matchIdx >= 0) {
+                searchResults.push({
+                  file: item.path,
+                  line: i + 1,
+                  content: lines[i].trim(),
+                  matchStart: matchIdx,
+                  matchEnd: matchIdx + query.length,
+                });
+              }
+            }
+          }
+        } else {
+          searchResults.push({
+            file: item.path,
+            line: 1,
+            content: item.name,
+            matchStart: 0,
+            matchEnd: item.name.length,
+          });
+        }
+      }
+
+      setResults(searchResults);
+      setExpandedFiles(new Set(searchResults.map((r) => r.file)));
+    } catch {
+      toast('Search failed', 'Could not search the repository. Try again.');
+      setResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [query, selectedRepo, caseSensitive]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -43,6 +113,25 @@ export function SearchPanel() {
       }
     },
     [handleSearch]
+  );
+
+  const handleResultClick = useCallback(
+    (result: SearchResult) => {
+      if (!selectedRepo) return;
+      const ext = result.file.split('.').pop()?.toLowerCase() ?? '';
+      const langMap: Record<string, string> = {
+        ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
+        json: 'json', md: 'markdown', css: 'css', py: 'python', rs: 'rust', go: 'go',
+      };
+      openFile({
+        id: `${selectedRepo.full_name}:${result.file}`,
+        path: result.file,
+        name: result.file.split('/').pop() ?? result.file,
+        language: langMap[ext] ?? 'plaintext',
+        content: `// Loading ${result.file}...`,
+      });
+    },
+    [selectedRepo, openFile]
   );
 
   const toggleFile = useCallback((file: string) => {
@@ -123,9 +212,14 @@ export function SearchPanel() {
           </button>
           <button
             onClick={handleSearch}
-            className="ml-auto flex h-5 items-center rounded bg-pablo-gold/10 px-2 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+            disabled={isSearching || !query.trim()}
+            className="ml-auto flex h-5 items-center rounded bg-pablo-gold/10 px-2 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20 disabled:opacity-30"
           >
-            <Filter size={10} className="mr-1" />
+            {isSearching ? (
+              <Loader2 size={10} className="mr-1 animate-spin" />
+            ) : (
+              <Filter size={10} className="mr-1" />
+            )}
             Search
           </button>
         </div>
@@ -163,6 +257,7 @@ export function SearchPanel() {
               fileResults.map((r, i) => (
                 <button
                   key={`${file}-${r.line}-${i}`}
+                  onClick={() => handleResultClick(r)}
                   className="flex w-full items-center gap-2 px-6 py-0.5 text-left transition-colors hover:bg-pablo-hover"
                 >
                   <span className="shrink-0 font-code text-[10px] text-pablo-text-muted">{r.line}</span>
@@ -173,8 +268,18 @@ export function SearchPanel() {
         ))}
       </div>
 
+      {/* Loading state */}
+      {isSearching && (
+        <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
+          <Loader2 size={24} className="animate-spin text-pablo-gold" />
+          <p className="font-ui text-xs text-pablo-text-muted">
+            Searching repository...
+          </p>
+        </div>
+      )}
+
       {/* Empty state */}
-      {results.length === 0 && query && (
+      {results.length === 0 && hasSearched && !isSearching && (
         <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
           <Search size={24} className="text-pablo-text-muted" />
           <p className="font-ui text-xs text-pablo-text-muted">
@@ -183,11 +288,11 @@ export function SearchPanel() {
         </div>
       )}
 
-      {results.length === 0 && !query && (
+      {results.length === 0 && !hasSearched && !isSearching && (
         <div className="flex flex-col items-center gap-2 px-4 py-6 text-center">
           <Search size={24} className="text-pablo-text-muted" />
           <p className="font-ui text-xs text-pablo-text-muted">
-            Search across your codebase
+            {selectedRepo ? 'Search across your codebase' : 'Select a repo to search'}
           </p>
         </div>
       )}

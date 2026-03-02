@@ -1,8 +1,32 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Settings, Cpu, Palette, Keyboard, Database, Globe } from 'lucide-react';
 import { useUIStore } from '@/stores/ui';
+import { toastSuccess } from '@/stores/toast';
+
+function usePersistedSetting<T>(key: string, defaultValue: T): [T, (value: T) => void] {
+  const [value, setValue] = useState<T>(() => {
+    if (typeof window === 'undefined') return defaultValue;
+    try {
+      const stored = localStorage.getItem(`pablo-settings-${key}`);
+      return stored ? (JSON.parse(stored) as T) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  });
+
+  const setPersisted = useCallback((newValue: T) => {
+    setValue(newValue);
+    try {
+      localStorage.setItem(`pablo-settings-${key}`, JSON.stringify(newValue));
+    } catch {
+      // Ignore localStorage errors
+    }
+  }, [key]);
+
+  return [value, setPersisted];
+}
 
 type SettingsTab = 'general' | 'models' | 'appearance' | 'shortcuts' | 'database' | 'integrations';
 
@@ -16,13 +40,21 @@ const SETTINGS_TABS: Array<{ id: SettingsTab; label: string; icon: typeof Settin
 ];
 
 function GeneralSettings() {
+  const [autoSave, setAutoSave] = usePersistedSetting('autoSave', 'After 1 second delay');
+  const [shell, setShell] = usePersistedSetting('shell', '/bin/bash');
+  const [telemetry, setTelemetry] = usePersistedSetting('telemetry', false);
+
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-ui text-sm font-semibold text-pablo-text">General Settings</h3>
 
       <div className="flex flex-col gap-1">
         <label className="font-ui text-xs text-pablo-text-dim">Auto-Save</label>
-        <select className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50">
+        <select
+          value={autoSave}
+          onChange={(e) => { setAutoSave(e.target.value); toastSuccess('Setting saved', 'Auto-save preference updated'); }}
+          className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
+        >
           <option>After 1 second delay</option>
           <option>After 3 second delay</option>
           <option>On focus change</option>
@@ -32,7 +64,11 @@ function GeneralSettings() {
 
       <div className="flex flex-col gap-1">
         <label className="font-ui text-xs text-pablo-text-dim">Terminal Shell</label>
-        <select className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50">
+        <select
+          value={shell}
+          onChange={(e) => { setShell(e.target.value); toastSuccess('Setting saved', 'Shell preference updated'); }}
+          className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
+        >
           <option>/bin/bash</option>
           <option>/bin/zsh</option>
           <option>/bin/sh</option>
@@ -44,15 +80,22 @@ function GeneralSettings() {
           <p className="font-ui text-xs text-pablo-text-dim">Telemetry</p>
           <p className="font-ui text-[10px] text-pablo-text-muted">Share anonymous usage data</p>
         </div>
-        <div className="relative h-5 w-9 cursor-pointer rounded-full bg-pablo-border transition-colors">
-          <div className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-pablo-text-muted transition-transform" />
-        </div>
+        <button
+          onClick={() => { setTelemetry(!telemetry); toastSuccess('Setting saved', `Telemetry ${!telemetry ? 'enabled' : 'disabled'}`); }}
+          className={`relative h-5 w-9 rounded-full transition-colors ${telemetry ? 'bg-pablo-gold' : 'bg-pablo-border'}`}
+        >
+          <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${telemetry ? 'left-[18px]' : 'left-0.5'}`} />
+        </button>
       </div>
     </div>
   );
 }
 
 function ModelSettings() {
+  const [reasoningTemp, setReasoningTemp] = usePersistedSetting('reasoningTemp', 70);
+  const [codeTemp, setCodeTemp] = usePersistedSetting('codeTemp', 30);
+  const [ollamaEndpoint, setOllamaEndpoint] = usePersistedSetting('ollamaEndpoint', 'http://localhost:11434');
+
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-ui text-sm font-semibold text-pablo-text">AI Model Configuration</h3>
@@ -60,7 +103,7 @@ function ModelSettings() {
       <div className="rounded-lg border border-pablo-border bg-pablo-active p-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-ui text-xs font-medium text-pablo-text">DeepSeek-R1</p>
+            <p className="font-ui text-xs font-medium text-pablo-text">DeepSeek-V3.2</p>
             <p className="font-ui text-[10px] text-pablo-text-muted">Reasoning &amp; Planning</p>
           </div>
           <span className="rounded-full bg-pablo-green/20 px-2 py-0.5 font-code text-[10px] text-pablo-green">Active</span>
@@ -71,12 +114,13 @@ function ModelSettings() {
             type="range"
             min="0"
             max="100"
-            defaultValue="70"
+            value={reasoningTemp}
+            onChange={(e) => setReasoningTemp(Number(e.target.value))}
             className="h-1 w-full accent-pablo-gold"
           />
           <div className="flex justify-between font-code text-[9px] text-pablo-text-muted">
             <span>0.0</span>
-            <span>0.7</span>
+            <span>{(reasoningTemp / 100).toFixed(1)}</span>
             <span>1.0</span>
           </div>
         </div>
@@ -85,7 +129,7 @@ function ModelSettings() {
       <div className="rounded-lg border border-pablo-border bg-pablo-active p-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-ui text-xs font-medium text-pablo-text">Qwen3-Coder-Next</p>
+            <p className="font-ui text-xs font-medium text-pablo-text">Qwen3-Coder:480B</p>
             <p className="font-ui text-[10px] text-pablo-text-muted">Code Generation</p>
           </div>
           <span className="rounded-full bg-pablo-green/20 px-2 py-0.5 font-code text-[10px] text-pablo-green">Active</span>
@@ -96,12 +140,13 @@ function ModelSettings() {
             type="range"
             min="0"
             max="100"
-            defaultValue="30"
+            value={codeTemp}
+            onChange={(e) => setCodeTemp(Number(e.target.value))}
             className="h-1 w-full accent-pablo-gold"
           />
           <div className="flex justify-between font-code text-[9px] text-pablo-text-muted">
             <span>0.0</span>
-            <span>0.3</span>
+            <span>{(codeTemp / 100).toFixed(1)}</span>
             <span>1.0</span>
           </div>
         </div>
@@ -111,7 +156,8 @@ function ModelSettings() {
         <label className="font-ui text-xs text-pablo-text-dim">Ollama Endpoint</label>
         <input
           type="text"
-          defaultValue="http://localhost:11434"
+          value={ollamaEndpoint}
+          onChange={(e) => setOllamaEndpoint(e.target.value)}
           className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-code text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
         />
       </div>
@@ -120,6 +166,8 @@ function ModelSettings() {
 }
 
 function AppearanceSettings() {
+  const [fontSize, setFontSize] = usePersistedSetting('fontSize', '13px (Default)');
+
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-ui text-sm font-semibold text-pablo-text">Appearance</h3>
@@ -140,7 +188,11 @@ function AppearanceSettings() {
 
       <div className="flex flex-col gap-1">
         <label className="font-ui text-xs text-pablo-text-dim">Font Size</label>
-        <select className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50">
+        <select
+          value={fontSize}
+          onChange={(e) => { setFontSize(e.target.value); toastSuccess('Setting saved', 'Font size updated'); }}
+          className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
+        >
           <option>12px</option>
           <option>13px (Default)</option>
           <option>14px</option>

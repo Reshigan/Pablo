@@ -1,6 +1,8 @@
 'use client';
 
 import { BarChart3, Clock, Zap, Code, ArrowUp, ArrowDown } from 'lucide-react';
+import { useMetricsStore } from '@/stores/metrics';
+import { useState, useEffect } from 'react';
 
 interface MetricItem {
   label: string;
@@ -50,88 +52,116 @@ function ProgressBar({ label, value, max, color }: { label: string; value: numbe
   );
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+function formatDuration(ms: number): string {
+  const totalSecs = Math.floor(ms / 1000);
+  const mins = Math.floor(totalSecs / 60);
+  const secs = totalSecs % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
 export function MetricsPanel() {
-  const hasData = false;
+  const {
+    totalTokens, featuresBuilt, totalRequests,
+    successfulRequests, failedRequests,
+    modelCalls, pipelineStagesCompleted,
+    getSessionDuration, getSuccessRate,
+  } = useMetricsStore();
 
-  if (!hasData) {
-    return (
-      <div className="flex flex-col">
-        {/* Quick stats */}
-        <div className="grid grid-cols-2 gap-1.5 p-2">
-          <MetricCard label="Total Tokens" value="0" unit="tokens" />
-          <MetricCard label="Features Built" value="0" unit="total" />
-          <MetricCard label="Avg. Time" value="—" unit="" />
-          <MetricCard label="Success Rate" value="—" unit="" />
-        </div>
+  const [duration, setDuration] = useState('00:00');
 
-        {/* Empty state */}
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDuration(formatDuration(getSessionDuration()));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [getSessionDuration]);
+
+  const successRate = getSuccessRate();
+  const hasData = totalRequests > 0;
+
+  return (
+    <div className="flex flex-col">
+      {/* Quick stats */}
+      <div className="grid grid-cols-2 gap-1.5 p-2">
+        <MetricCard label="Total Tokens" value={formatTokens(totalTokens)} unit="tokens" />
+        <MetricCard label="Features Built" value={String(featuresBuilt)} unit="total" />
+        <MetricCard label="Requests" value={String(totalRequests)} unit={`${successfulRequests} ok / ${failedRequests} fail`} />
+        <MetricCard label="Success Rate" value={hasData ? String(successRate) : '—'} unit={hasData ? '%' : ''} />
+      </div>
+
+      {!hasData && (
         <div className="flex flex-col items-center justify-center gap-3 px-4 py-6 text-center">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-pablo-gold/10">
             <BarChart3 size={24} className="text-pablo-gold" />
           </div>
-          <p className="font-ui text-xs font-medium text-pablo-text-dim">
-            Session Metrics
-          </p>
+          <p className="font-ui text-xs font-medium text-pablo-text-dim">Session Metrics</p>
           <p className="font-ui text-[11px] text-pablo-text-muted leading-relaxed">
             Track token usage, build times, and feature completion rates.
-            Metrics appear after your first feature pipeline run.
+            Metrics appear after your first chat or pipeline run.
           </p>
         </div>
+      )}
 
-        {/* Model usage */}
-        <div className="border-t border-pablo-border px-3 py-2">
-          <p className="mb-2 font-ui text-[10px] font-semibold uppercase tracking-wider text-pablo-text-muted">
-            Model Usage
-          </p>
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <Zap size={12} className="text-pablo-purple" />
-              <span className="font-ui text-xs text-pablo-text-dim">DeepSeek-R1</span>
-              <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Code size={12} className="text-pablo-blue" />
-              <span className="font-ui text-xs text-pablo-text-dim">Qwen3-Coder</span>
-              <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Pipeline progress */}
-        <div className="border-t border-pablo-border px-3 py-2">
-          <p className="mb-2 font-ui text-[10px] font-semibold uppercase tracking-wider text-pablo-text-muted">
-            Pipeline Stages
-          </p>
-          <div className="flex flex-col gap-2">
-            <ProgressBar label="Plan" value={0} max={1} color="bg-pablo-blue" />
-            <ProgressBar label="Database" value={0} max={1} color="bg-pablo-green" />
-            <ProgressBar label="API" value={0} max={1} color="bg-pablo-orange" />
-            <ProgressBar label="UI" value={0} max={1} color="bg-pablo-purple" />
-            <ProgressBar label="Tests" value={0} max={1} color="bg-pablo-red" />
-            <ProgressBar label="Execute" value={0} max={1} color="bg-pablo-gold" />
-            <ProgressBar label="Review" value={0} max={1} color="bg-pablo-blue" />
-          </div>
-        </div>
-
-        {/* Session time */}
-        <div className="border-t border-pablo-border px-3 py-2">
-          <div className="flex items-center gap-2">
-            <Clock size={12} className="text-pablo-text-muted" />
-            <span className="font-ui text-xs text-pablo-text-dim">Session Duration</span>
-            <span className="ml-auto font-code text-xs text-pablo-gold">00:00</span>
-          </div>
+      {/* Model usage */}
+      <div className="border-t border-pablo-border px-3 py-2">
+        <p className="mb-2 font-ui text-[10px] font-semibold uppercase tracking-wider text-pablo-text-muted">
+          Model Usage
+        </p>
+        <div className="flex flex-col gap-2">
+          {Object.keys(modelCalls).length > 0 ? (
+            Object.entries(modelCalls).map(([model, count]) => (
+              <div key={model} className="flex items-center gap-2">
+                <Zap size={12} className="text-pablo-purple" />
+                <span className="font-ui text-xs text-pablo-text-dim truncate">{model}</span>
+                <span className="ml-auto font-code text-[10px] text-pablo-text-muted">{count} calls</span>
+              </div>
+            ))
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <Zap size={12} className="text-pablo-purple" />
+                <span className="font-ui text-xs text-pablo-text-dim">deepseek-v3.2</span>
+                <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Code size={12} className="text-pablo-blue" />
+                <span className="font-ui text-xs text-pablo-text-dim">qwen3-coder:480b</span>
+                <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="flex flex-col">
-      <div className="grid grid-cols-2 gap-1.5 p-2">
-        <MetricCard label="Total Tokens" value="12.4k" unit="tokens" change={-5} />
-        <MetricCard label="Features Built" value="3" unit="total" change={50} />
-        <MetricCard label="Avg. Time" value="4.2" unit="min" change={-12} />
-        <MetricCard label="Success Rate" value="92" unit="%" change={8} />
+      {/* Pipeline progress */}
+      <div className="border-t border-pablo-border px-3 py-2">
+        <p className="mb-2 font-ui text-[10px] font-semibold uppercase tracking-wider text-pablo-text-muted">
+          Pipeline Stages
+        </p>
+        <div className="flex flex-col gap-2">
+          <ProgressBar label="Plan" value={pipelineStagesCompleted['plan'] ?? 0} max={Math.max(1, pipelineStagesCompleted['plan'] ?? 0)} color="bg-pablo-blue" />
+          <ProgressBar label="Database" value={pipelineStagesCompleted['db'] ?? 0} max={Math.max(1, pipelineStagesCompleted['db'] ?? 0)} color="bg-pablo-green" />
+          <ProgressBar label="API" value={pipelineStagesCompleted['api'] ?? 0} max={Math.max(1, pipelineStagesCompleted['api'] ?? 0)} color="bg-pablo-orange" />
+          <ProgressBar label="UI" value={pipelineStagesCompleted['ui'] ?? 0} max={Math.max(1, pipelineStagesCompleted['ui'] ?? 0)} color="bg-pablo-purple" />
+          <ProgressBar label="Tests" value={pipelineStagesCompleted['tests'] ?? 0} max={Math.max(1, pipelineStagesCompleted['tests'] ?? 0)} color="bg-pablo-red" />
+          <ProgressBar label="Execute" value={pipelineStagesCompleted['execute'] ?? 0} max={Math.max(1, pipelineStagesCompleted['execute'] ?? 0)} color="bg-pablo-gold" />
+          <ProgressBar label="Review" value={pipelineStagesCompleted['review'] ?? 0} max={Math.max(1, pipelineStagesCompleted['review'] ?? 0)} color="bg-pablo-blue" />
+        </div>
+      </div>
+
+      {/* Session time */}
+      <div className="border-t border-pablo-border px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Clock size={12} className="text-pablo-text-muted" />
+          <span className="font-ui text-xs text-pablo-text-dim">Session Duration</span>
+          <span className="ml-auto font-code text-xs text-pablo-gold">{duration}</span>
+        </div>
       </div>
     </div>
   );
