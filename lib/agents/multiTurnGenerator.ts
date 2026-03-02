@@ -467,8 +467,34 @@ export async function generateAndValidate(
     }
   }
 
-  // Update result with fixed code
-  const fixedFiles = extractFiles(fixedCode, 'fixed_output');
+  // Update result with fixed code — split on # === filename === headers
+  // (extractFiles won't work here because fixedCode has no markdown fences)
+  const fixedFiles: ParsedFile[] = [];
+  const sectionRegex = /^# === (.+?) ===/gm;
+  let sectionMatch: RegExpExecArray | null;
+  const sectionStarts: { filename: string; start: number }[] = [];
+  while ((sectionMatch = sectionRegex.exec(fixedCode)) !== null) {
+    sectionStarts.push({ filename: sectionMatch[1], start: sectionMatch.index + sectionMatch[0].length });
+  }
+  if (sectionStarts.length > 0) {
+    for (let i = 0; i < sectionStarts.length; i++) {
+      const start = sectionStarts[i].start;
+      const end = i + 1 < sectionStarts.length
+        ? fixedCode.lastIndexOf('# ===', sectionStarts[i + 1].start - 1)
+        : fixedCode.length;
+      const content = fixedCode.slice(start, end).trim();
+      const ext = sectionStarts[i].filename.split('.').pop() || 'py';
+      fixedFiles.push({
+        filename: sectionStarts[i].filename,
+        content,
+        language: ext === 'py' ? 'python' : ext === 'ts' ? 'typescript' : ext,
+        lines: content.split('\n').length,
+      });
+    }
+  } else {
+    // Fallback: try extractFiles in case the fixer wrapped code in fences
+    fixedFiles.push(...extractFiles(fixedCode, 'fixed_output'));
+  }
   if (fixedFiles.length > 0) {
     result.files = fixedFiles;
     result.total_lines = fixedFiles.reduce((sum, f) => sum + f.lines, 0);
