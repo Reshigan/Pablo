@@ -1,0 +1,42 @@
+name: CI / Build Verification
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cloudflare Pages handles auto-deployment on push.
+# This workflow verifies TypeScript and build pass.
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          NEXTAUTH_URL: https://pablo.vantax.co.za
+          OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
