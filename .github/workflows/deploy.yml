@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare
+name: CI / Build Verification
 
 on:
   push:
@@ -6,12 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# Cloudflare Pages handles auto-deployment on push.
+# This workflow verifies TypeScript and build pass.
+
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      deployments: write
 
     steps:
       - name: Checkout
@@ -38,21 +40,3 @@ jobs:
           NEXTAUTH_URL: https://pablo.vantax.co.za
           OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
           OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Build for Cloudflare Workers
-        run: npm run build:worker
-        env:
-          GITHUB_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          GITHUB_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
-          NEXTAUTH_URL: https://pablo.vantax.co.za
-          OLLAMA_URL: ${{ secrets.OLLAMA_URL }}
-          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
-
-      - name: Deploy to Cloudflare Workers
-        if: github.ref == 'refs/heads/main'
-        run: npx wrangler deploy
-        env:
-          CLOUDFLARE_API_KEY: ${{ secrets.CLOUDFLARE_API_KEY }}
-          CLOUDFLARE_EMAIL: ${{ secrets.CLOUDFLARE_EMAIL }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
