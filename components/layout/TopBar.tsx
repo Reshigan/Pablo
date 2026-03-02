@@ -6,7 +6,10 @@ import {
   Settings,
   GitBranch,
   User,
+  LogOut,
 } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { signOut } from 'next-auth/react';
 import { StatusBadge, type AgentStatus } from '@/components/shared/StatusBadge';
 import { useUIStore } from '@/stores/ui';
 import { useRepoStore } from '@/stores/repo';
@@ -20,6 +23,20 @@ export function TopBar({
 }: TopBarProps) {
   const { toggleCommandPalette, toggleSettings } = useUIStore();
   const { selectedRepo, selectedBranch } = useRepoStore();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [userMenuOpen]);
 
   const repoName = selectedRepo?.name ?? 'No repo selected';
   const branchName = selectedRepo ? selectedBranch : '—';
@@ -85,13 +102,31 @@ export function TopBar({
           <Settings size={16} />
         </button>
 
-        {/* User avatar */}
-        <button
-          className="flex h-7 w-7 items-center justify-center rounded-full bg-pablo-gold/20 text-pablo-gold transition-colors duration-150 hover:bg-pablo-gold/30"
-          aria-label="User menu"
-        >
-          <User size={14} />
-        </button>
+        {/* User avatar + dropdown */}
+        <div className="relative" ref={menuRef}>
+          <button
+            onClick={() => setUserMenuOpen((prev) => !prev)}
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-pablo-gold/20 text-pablo-gold transition-colors duration-150 hover:bg-pablo-gold/30"
+            aria-label="User menu"
+          >
+            <User size={14} />
+          </button>
+
+          {userMenuOpen && (
+            <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-md border border-pablo-border bg-pablo-panel shadow-lg">
+              <button
+                onClick={() => {
+                  setUserMenuOpen(false);
+                  signOut({ callbackUrl: '/login' });
+                }}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left font-ui text-xs text-pablo-text-dim transition-colors duration-100 hover:bg-pablo-hover hover:text-pablo-red"
+              >
+                <LogOut size={14} />
+                Sign out
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
