@@ -97,7 +97,45 @@ export function TerminalPanel() {
     };
 
     let currentLine = '';
+    let isExecuting = false;
+
+    const executeCommand = async (command: string) => {
+      isExecuting = true;
+      try {
+        const response = await fetch('/api/terminal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ command }),
+        });
+        if (response.ok) {
+          const result = (await response.json()) as { output: string; exitCode: number };
+          if (result.output) {
+            // Convert \n to \r\n for xterm display
+            const formatted = result.output.replace(/\n/g, '\r\n');
+            term.writeln(formatted);
+          }
+        } else {
+          term.writeln(`\x1b[38;2;239;68;68mError:\x1b[0m API returned ${response.status}`);
+        }
+      } catch {
+        // Fallback to local commands if API is unavailable
+        if (command === 'clear') {
+          term.clear();
+        } else if (command.startsWith('echo ')) {
+          term.writeln(command.slice(5));
+        } else if (command in COMMANDS) {
+          term.writeln(COMMANDS[command]());
+        } else {
+          term.writeln(`\x1b[38;2;239;68;68mpablo:\x1b[0m command not found: ${command}`);
+          term.writeln('\x1b[38;2;100;116;139m  Type "help" for available commands\x1b[0m');
+        }
+      }
+      isExecuting = false;
+      term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
+    };
+
     term.onData((data) => {
+      if (isExecuting) return;
       const code = data.charCodeAt(0);
 
       if (code === 13) {
@@ -106,15 +144,12 @@ export function TerminalPanel() {
         const trimmed = currentLine.trim();
         if (trimmed === 'clear') {
           term.clear();
-        } else if (trimmed.startsWith('echo ')) {
-          term.writeln(trimmed.slice(5));
-        } else if (trimmed in COMMANDS) {
-          term.writeln(COMMANDS[trimmed]());
+          term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
         } else if (trimmed) {
-          term.writeln(`\x1b[38;2;239;68;68mpablo:\x1b[0m command not found: ${trimmed}`);
-          term.writeln('\x1b[38;2;100;116;139m  Type "help" for available commands\x1b[0m');
+          executeCommand(trimmed);
+        } else {
+          term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
         }
-        term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
         currentLine = '';
       } else if (code === 127) {
         // Backspace
