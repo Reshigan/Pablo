@@ -96,7 +96,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
           stages: run.stages.map((s) =>
             s.stage === stage ? { ...s, ...updates } : s
           ),
-          totalTokens: run.totalTokens + (updates.tokens ?? 0),
+          totalTokens: run.stages.reduce((sum, s) => sum + (s.stage === stage ? (updates.tokens ?? s.tokens ?? 0) : (s.tokens ?? 0)), 0),
         };
       }),
     })),

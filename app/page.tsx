@@ -1,5 +1,11 @@
 import { redirect } from 'next/navigation';
+import { auth } from '@/lib/auth';
 
-export default function Home() {
-  redirect('/session/new');
+export default async function Home() {
+  const session = await auth();
+  if (session) {
+    redirect('/session/new');
+  } else {
+    redirect('/login');
+  }
 }

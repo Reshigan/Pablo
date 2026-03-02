@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { auth } from '@/lib/auth';
 
 interface ChatRequestBody {
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
@@ -9,38 +10,66 @@ interface ChatRequestBody {
 
 /**
  * POST /api/chat - SSE streaming chat endpoint
- * Proxies to Ollama API and streams response chunks via Server-Sent Events
+ * Supports both Ollama API (local) and OpenAI-compatible API (cloud)
  */
 export async function POST(request: NextRequest) {
+  const session = await auth();
+  if (!session) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
   const body = (await request.json()) as ChatRequestBody;
   const { messages, model = 'deepseek-r1', temperature = 0.7, max_tokens = 4096 } = body;
 
-  // Ollama endpoint - configurable via env
-  const ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-  const ollamaKey = process.env.OLLAMA_API_KEY || '';
+  // API endpoint - supports Ollama local or OpenAI-compatible cloud APIs
+  const apiUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
+  const apiKey = process.env.OLLAMA_API_KEY || '';
 
-  const headers: Record<string, string> = {
+  const reqHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (ollamaKey) {
-    headers['Authorization'] = `Bearer ${ollamaKey}`;
+  if (apiKey) {
+    reqHeaders['Authorization'] = `Bearer ${apiKey}`;
   }
 
+  // Detect if this is an OpenAI-compatible endpoint (cloud) or Ollama (local)
+  const isOpenAICompatible = apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('pawan');
+
   try {
-    const ollamaResponse = await fetch(`${ollamaUrl}/api/chat`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model,
-        messages,
-        stream: true,
-        options: {
+    let apiResponse: Response;
+
+    if (isOpenAICompatible) {
+      // OpenAI-compatible API (cloud endpoint)
+      apiResponse = await fetch(`${apiUrl}/chat/completions`, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
           temperature,
-          top_p: 0.9,
-          num_predict: max_tokens,
-        },
-      }),
-    });
+          max_tokens,
+        }),
+      });
+    } else {
+      // Ollama local API
+      apiResponse = await fetch(`${apiUrl}/api/chat`, {
+        method: 'POST',
+        headers: reqHeaders,
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true,
+          options: {
+            temperature,
+            top_p: 0.9,
+            num_predict: max_tokens,
+          },
+        }),
+      });
+    }
+
+    const ollamaResponse = apiResponse;
 
     if (!ollamaResponse.ok) {
       // If Ollama is not available, return a mock streaming response
