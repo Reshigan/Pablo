@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
+    let buffer = '';
     const stream = new ReadableStream({
       async start(controller) {
         try {
@@ -64,7 +65,9 @@ export async function POST(request: NextRequest) {
             if (done) break;
 
             const text = decoder.decode(value, { stream: true });
-            const lines = text.split('\n').filter((line) => line.trim());
+            const allLines = (buffer + text).split('\n');
+            buffer = allLines.pop() ?? '';
+            const lines = allLines.filter((line) => line.trim());
 
             for (const line of lines) {
               try {

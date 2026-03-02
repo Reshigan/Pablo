@@ -140,8 +140,8 @@ export function ChatPanel() {
           updateMessage(assistantId, {
             isStreaming: false,
             content:
-              useChatStore.getState().messages.find((m) => m.id === assistantId)
-                ?.content + '\n\n*[Generation stopped]*',
+              (useChatStore.getState().messages.find((m) => m.id === assistantId)
+                ?.content ?? '') + '\n\n*[Generation stopped]*',
           });
         } else {
           const errorMsg =
