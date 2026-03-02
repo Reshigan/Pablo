@@ -6,6 +6,7 @@ import { StatusBar } from '@/components/layout/StatusBar';
 import { PanelResizer } from '@/components/layout/PanelResizer';
 import { WorkspaceArea } from '@/components/workspace/WorkspaceArea';
 import { ChatPanel } from '@/components/chat/ChatPanel';
+import { TerminalPanel } from '@/components/workspace/Terminal';
 import { useUIStore } from '@/stores/ui';
 import { useEffect, useCallback } from 'react';
 
@@ -94,7 +95,7 @@ export default function SessionPage() {
         )}
       </div>
 
-      {/* Terminal area placeholder */}
+      {/* Terminal */}
       {terminalOpen && (
         <div className="shrink-0 border-t border-pablo-border bg-pablo-panel">
           <div className="flex h-6 items-center justify-between border-b border-pablo-border px-3">
@@ -102,11 +103,8 @@ export default function SessionPage() {
               Terminal
             </span>
           </div>
-          <div
-            className="flex items-center justify-center bg-pablo-bg text-pablo-text-muted font-code text-xs"
-            style={{ height: 160 }}
-          >
-            Terminal will be implemented in Phase 2
+          <div style={{ height: 180 }}>
+            <TerminalPanel />
           </div>
         </div>
       )}
