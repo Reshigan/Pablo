@@ -446,10 +446,15 @@ export async function generateAndValidate(
 
       // Strip markdown fences if present, but preserve existing # === filename === headers
       // (the input to the fixer already contains section headers, so don't re-wrap)
+      // Collect ALL fence blocks (LLM may return one per file)
       const fenceRegex = /```[a-zA-Z0-9_]*\s*\n([\s\S]*?)```/g;
-      const fenceMatch = fenceRegex.exec(fixResult.content);
-      if (fenceMatch) {
-        fixedCode = fenceMatch[1].trim();
+      const fenceBlocks: string[] = [];
+      let fenceMatch: RegExpExecArray | null;
+      while ((fenceMatch = fenceRegex.exec(fixResult.content)) !== null) {
+        fenceBlocks.push(fenceMatch[1].trim());
+      }
+      if (fenceBlocks.length > 0) {
+        fixedCode = fenceBlocks.join('\n\n');
       } else {
         fixedCode = fixResult.content;
       }
