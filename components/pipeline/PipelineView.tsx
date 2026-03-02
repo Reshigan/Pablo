@@ -229,9 +229,10 @@ async function runStageWithChat(
       const payload = line.slice(6).trim();
       if (payload === '[DONE]') continue;
       try {
-        const parsed = JSON.parse(payload) as { content?: string; tokens?: number };
+        const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number };
         if (parsed.content) output += parsed.content;
-        if (parsed.tokens) tokens = parsed.tokens;
+        if (parsed.eval_count) tokens = parsed.eval_count;
+        else if (parsed.tokens) tokens = parsed.tokens;
       } catch {
         // skip unparseable
       }
