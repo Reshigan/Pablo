@@ -61,7 +61,7 @@ function assemblePreviewHtml(tabs: Array<{ name: string; content: string; langua
     let html = htmlFiles[0].content;
 
     if (cssFiles.length > 0) {
-      const cssBlock = cssFiles.map(f => `<style>/* ${escapeHtml(f.name)} */\n${f.content}</style>`).join('\n');
+      const cssBlock = cssFiles.map(f => `<style>/* ${escapeHtml(f.name)} */\n${f.content.replace(/<\/style/gi, '<\\/style')}</style>`).join('\n');
       if (html.includes('</head>')) {
         html = html.replace('</head>', `${cssBlock}\n</head>`);
       } else if (html.includes('<body')) {
@@ -72,7 +72,7 @@ function assemblePreviewHtml(tabs: Array<{ name: string; content: string; langua
     }
 
     if (jsFiles.length > 0) {
-      const jsBlock = jsFiles.map(f => `<script>/* ${escapeHtml(f.name)} */\n${f.content}<\/script>`).join('\n');
+      const jsBlock = jsFiles.map(f => `<script>/* ${escapeHtml(f.name)} */\n${f.content.replace(/<\/script/gi, '<\\/script')}<\/script>`).join('\n');
       if (html.includes('</body>')) {
         html = html.replace('</body>', `${jsBlock}\n</body>`);
       } else {
@@ -85,8 +85,8 @@ function assemblePreviewHtml(tabs: Array<{ name: string; content: string; langua
 
   // No HTML — if we have CSS or JS, create a scaffold
   if (cssFiles.length > 0 || jsFiles.length > 0) {
-    const cssBlock = cssFiles.map(f => `<style>/* ${escapeHtml(f.name)} */\n${f.content}</style>`).join('\n');
-    const jsBlock = jsFiles.map(f => `<script>/* ${escapeHtml(f.name)} */\n${f.content}<\/script>`).join('\n');
+    const cssBlock = cssFiles.map(f => `<style>/* ${escapeHtml(f.name)} */\n${f.content.replace(/<\/style/gi, '<\\/style')}</style>`).join('\n');
+    const jsBlock = jsFiles.map(f => `<script>/* ${escapeHtml(f.name)} */\n${f.content.replace(/<\/script/gi, '<\\/script')}<\/script>`).join('\n');
 
     return `<!DOCTYPE html>
 <html lang="en">
