@@ -107,9 +107,8 @@ function StageItem({
   );
 }
 
-function RunCard({ run }: { run: PipelineRun }) {
+function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void }) {
   const [expandedStages, setExpandedStages] = useState<Set<PipelineStage>>(new Set());
-  const { completeRun } = usePipelineStore();
 
   const toggleStage = useCallback((stage: PipelineStage) => {
     setExpandedStages((prev) => {
@@ -149,7 +148,7 @@ function RunCard({ run }: { run: PipelineRun }) {
         </div>
         {run.status === 'running' && (
           <button
-            onClick={() => completeRun(run.id, 'cancelled')}
+            onClick={() => onCancel?.()}
             className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-pablo-red transition-colors hover:bg-pablo-red/10"
             aria-label="Cancel run"
           >
@@ -389,7 +388,14 @@ export function PipelineView() {
         ) : (
           <div className="flex flex-col gap-3">
             {runs.map((run) => (
-              <RunCard key={run.id} run={run} />
+              <RunCard
+                key={run.id}
+                run={run}
+                onCancel={run.status === 'running' ? () => {
+                  abortRef.current?.abort();
+                  completeRun(run.id, 'cancelled');
+                } : undefined}
+              />
             ))}
           </div>
         )}
