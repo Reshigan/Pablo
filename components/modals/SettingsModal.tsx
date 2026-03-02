@@ -94,7 +94,7 @@ function GeneralSettings() {
 function ModelSettings() {
   const [reasoningTemp, setReasoningTemp] = usePersistedSetting('reasoningTemp', 70);
   const [codeTemp, setCodeTemp] = usePersistedSetting('codeTemp', 30);
-  const [ollamaEndpoint, setOllamaEndpoint] = usePersistedSetting('ollamaEndpoint', 'https://ollama.com');
+  const [ollamaEndpoint, setOllamaEndpoint] = usePersistedSetting('ollamaEndpoint', 'http://localhost:11434');
 
   return (
     <div className="flex flex-col gap-4">

@@ -145,13 +145,13 @@ export function MetricsPanel() {
           Pipeline Stages
         </p>
         <div className="flex flex-col gap-2">
-          <ProgressBar label="Config" value={pipelineStagesCompleted['config'] ?? 0} max={Math.max(1, pipelineStagesCompleted['config'] ?? 0)} color="bg-pablo-blue" />
-          <ProgressBar label="Models" value={pipelineStagesCompleted['models'] ?? 0} max={Math.max(1, pipelineStagesCompleted['models'] ?? 0)} color="bg-pablo-green" />
-          <ProgressBar label="Schemas" value={pipelineStagesCompleted['schemas'] ?? 0} max={Math.max(1, pipelineStagesCompleted['schemas'] ?? 0)} color="bg-pablo-orange" />
-          <ProgressBar label="Auth" value={pipelineStagesCompleted['auth'] ?? 0} max={Math.max(1, pipelineStagesCompleted['auth'] ?? 0)} color="bg-pablo-purple" />
-          <ProgressBar label="Services" value={pipelineStagesCompleted['services'] ?? 0} max={Math.max(1, pipelineStagesCompleted['services'] ?? 0)} color="bg-pablo-red" />
-          <ProgressBar label="Routes" value={pipelineStagesCompleted['routes'] ?? 0} max={Math.max(1, pipelineStagesCompleted['routes'] ?? 0)} color="bg-pablo-gold" />
-          <ProgressBar label="Seed" value={pipelineStagesCompleted['seed'] ?? 0} max={Math.max(1, pipelineStagesCompleted['seed'] ?? 0)} color="bg-pablo-blue" />
+          <ProgressBar label="Plan" value={pipelineStagesCompleted['plan'] ?? 0} max={Math.max(1, pipelineStagesCompleted['plan'] ?? 0)} color="bg-pablo-blue" />
+          <ProgressBar label="Database" value={pipelineStagesCompleted['db'] ?? 0} max={Math.max(1, pipelineStagesCompleted['db'] ?? 0)} color="bg-pablo-green" />
+          <ProgressBar label="API" value={pipelineStagesCompleted['api'] ?? 0} max={Math.max(1, pipelineStagesCompleted['api'] ?? 0)} color="bg-pablo-orange" />
+          <ProgressBar label="UI" value={pipelineStagesCompleted['ui'] ?? 0} max={Math.max(1, pipelineStagesCompleted['ui'] ?? 0)} color="bg-pablo-purple" />
+          <ProgressBar label="Tests" value={pipelineStagesCompleted['tests'] ?? 0} max={Math.max(1, pipelineStagesCompleted['tests'] ?? 0)} color="bg-pablo-red" />
+          <ProgressBar label="Execute" value={pipelineStagesCompleted['execute'] ?? 0} max={Math.max(1, pipelineStagesCompleted['execute'] ?? 0)} color="bg-pablo-gold" />
+          <ProgressBar label="Review" value={pipelineStagesCompleted['review'] ?? 0} max={Math.max(1, pipelineStagesCompleted['review'] ?? 0)} color="bg-pablo-blue" />
         </div>
       </div>
 
