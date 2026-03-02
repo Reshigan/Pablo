@@ -39,19 +39,76 @@ export function SearchPanel() {
   const selectedRepo = useRepoStore((s) => s.selectedRepo);
   const openFile = useEditorStore((s) => s.openFile);
 
+  // Search across open editor tabs (local search — always available)
+  const searchOpenFiles = useCallback((): SearchResult[] => {
+    const tabs = useEditorStore.getState().tabs;
+    const localResults: SearchResult[] = [];
+    for (const tab of tabs) {
+      if (!tab.content) continue;
+      const lines = tab.content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let haystack = line;
+        let needle = query;
+        if (!caseSensitive) {
+          haystack = line.toLowerCase();
+          needle = query.toLowerCase();
+        }
+        if (useRegex) {
+          try {
+            const re = new RegExp(query, caseSensitive ? 'g' : 'gi');
+            const m = re.exec(line);
+            if (m) {
+              localResults.push({
+                file: tab.path,
+                line: i + 1,
+                content: line.trim(),
+                matchStart: m.index,
+                matchEnd: m.index + m[0].length,
+              });
+            }
+          } catch { /* invalid regex — skip */ }
+        } else {
+          const idx = haystack.indexOf(needle);
+          if (idx >= 0) {
+            if (wholeWord) {
+              const before = idx > 0 ? haystack[idx - 1] : ' ';
+              const after = idx + needle.length < haystack.length ? haystack[idx + needle.length] : ' ';
+              if (/\w/.test(before) || /\w/.test(after)) continue;
+            }
+            localResults.push({
+              file: tab.path,
+              line: i + 1,
+              content: line.trim(),
+              matchStart: idx,
+              matchEnd: idx + query.length,
+            });
+          }
+        }
+      }
+    }
+    return localResults;
+  }, [query, caseSensitive, wholeWord, useRegex]);
+
   const handleSearch = useCallback(async () => {
     if (!query.trim()) {
       setResults([]);
       return;
     }
 
-    if (!selectedRepo) {
-      toast('Select a repository first', 'Open a repo from the file explorer to search its files.');
-      return;
-    }
-
     setIsSearching(true);
     setHasSearched(true);
+
+    // Always search open files first (works offline, no repo needed)
+    const localResults = searchOpenFiles();
+
+    if (!selectedRepo) {
+      // No repo connected — use local search results only
+      setResults(localResults);
+      setExpandedFiles(new Set(localResults.map((r) => r.file)));
+      setIsSearching(false);
+      return;
+    }
 
     try {
       const searchQuery = `${query} repo:${selectedRepo.full_name}`;
@@ -64,7 +121,7 @@ export function SearchPanel() {
       }
 
       const data = (await response.json()) as { items: GitHubSearchItem[] };
-      const searchResults: SearchResult[] = [];
+      const searchResults: SearchResult[] = [...localResults];
 
       for (const item of data.items ?? []) {
         if (item.text_matches && item.text_matches.length > 0) {
@@ -99,12 +156,13 @@ export function SearchPanel() {
       setResults(searchResults);
       setExpandedFiles(new Set(searchResults.map((r) => r.file)));
     } catch {
-      toast('Search failed', 'Could not search the repository. Try again.');
-      setResults([]);
+      // GitHub search failed — fall back to local results only
+      setResults(localResults);
+      setExpandedFiles(new Set(localResults.map((r) => r.file)));
     } finally {
       setIsSearching(false);
     }
-  }, [query, selectedRepo, caseSensitive]);
+  }, [query, selectedRepo, caseSensitive, searchOpenFiles]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
