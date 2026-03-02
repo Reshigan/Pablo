@@ -9,8 +9,9 @@ import {
   Tablet,
   ChevronLeft,
   ChevronRight,
+  AlertTriangle,
 } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
@@ -20,34 +21,46 @@ const VIEWPORT_SIZES: Record<ViewportSize, { width: string; icon: typeof Monitor
   mobile: { width: '375px', icon: Smartphone, label: 'Mobile' },
 };
 
+function normalizeUrl(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export function LivePreview() {
-  const [url, setUrl] = useState('');
+  const [inputUrl, setInputUrl] = useState('');
+  const [activeUrl, setActiveUrl] = useState('');
   const [viewport, setViewport] = useState<ViewportSize>('desktop');
   const [isLoading, setIsLoading] = useState(false);
-  const [hasPreview, setHasPreview] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
+  const [iframeKey, setIframeKey] = useState(0);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  const navigate = useCallback((newUrl: string) => {
-    if (!newUrl.trim()) return;
-    let fullUrl = newUrl;
-    if (!fullUrl.startsWith('http://') && !fullUrl.startsWith('https://')) {
-      fullUrl = `https://${fullUrl}`;
-    }
-    setUrl(fullUrl);
+  const navigate = useCallback((rawUrl: string) => {
+    const fullUrl = normalizeUrl(rawUrl);
+    if (!fullUrl) return;
+    setInputUrl(fullUrl);
+    setActiveUrl(fullUrl);
     setIsLoading(true);
-    setHasPreview(true);
+    setLoadError(false);
+    setIframeKey((k) => k + 1);
     setHistory((prev) => [...prev.slice(0, historyIndex + 1), fullUrl]);
     setHistoryIndex((prev) => prev + 1);
-    // Simulate load complete
-    setTimeout(() => setIsLoading(false), 1000);
   }, [historyIndex]);
 
   const goBack = useCallback(() => {
     if (historyIndex > 0) {
       const newIndex = historyIndex - 1;
       setHistoryIndex(newIndex);
-      setUrl(history[newIndex]);
+      const prevUrl = history[newIndex];
+      setInputUrl(prevUrl);
+      setActiveUrl(prevUrl);
+      setIsLoading(true);
+      setLoadError(false);
+      setIframeKey((k) => k + 1);
     }
   }, [historyIndex, history]);
 
@@ -55,18 +68,34 @@ export function LivePreview() {
     if (historyIndex < history.length - 1) {
       const newIndex = historyIndex + 1;
       setHistoryIndex(newIndex);
-      setUrl(history[newIndex]);
+      const nextUrl = history[newIndex];
+      setInputUrl(nextUrl);
+      setActiveUrl(nextUrl);
+      setIsLoading(true);
+      setLoadError(false);
+      setIframeKey((k) => k + 1);
     }
   }, [historyIndex, history]);
 
   const refresh = useCallback(() => {
+    if (!activeUrl) return;
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 500);
+    setLoadError(false);
+    setIframeKey((k) => k + 1);
+  }, [activeUrl]);
+
+  const handleIframeLoad = useCallback(() => {
+    setIsLoading(false);
+  }, []);
+
+  const handleIframeError = useCallback(() => {
+    setIsLoading(false);
+    setLoadError(true);
   }, []);
 
   const viewportConfig = VIEWPORT_SIZES[viewport];
 
-  if (!hasPreview) {
+  if (!activeUrl) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-4 bg-pablo-bg text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pablo-gold/10">
@@ -74,23 +103,23 @@ export function LivePreview() {
         </div>
         <p className="font-ui text-sm font-medium text-pablo-text-dim">Live Preview</p>
         <p className="max-w-xs font-ui text-xs text-pablo-text-muted leading-relaxed">
-          Preview your application in real-time. Enter a URL or start a dev server to see changes instantly.
+          Preview any web application in real-time. Enter a URL to load it in an embedded browser frame.
         </p>
         <div className="flex flex-col gap-2 w-full max-w-xs">
           <div className="flex items-center gap-2">
             <input
               type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="http://localhost:3000"
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              placeholder="https://example.com"
               className="flex-1 rounded-lg border border-pablo-border bg-pablo-input px-3 py-2 font-code text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
               onKeyDown={(e) => {
-                if (e.key === 'Enter') navigate(url);
+                if (e.key === 'Enter') navigate(inputUrl);
               }}
             />
             <button
-              onClick={() => navigate(url)}
-              disabled={!url.trim()}
+              onClick={() => navigate(inputUrl)}
+              disabled={!inputUrl.trim()}
               className="rounded-lg bg-pablo-gold px-3 py-2 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30"
             >
               Go
@@ -116,6 +145,9 @@ export function LivePreview() {
               );
             })}
           </div>
+          <p className="font-ui text-[10px] text-pablo-text-muted mt-1">
+            Note: Some sites block iframe embedding via X-Frame-Options headers. Use the external link button to open those in a new tab instead.
+          </p>
         </div>
       </div>
     );
@@ -143,6 +175,7 @@ export function LivePreview() {
         <button
           onClick={refresh}
           className="flex h-6 w-6 items-center justify-center rounded text-pablo-text-muted transition-colors hover:bg-pablo-hover"
+          title="Refresh"
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
@@ -152,10 +185,10 @@ export function LivePreview() {
           <Globe size={10} className="mr-1 shrink-0 text-pablo-text-muted" />
           <input
             type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            value={inputUrl}
+            onChange={(e) => setInputUrl(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') navigate(url);
+              if (e.key === 'Enter') navigate(inputUrl);
             }}
             className="w-full bg-transparent font-code text-[11px] text-pablo-text outline-none"
           />
@@ -183,9 +216,9 @@ export function LivePreview() {
 
         {/* External link */}
         <button
-          onClick={() => window.open(url, '_blank')}
+          onClick={() => window.open(activeUrl, '_blank')}
           className="flex h-6 w-6 items-center justify-center rounded text-pablo-text-muted transition-colors hover:bg-pablo-hover"
-          title="Open in browser"
+          title="Open in new tab"
         >
           <ExternalLink size={12} />
         </button>
@@ -193,8 +226,24 @@ export function LivePreview() {
 
       {/* Loading bar */}
       {isLoading && (
-        <div className="h-0.5 w-full bg-pablo-active">
-          <div className="h-full animate-pulse bg-pablo-gold" style={{ width: '60%' }} />
+        <div className="h-0.5 w-full bg-pablo-active overflow-hidden">
+          <div className="h-full bg-pablo-gold animate-pulse" style={{ width: '60%' }} />
+        </div>
+      )}
+
+      {/* Error banner */}
+      {loadError && (
+        <div className="flex items-center gap-2 border-b border-pablo-border bg-pablo-red/10 px-3 py-1.5">
+          <AlertTriangle size={12} className="shrink-0 text-pablo-red" />
+          <p className="font-ui text-[11px] text-pablo-red">
+            This site may have blocked iframe embedding.
+          </p>
+          <button
+            onClick={() => window.open(activeUrl, '_blank')}
+            className="ml-auto font-ui text-[10px] text-pablo-gold hover:underline"
+          >
+            Open in new tab
+          </button>
         </div>
       )}
 
@@ -205,10 +254,14 @@ export function LivePreview() {
           style={{ width: viewportConfig.width, maxWidth: '100%' }}
         >
           <iframe
-            src={url}
+            key={iframeKey}
+            ref={iframeRef}
+            src={activeUrl}
             className="h-full w-full rounded-lg"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
             title="Live Preview"
+            onLoad={handleIframeLoad}
+            onError={handleIframeError}
           />
         </div>
       </div>

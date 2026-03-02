@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
         headers: {
           Authorization: `Bearer ${session.accessToken}`,
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': 'Pablo-IDE',
+          'User-Agent': 'Pablo-IDE/2.0',
         },
       }
     );
