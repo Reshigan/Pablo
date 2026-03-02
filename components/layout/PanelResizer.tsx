@@ -11,6 +11,10 @@ interface PanelResizerProps {
 export function PanelResizer({ direction, onResize, className = '' }: PanelResizerProps) {
   const isDragging = useRef(false);
   const startPos = useRef(0);
+  // Use a ref to always have the latest onResize callback,
+  // avoiding stale closures during drag operations
+  const onResizeRef = useRef(onResize);
+  onResizeRef.current = onResize;
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -23,7 +27,7 @@ export function PanelResizer({ direction, onResize, className = '' }: PanelResiz
         const currentPos = direction === 'horizontal' ? moveEvent.clientX : moveEvent.clientY;
         const delta = currentPos - startPos.current;
         startPos.current = currentPos;
-        onResize(delta);
+        onResizeRef.current(delta);
       };
 
       const handleMouseUp = () => {
@@ -39,7 +43,7 @@ export function PanelResizer({ direction, onResize, className = '' }: PanelResiz
       document.body.style.cursor = direction === 'horizontal' ? 'col-resize' : 'row-resize';
       document.body.style.userSelect = 'none';
     },
-    [direction, onResize]
+    [direction]
   );
 
   return (

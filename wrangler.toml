@@ -1,0 +1,15 @@
+# Pablo v5 - Cloudflare Workers Configuration
+# This config is for when Pablo is deployed to Cloudflare Workers
+# During development, Next.js dev server is used instead
+
+name = "pablo-v5"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pablo-db"
+database_id = "placeholder-will-be-set-on-deploy"
