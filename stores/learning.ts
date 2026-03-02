@@ -95,9 +95,13 @@ export const useLearningStore = create<LearningState>((set, get) => ({
   },
 
   updatePattern: (id, updates) =>
-    set((state) => ({
-      patterns: state.patterns.map((p) => (p.id === id ? { ...p, ...updates } : p)),
-    })),
+    set((state) => {
+      const patterns = state.patterns.map((p) => (p.id === id ? { ...p, ...updates } : p));
+      return {
+        patterns,
+        avgConfidence: patterns.length > 0 ? patterns.reduce((sum, p) => sum + p.confidence, 0) / patterns.length : 0,
+      };
+    }),
 
   removePattern: (id) =>
     set((state) => {

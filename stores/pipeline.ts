@@ -140,7 +140,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
           totalDurationMs: completedAt - run.createdAt,
           stages: run.stages.map((s) =>
             s.status === 'running'
-              ? { ...s, status: status === 'completed' ? 'completed' as StageStatus : 'failed' as StageStatus, completedAt }
+              ? { ...s, status: status === 'completed' ? 'completed' as StageStatus : status === 'cancelled' ? 'skipped' as StageStatus : 'failed' as StageStatus, completedAt }
               : s.status === 'pending'
               ? { ...s, status: 'skipped' as StageStatus }
               : s

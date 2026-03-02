@@ -30,8 +30,12 @@ export async function GET(request: NextRequest) {
   const sort = searchParams.get('sort') || 'updated';
 
   try {
-    const response = await fetch(
-      `https://api.github.com/user/repos?page=${page}&per_page=${perPage}&sort=${sort}&affiliation=owner,collaborator,organization_member`,
+    const url = new URL('https://api.github.com/user/repos');
+    url.searchParams.set('page', page);
+    url.searchParams.set('per_page', perPage);
+    url.searchParams.set('sort', sort);
+    url.searchParams.set('affiliation', 'owner,collaborator,organization_member');
+    const response = await fetch(url.toString(),
       {
         headers: {
           Authorization: `Bearer ${session.accessToken}`,

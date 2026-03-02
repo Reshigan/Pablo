@@ -200,15 +200,16 @@ function createMockSSEResponse(model: string): Response {
   const words = mockResponse.split(' ');
   let wordIndex = 0;
 
+  let intervalId: ReturnType<typeof setInterval> | null = null;
   const stream = new ReadableStream({
     start(controller) {
-      const interval = setInterval(() => {
+      intervalId = setInterval(() => {
         if (wordIndex >= words.length) {
           const doneData = JSON.stringify({ content: '', done: true, model });
           controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-          clearInterval(interval);
+          if (intervalId) clearInterval(intervalId);
           return;
         }
 
@@ -217,6 +218,9 @@ function createMockSSEResponse(model: string): Response {
         controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         wordIndex++;
       }, 30);
+    },
+    cancel() {
+      if (intervalId) clearInterval(intervalId);
     },
   });
 

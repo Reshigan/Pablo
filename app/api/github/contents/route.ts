@@ -33,7 +33,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const url = `https://api.github.com/repos/${repo}/contents/${path}${ref ? `?ref=${ref}` : ''}`;
+    const encodedPath = path.split('/').map(encodeURIComponent).join('/');
+    const url = new URL(`https://api.github.com/repos/${repo}/contents/${encodedPath}`);
+    if (ref) url.searchParams.set('ref', ref);
     const response = await fetch(url, {
       headers: {
         Authorization: `Bearer ${session.accessToken}`,
