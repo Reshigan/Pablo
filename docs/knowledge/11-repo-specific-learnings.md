@@ -96,7 +96,8 @@ Load Van (transfer from warehouse) → Start Route →
 // Adapts between SQLite (dev) and PostgreSQL (production)
 function getQuery(tenantId, sql, params) {
     if (isPostgres) {
-        return pool.query(sql.replace(/\?/g, (_, i) => `$${i+1}`), [tenantId, ...params]);
+        let n = 0;
+        return pool.query(sql.replace(/\?/g, () => `$${++n}`), [tenantId, ...params]);
     }
     return db.prepare(sql).bind(tenantId, ...params).all();
 }
