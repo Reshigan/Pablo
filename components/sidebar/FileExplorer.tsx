@@ -232,8 +232,8 @@ function RepoSelector() {
   }, [setRepos, setReposLoading, setReposError]);
 
   useEffect(() => {
-    if (repos.length === 0 && !reposLoading) loadRepos();
-  }, [repos.length, reposLoading, loadRepos]);
+    if (repos.length === 0 && !reposLoading && !reposError) loadRepos();
+  }, [repos.length, reposLoading, reposError, loadRepos]);
 
   const handleSelectRepo = useCallback(async (repo: GitHubRepo) => {
     selectRepo(repo);
