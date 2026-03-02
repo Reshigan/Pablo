@@ -7,6 +7,9 @@ import { PanelResizer } from '@/components/layout/PanelResizer';
 import { WorkspaceArea } from '@/components/workspace/WorkspaceArea';
 import { ChatPanel } from '@/components/chat/ChatPanel';
 import { TerminalPanel } from '@/components/workspace/Terminal';
+import { CommandPalette } from '@/components/modals/CommandPalette';
+import { SettingsModal } from '@/components/modals/SettingsModal';
+import { ToastContainer } from '@/components/shared/ToastContainer';
 import { useUIStore } from '@/stores/ui';
 import { useEffect, useCallback } from 'react';
 
@@ -111,6 +114,11 @@ export default function SessionPage() {
 
       {/* Status Bar */}
       <StatusBar />
+
+      {/* Modals & Overlays */}
+      <CommandPalette />
+      <SettingsModal />
+      <ToastContainer />
     </div>
   );
 }
