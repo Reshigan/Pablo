@@ -444,7 +444,13 @@ export async function generateAndValidate(
         env
       );
 
-      fixedCode = fixResult.content;
+      // Extract clean code from LLM response (strip markdown fences, explanations)
+      const extractedBlocks = extractFiles(fixResult.content, 'fixed_output');
+      if (extractedBlocks.length > 0) {
+        fixedCode = extractedBlocks.map(f => `# === ${f.filename} ===\n${f.content}`).join('\n\n');
+      } else {
+        fixedCode = fixResult.content;
+      }
       result.total_tokens += fixResult.tokens_used;
 
       // Re-validate

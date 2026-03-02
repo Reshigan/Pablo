@@ -469,14 +469,34 @@ async function handleSmartChat(
   );
   if (externalResponse) return externalResponse;
 
-  // Fallback: try Workers AI with Llama 3.1 8B (always available)
-  const fallbackResponse = await tryWorkersAIBinding(
+  // Try the routing table's fallback model before the hardcoded 8B
+  const fallbackModel = route.fallback;
+  if (fallbackModel.provider === 'workers_ai') {
+    const fallbackRouteResponse = await tryWorkersAIBinding(
+      enhancedMessages,
+      fallbackModel.model,
+      fallbackModel.temperature,
+      fallbackModel.max_tokens
+    );
+    if (fallbackRouteResponse) return fallbackRouteResponse;
+  }
+  const fallbackExternalResponse = await tryExternalAPIStreaming(
+    enhancedMessages,
+    fallbackModel.model,
+    fallbackModel.temperature,
+    fallbackModel.max_tokens,
+    env
+  );
+  if (fallbackExternalResponse) return fallbackExternalResponse;
+
+  // Last-resort fallback: Workers AI with Llama 3.1 8B (always available)
+  const lastResortResponse = await tryWorkersAIBinding(
     enhancedMessages,
     '@cf/meta/llama-3.1-8b-instruct',
     0.7,
     4096
   );
-  if (fallbackResponse) return fallbackResponse;
+  if (lastResortResponse) return lastResortResponse;
 
   // Last resort: mock response
   return createMockSSEResponse(model.model);

@@ -250,11 +250,59 @@ interface WorkersAIResult {
 }
 
 async function callWorkersAI(request: LLMRequest, startTime: number, env: EnvConfig): Promise<LLMResponse> {
+  // Try the Workers AI binding first (works in deployed Workers without REST API credentials)
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const ai = (ctx.env as Record<string, unknown>).AI;
+    if (ai) {
+      const aiBinding = ai as {
+        run: (
+          model: string,
+          input: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<ReadableStream | string | Record<string, unknown>>;
+      };
+
+      const result = await aiBinding.run(request.model.model, {
+        messages: [
+          { role: 'system', content: request.systemPrompt },
+          { role: 'user', content: request.userMessage },
+        ],
+        max_tokens: request.model.max_tokens,
+        temperature: request.model.temperature,
+        stream: false,
+      });
+
+      // Parse binding response
+      if (typeof result === 'string') {
+        return {
+          content: result,
+          model: request.model.model,
+          provider: 'workers_ai',
+          tokens_used: 0,
+          duration_ms: Date.now() - startTime,
+        };
+      }
+      const bindingResult = result as { response?: string; usage?: { total_tokens?: number } };
+      return {
+        content: bindingResult.response || '',
+        model: request.model.model,
+        provider: 'workers_ai',
+        tokens_used: bindingResult.usage?.total_tokens || 0,
+        duration_ms: Date.now() - startTime,
+      };
+    }
+  } catch {
+    // AI binding not available (local dev), fall through to REST API
+  }
+
+  // Fallback to REST API (requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN)
   const ACCOUNT_ID = env.CLOUDFLARE_ACCOUNT_ID;
   const AUTH_TOKEN = env.CLOUDFLARE_API_TOKEN;
 
   if (!ACCOUNT_ID || !AUTH_TOKEN) {
-    throw new Error('Workers AI not configured: missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN');
+    throw new Error('Workers AI not configured: AI binding unavailable and missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN');
   }
 
   const response = await fetch(
