@@ -144,14 +144,26 @@ export function MetricsPanel() {
         <p className="mb-2 font-ui text-[10px] font-semibold uppercase tracking-wider text-pablo-text-muted">
           Pipeline Stages
         </p>
-        <div className="flex flex-col gap-2">
-          <ProgressBar label="Plan" value={pipelineStagesCompleted['plan'] ?? 0} max={Math.max(1, pipelineStagesCompleted['plan'] ?? 0)} color="bg-pablo-blue" />
-          <ProgressBar label="Database" value={pipelineStagesCompleted['db'] ?? 0} max={Math.max(1, pipelineStagesCompleted['db'] ?? 0)} color="bg-pablo-green" />
-          <ProgressBar label="API" value={pipelineStagesCompleted['api'] ?? 0} max={Math.max(1, pipelineStagesCompleted['api'] ?? 0)} color="bg-pablo-orange" />
-          <ProgressBar label="UI" value={pipelineStagesCompleted['ui'] ?? 0} max={Math.max(1, pipelineStagesCompleted['ui'] ?? 0)} color="bg-pablo-purple" />
-          <ProgressBar label="Tests" value={pipelineStagesCompleted['tests'] ?? 0} max={Math.max(1, pipelineStagesCompleted['tests'] ?? 0)} color="bg-pablo-red" />
-          <ProgressBar label="Execute" value={pipelineStagesCompleted['execute'] ?? 0} max={Math.max(1, pipelineStagesCompleted['execute'] ?? 0)} color="bg-pablo-gold" />
-          <ProgressBar label="Review" value={pipelineStagesCompleted['review'] ?? 0} max={Math.max(1, pipelineStagesCompleted['review'] ?? 0)} color="bg-pablo-blue" />
+        <div className="flex flex-col gap-1.5">
+          {([
+            ['Plan', 'plan', 'text-pablo-blue'],
+            ['Database', 'db', 'text-pablo-green'],
+            ['API', 'api', 'text-pablo-orange'],
+            ['UI', 'ui', 'text-pablo-purple'],
+            ['Tests', 'tests', 'text-pablo-red'],
+            ['Execute', 'execute', 'text-pablo-gold'],
+            ['Review', 'review', 'text-pablo-blue'],
+          ] as const).map(([label, key, color]) => {
+            const count = pipelineStagesCompleted[key] ?? 0;
+            return (
+              <div key={key} className="flex items-center justify-between">
+                <span className="font-ui text-[10px] text-pablo-text-muted">{label}</span>
+                <span className={`font-code text-[10px] ${count > 0 ? color : 'text-pablo-text-muted'}`}>
+                  {count > 0 ? `${count} done` : '—'}
+                </span>
+              </div>
+            );
+          })}
         </div>
       </div>
 
