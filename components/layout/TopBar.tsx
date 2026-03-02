@@ -9,19 +9,20 @@ import {
 } from 'lucide-react';
 import { StatusBadge, type AgentStatus } from '@/components/shared/StatusBadge';
 import { useUIStore } from '@/stores/ui';
+import { useRepoStore } from '@/stores/repo';
 
 interface TopBarProps {
   agentStatus?: AgentStatus;
-  repoName?: string;
-  branchName?: string;
 }
 
 export function TopBar({
   agentStatus = 'idle',
-  repoName = 'pablo',
-  branchName = 'main',
 }: TopBarProps) {
   const { toggleCommandPalette, toggleSettings } = useUIStore();
+  const { selectedRepo, selectedBranch } = useRepoStore();
+
+  const repoName = selectedRepo?.name ?? 'No repo selected';
+  const branchName = selectedRepo ? selectedBranch : '—';
 
   return (
     <header

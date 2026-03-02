@@ -1,28 +1,18 @@
 'use client';
 
-import { type AgentStatus } from '@/components/shared/StatusBadge';
+import { useRepoStore } from '@/stores/repo';
+import { useEditorStore } from '@/stores/editor';
+import { useChatStore } from '@/stores/chat';
 
-interface StatusBarProps {
-  ollamaStatus?: AgentStatus;
-  modelName?: string;
-  tokens?: number;
-  cursorLine?: number;
-  cursorCol?: number;
-  encoding?: string;
-  language?: string;
-  gitBranch?: string;
-}
+export function StatusBar() {
+  const { selectedRepo, selectedBranch } = useRepoStore();
+  const { tabs, activeTabId } = useEditorStore();
+  const { totalTokens } = useChatStore();
 
-export function StatusBar({
-  ollamaStatus = 'connected',
-  modelName = 'qwen3-coder-next',
-  tokens = 0,
-  cursorLine = 1,
-  cursorCol = 1,
-  encoding = 'UTF-8',
-  language = 'TypeScript',
-  gitBranch = 'main',
-}: StatusBarProps) {
+  const activeTab = tabs.find((t) => t.id === activeTabId);
+  const language = activeTab?.language ?? '—';
+  const gitBranch = selectedRepo ? selectedBranch : '—';
+  const tokens = totalTokens;
   const cost = (tokens / 1000000 * 0.15).toFixed(4);
   const tokenDisplay = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : tokens.toString();
 
@@ -33,21 +23,17 @@ export function StatusBar({
     >
       {/* Left section */}
       <div className="flex items-center gap-3">
-        {/* Ollama status */}
+        {/* AI status */}
         <div className="flex items-center gap-1.5">
-          <span
-            className={`h-2 w-2 rounded-full ${
-              ollamaStatus === 'connected' ? 'bg-pablo-green' : 'bg-pablo-red'
-            }`}
-          />
-          <span>Ollama: {ollamaStatus === 'connected' ? 'Connected' : 'Disconnected'}</span>
+          <span className="h-2 w-2 rounded-full bg-pablo-green" />
+          <span>AI: Workers AI</span>
         </div>
 
         <span className="text-pablo-border">|</span>
 
         {/* Model */}
         <button className="transition-colors duration-150 hover:text-pablo-text-dim">
-          Model: {modelName}
+          Model: deepseek-r1
         </button>
 
         <span className="text-pablo-border">|</span>
@@ -58,9 +44,7 @@ export function StatusBar({
 
       {/* Right section */}
       <div className="flex items-center gap-3">
-        <span>Ln {cursorLine}, Col {cursorCol}</span>
-        <span className="text-pablo-border">|</span>
-        <span>{encoding}</span>
+        <span>UTF-8</span>
         <span className="text-pablo-border">|</span>
         <span>{language}</span>
         <span className="text-pablo-border">|</span>
