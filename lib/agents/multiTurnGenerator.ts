@@ -444,10 +444,12 @@ export async function generateAndValidate(
         env
       );
 
-      // Extract clean code from LLM response (strip markdown fences, explanations)
-      const extractedBlocks = extractFiles(fixResult.content, 'fixed_output');
-      if (extractedBlocks.length > 0) {
-        fixedCode = extractedBlocks.map(f => `# === ${f.filename} ===\n${f.content}`).join('\n\n');
+      // Strip markdown fences if present, but preserve existing # === filename === headers
+      // (the input to the fixer already contains section headers, so don't re-wrap)
+      const fenceRegex = /```[a-zA-Z0-9_]*\s*\n([\s\S]*?)```/g;
+      const fenceMatch = fenceRegex.exec(fixResult.content);
+      if (fenceMatch) {
+        fixedCode = fenceMatch[1].trim();
       } else {
         fixedCode = fixResult.content;
       }

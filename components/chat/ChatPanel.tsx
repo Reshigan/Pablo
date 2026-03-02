@@ -62,6 +62,9 @@ export function ChatPanel() {
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
+      // Reset pipeline state from any previous multi-turn run
+      setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
+
       // Add user message
       addMessage({ role: 'user', content: content.trim() });
 
@@ -248,7 +251,7 @@ export function ChatPanel() {
           </span>
           {messages.length > 0 && (
             <button
-              onClick={clearMessages}
+              onClick={() => { clearMessages(); setPipeline({ active: false, currentStep: '', status: '', validationScore: null }); }}
               className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
               aria-label="Clear chat"
             >
