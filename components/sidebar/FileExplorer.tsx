@@ -9,59 +9,18 @@ import {
   ChevronRight,
   ChevronDown,
   RefreshCw,
+  GitBranch,
+  Lock,
+  Globe,
+  Search,
+  ArrowLeft,
+  Loader2,
+  Star,
+  AlertCircle,
 } from 'lucide-react';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
-
-interface FileNode {
-  name: string;
-  path: string;
-  type: 'file' | 'directory';
-  language?: string;
-  children?: FileNode[];
-}
-
-// Demo file tree for development
-const DEMO_TREE: FileNode[] = [
-  {
-    name: 'src',
-    path: '/src',
-    type: 'directory',
-    children: [
-      {
-        name: 'app',
-        path: '/src/app',
-        type: 'directory',
-        children: [
-          { name: 'page.tsx', path: '/src/app/page.tsx', type: 'file', language: 'typescript' },
-          { name: 'layout.tsx', path: '/src/app/layout.tsx', type: 'file', language: 'typescript' },
-          { name: 'globals.css', path: '/src/app/globals.css', type: 'file', language: 'css' },
-        ],
-      },
-      {
-        name: 'components',
-        path: '/src/components',
-        type: 'directory',
-        children: [
-          { name: 'Header.tsx', path: '/src/components/Header.tsx', type: 'file', language: 'typescript' },
-          { name: 'Footer.tsx', path: '/src/components/Footer.tsx', type: 'file', language: 'typescript' },
-        ],
-      },
-      {
-        name: 'lib',
-        path: '/src/lib',
-        type: 'directory',
-        children: [
-          { name: 'utils.ts', path: '/src/lib/utils.ts', type: 'file', language: 'typescript' },
-          { name: 'db.ts', path: '/src/lib/db.ts', type: 'file', language: 'typescript' },
-        ],
-      },
-    ],
-  },
-  { name: 'package.json', path: '/package.json', type: 'file', language: 'json' },
-  { name: 'tsconfig.json', path: '/tsconfig.json', type: 'file', language: 'json' },
-  { name: 'README.md', path: '/README.md', type: 'file', language: 'markdown' },
-];
+import { useRepoStore, type GitHubRepo, type RepoFileNode } from '@/stores/repo';
 
 function getFileIcon(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -79,28 +38,116 @@ function getFileIcon(name: string): string {
       return 'text-pablo-green';
     case 'md':
       return 'text-pablo-text-dim';
+    case 'py':
+      return 'text-pablo-blue';
+    case 'rs':
+      return 'text-pablo-orange';
+    case 'go':
+      return 'text-pablo-blue';
     default:
       return 'text-pablo-text-muted';
   }
 }
 
-function TreeNode({ node, depth }: { node: FileNode; depth: number }) {
-  const [expanded, setExpanded] = useState(depth < 1);
-  const openFile = useEditorStore((s) => s.openFile);
+function detectLanguage(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  const langMap: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
+    json: 'json', md: 'markdown', css: 'css', scss: 'scss', html: 'html',
+    py: 'python', rs: 'rust', go: 'go', sql: 'sql', yaml: 'yaml', yml: 'yaml',
+    toml: 'toml', sh: 'shell', bash: 'shell', dockerfile: 'dockerfile',
+    xml: 'xml', svg: 'xml', graphql: 'graphql', prisma: 'prisma',
+  };
+  return langMap[ext] ?? 'plaintext';
+}
 
-  const handleClick = useCallback(() => {
-    if (node.type === 'directory') {
+interface GitHubContentItem {
+  name: string;
+  path: string;
+  type: string;
+  sha: string;
+  size: number;
+  content?: string;
+  encoding?: string;
+}
+
+async function fetchDirectoryContents(repo: string, path: string, ref: string): Promise<RepoFileNode[]> {
+  const params = new URLSearchParams({ repo, path, ref });
+  const response = await fetch(`/api/github/contents?${params.toString()}`);
+  if (!response.ok) throw new Error(`Failed to fetch contents: ${response.status}`);
+  const data = (await response.json()) as GitHubContentItem[];
+  if (!Array.isArray(data)) return [];
+  return data
+    .map((item) => ({
+      name: item.name,
+      path: item.path,
+      type: (item.type === 'dir' ? 'dir' : 'file') as 'dir' | 'file',
+      sha: item.sha,
+      size: item.size,
+      children: item.type === 'dir' ? [] : undefined,
+      isLoaded: false,
+      isLoading: false,
+    }))
+    .sort((a, b) => {
+      if (a.type === b.type) return a.name.localeCompare(b.name);
+      return a.type === 'dir' ? -1 : 1;
+    });
+}
+
+async function fetchFileContent(repo: string, path: string, ref: string): Promise<string> {
+  const params = new URLSearchParams({ repo, path, ref });
+  const response = await fetch(`/api/github/contents?${params.toString()}`);
+  if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
+  const data = (await response.json()) as GitHubContentItem;
+  if (data.content && data.encoding === 'base64') return atob(data.content);
+  return data.content ?? '';
+}
+
+function TreeNode({ node, depth, repo, branch }: {
+  node: RepoFileNode; depth: number; repo: string; branch: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [loadingFile, setLoadingFile] = useState(false);
+  const openFile = useEditorStore((s) => s.openFile);
+  const updateNodeChildren = useRepoStore((s) => s.updateNodeChildren);
+  const setNodeLoading = useRepoStore((s) => s.setNodeLoading);
+
+  const handleClick = useCallback(async () => {
+    if (node.type === 'dir') {
+      if (!expanded && !node.isLoaded) {
+        setNodeLoading(node.path, true);
+        try {
+          const children = await fetchDirectoryContents(repo, node.path, branch);
+          updateNodeChildren(node.path, children);
+        } catch {
+          setNodeLoading(node.path, false);
+        }
+      }
       setExpanded((prev) => !prev);
     } else {
-      openFile({
-        id: node.path,
-        path: node.path,
-        name: node.name,
-        language: node.language ?? 'plaintext',
-        content: `// ${node.name}\n// Content loaded from ${node.path}\n`,
-      });
+      setLoadingFile(true);
+      try {
+        const content = await fetchFileContent(repo, node.path, branch);
+        openFile({
+          id: `${repo}:${node.path}`,
+          path: node.path,
+          name: node.name,
+          language: detectLanguage(node.name),
+          content,
+        });
+      } catch {
+        openFile({
+          id: `${repo}:${node.path}`,
+          path: node.path,
+          name: node.name,
+          language: detectLanguage(node.name),
+          content: `// Error: Could not load ${node.path}`,
+        });
+      } finally {
+        setLoadingFile(false);
+      }
     }
-  }, [node, openFile]);
+  }, [node, expanded, repo, branch, openFile, updateNodeChildren, setNodeLoading]);
 
   return (
     <div>
@@ -109,9 +156,11 @@ function TreeNode({ node, depth }: { node: FileNode; depth: number }) {
         className="flex w-full items-center gap-1 px-1 py-[3px] text-left transition-colors duration-100 hover:bg-pablo-hover"
         style={{ paddingLeft: `${depth * 12 + 8}px` }}
       >
-        {node.type === 'directory' ? (
+        {node.type === 'dir' ? (
           <>
-            {expanded ? (
+            {node.isLoading ? (
+              <Loader2 size={14} className="shrink-0 animate-spin text-pablo-gold" />
+            ) : expanded ? (
               <ChevronDown size={14} className="shrink-0 text-pablo-text-muted" />
             ) : (
               <ChevronRight size={14} className="shrink-0 text-pablo-text-muted" />
@@ -124,38 +173,103 @@ function TreeNode({ node, depth }: { node: FileNode; depth: number }) {
           </>
         ) : (
           <>
-            <span className="w-3.5 shrink-0" />
+            {loadingFile ? (
+              <Loader2 size={14} className="shrink-0 animate-spin text-pablo-text-muted" />
+            ) : (
+              <span className="w-3.5 shrink-0" />
+            )}
             <File size={14} className={`shrink-0 ${getFileIcon(node.name)}`} />
           </>
         )}
         <span className="truncate font-ui text-xs text-pablo-text">{node.name}</span>
+        {node.type === 'file' && node.size > 0 && (
+          <span className="ml-auto shrink-0 font-ui text-[9px] text-pablo-text-muted">
+            {node.size > 1024 ? `${(node.size / 1024).toFixed(1)}K` : `${node.size}B`}
+          </span>
+        )}
       </button>
-      {node.type === 'directory' && expanded && node.children && (
+      {node.type === 'dir' && expanded && node.children && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.path} node={child} depth={depth + 1} />
+            <TreeNode key={child.path} node={child} depth={depth + 1} repo={repo} branch={branch} />
           ))}
+          {node.children.length === 0 && node.isLoaded && (
+            <div className="font-ui text-[10px] text-pablo-text-muted italic"
+              style={{ paddingLeft: `${(depth + 1) * 12 + 8}px` }}>
+              Empty directory
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export function FileExplorer() {
-  const [hasRepo, setHasRepo] = useState(false);
+function RepoSelector() {
+  const {
+    repos, reposLoading, reposError,
+    setRepos, setReposLoading, setReposError,
+    selectRepo, setFileTree, setFileTreeLoading, setFileTreeError,
+  } = useRepoStore();
+  const [searchQuery, setSearchQuery] = useState('');
 
-  if (!hasRepo) {
+  const loadRepos = useCallback(async () => {
+    setReposLoading(true);
+    setReposError(null);
+    try {
+      const response = await fetch('/api/github/repos?per_page=100&sort=updated');
+      if (!response.ok) {
+        if (response.status === 401) throw new Error('Not authenticated. Please sign in with GitHub.');
+        throw new Error(`Failed to load repos: ${response.status}`);
+      }
+      const data = (await response.json()) as GitHubRepo[];
+      setRepos(data);
+    } catch (err) {
+      setReposError(err instanceof Error ? err.message : 'Failed to load repos');
+    } finally {
+      setReposLoading(false);
+    }
+  }, [setRepos, setReposLoading, setReposError]);
+
+  useEffect(() => {
+    if (repos.length === 0 && !reposLoading) loadRepos();
+  }, [repos.length, reposLoading, loadRepos]);
+
+  const handleSelectRepo = useCallback(async (repo: GitHubRepo) => {
+    selectRepo(repo);
+    setFileTreeLoading(true);
+    setFileTreeError(null);
+    try {
+      const tree = await fetchDirectoryContents(repo.full_name, '', repo.default_branch);
+      setFileTree(tree);
+    } catch (err) {
+      setFileTreeError(err instanceof Error ? err.message : 'Failed to load file tree');
+    } finally {
+      setFileTreeLoading(false);
+    }
+  }, [selectRepo, setFileTree, setFileTreeLoading, setFileTreeError]);
+
+  const filteredRepos = repos.filter((r) =>
+    r.full_name.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (reposLoading && repos.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
-        <FolderPlus size={32} className="text-pablo-text-muted" />
-        <p className="font-ui text-xs text-pablo-text-muted">
-          Clone a repository to get started
-        </p>
-        <button
-          onClick={() => setHasRepo(true)}
-          className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors duration-150 hover:bg-pablo-gold-dim"
-        >
-          Load Demo Project
+        <Loader2 size={24} className="animate-spin text-pablo-gold" />
+        <p className="font-ui text-xs text-pablo-text-muted">Loading repositories...</p>
+      </div>
+    );
+  }
+
+  if (reposError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+        <AlertCircle size={24} className="text-pablo-red" />
+        <p className="font-ui text-xs text-pablo-red">{reposError}</p>
+        <button onClick={loadRepos}
+          className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors duration-150 hover:bg-pablo-gold-dim">
+          Retry
         </button>
       </div>
     );
@@ -163,34 +277,130 @@ export function FileExplorer() {
 
   return (
     <div className="flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center justify-end gap-1 px-2 py-1 border-b border-pablo-border">
-        <button
-          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
-          aria-label="New file"
-        >
-          <FilePlus size={14} />
+      <div className="p-2">
+        <div className="flex items-center rounded-md border border-pablo-border bg-pablo-input px-2 py-1 focus-within:border-pablo-gold/50">
+          <Search size={12} className="mr-1.5 shrink-0 text-pablo-text-muted" />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search repositories..."
+            className="w-full bg-transparent font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted" />
+        </div>
+      </div>
+      <div className="max-h-[calc(100vh-200px)] overflow-y-auto">
+        {filteredRepos.map((repo) => (
+          <button key={repo.id} onClick={() => handleSelectRepo(repo)}
+            className="flex w-full items-start gap-2 border-b border-pablo-border/50 px-3 py-2 text-left transition-colors duration-100 hover:bg-pablo-hover">
+            <div className="mt-0.5 shrink-0">
+              {repo.private ? <Lock size={14} className="text-pablo-orange" /> : <Globe size={14} className="text-pablo-text-muted" />}
+            </div>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="truncate font-ui text-xs font-medium text-pablo-text">{repo.name}</span>
+              {repo.description && (
+                <span className="line-clamp-1 font-ui text-[10px] text-pablo-text-muted">{repo.description}</span>
+              )}
+              <div className="flex items-center gap-2">
+                {repo.language && <span className="font-ui text-[10px] text-pablo-text-dim">{repo.language}</span>}
+                <span className="flex items-center gap-0.5 font-ui text-[10px] text-pablo-text-muted">
+                  <Star size={9} />{repo.stargazers_count}
+                </span>
+                <span className="flex items-center gap-0.5 font-ui text-[10px] text-pablo-text-muted">
+                  <GitBranch size={9} />{repo.default_branch}
+                </span>
+              </div>
+            </div>
+          </button>
+        ))}
+        {filteredRepos.length === 0 && (
+          <div className="px-4 py-6 text-center">
+            <p className="font-ui text-xs text-pablo-text-muted">No repositories found</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function FileExplorer() {
+  const {
+    selectedRepo, fileTree, fileTreeLoading, fileTreeError,
+    clearRepo, setFileTree, setFileTreeLoading, setFileTreeError, selectedBranch,
+  } = useRepoStore();
+
+  const handleRefresh = useCallback(async () => {
+    if (!selectedRepo) return;
+    setFileTreeLoading(true);
+    setFileTreeError(null);
+    try {
+      const tree = await fetchDirectoryContents(selectedRepo.full_name, '', selectedBranch);
+      setFileTree(tree);
+    } catch (err) {
+      setFileTreeError(err instanceof Error ? err.message : 'Failed to refresh');
+    } finally {
+      setFileTreeLoading(false);
+    }
+  }, [selectedRepo, selectedBranch, setFileTree, setFileTreeLoading, setFileTreeError]);
+
+  if (!selectedRepo) return <RepoSelector />;
+
+  return (
+    <div className="flex flex-col">
+      {/* Repo header */}
+      <div className="flex items-center gap-1.5 border-b border-pablo-border px-2 py-1.5">
+        <button onClick={clearRepo}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
+          aria-label="Back to repos" title="Back to repos">
+          <ArrowLeft size={14} />
         </button>
-        <button
-          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
-          aria-label="New folder"
-        >
-          <FolderPlus size={14} />
-        </button>
-        <button
-          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
-          aria-label="Refresh"
-        >
-          <RefreshCw size={14} />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-ui text-xs font-medium text-pablo-text">{selectedRepo.name}</span>
+          <span className="flex items-center gap-1 font-ui text-[10px] text-pablo-text-muted">
+            <GitBranch size={9} />{selectedBranch}
+          </span>
+        </div>
+        <button onClick={handleRefresh} disabled={fileTreeLoading}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim disabled:opacity-30"
+          aria-label="Refresh">
+          <RefreshCw size={12} className={fileTreeLoading ? 'animate-spin' : ''} />
         </button>
       </div>
 
-      {/* File tree */}
-      <div className="py-1">
-        {DEMO_TREE.map((node) => (
-          <TreeNode key={node.path} node={node} depth={0} />
-        ))}
+      {/* Toolbar */}
+      <div className="flex items-center justify-end gap-1 border-b border-pablo-border px-2 py-1">
+        <button className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim" aria-label="New file">
+          <FilePlus size={14} />
+        </button>
+        <button className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim" aria-label="New folder">
+          <FolderPlus size={14} />
+        </button>
       </div>
+
+      {/* Loading state */}
+      {fileTreeLoading && fileTree.length === 0 && (
+        <div className="flex flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+          <Loader2 size={24} className="animate-spin text-pablo-gold" />
+          <p className="font-ui text-xs text-pablo-text-muted">Loading file tree...</p>
+        </div>
+      )}
+
+      {/* Error state */}
+      {fileTreeError && (
+        <div className="flex flex-col items-center justify-center gap-3 px-4 py-6 text-center">
+          <AlertCircle size={20} className="text-pablo-red" />
+          <p className="font-ui text-xs text-pablo-red">{fileTreeError}</p>
+          <button onClick={handleRefresh}
+            className="rounded-md bg-pablo-gold px-3 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim">
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* File tree */}
+      {fileTree.length > 0 && (
+        <div className="overflow-y-auto py-1">
+          {fileTree.map((node) => (
+            <TreeNode key={node.path} node={node} depth={0} repo={selectedRepo.full_name} branch={selectedBranch} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
