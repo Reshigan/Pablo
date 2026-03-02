@@ -1,6 +1,19 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 
+// Helper to get env vars from Cloudflare Worker context (runtime) or process.env (local dev)
+async function getEnvVar(name: string): Promise<string> {
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const env = ctx.env as Record<string, string | undefined>;
+    if (env[name]) return env[name] as string;
+  } catch {
+    // Not running in Cloudflare Worker context (local dev)
+  }
+  return process.env[name] || '';
+}
+
 interface ChatRequestBody {
   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>;
   model?: string;
@@ -22,8 +35,9 @@ export async function POST(request: NextRequest) {
   const { messages, model = 'deepseek-r1', temperature = 0.7, max_tokens = 4096 } = body;
 
   // API endpoint - supports Ollama local or OpenAI-compatible cloud APIs
-  const apiUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-  const apiKey = process.env.OLLAMA_API_KEY || '';
+  // Use getCloudflareContext for Cloudflare Workers runtime, fallback to process.env for local dev
+  const apiUrl = (await getEnvVar('OLLAMA_URL')) || 'http://localhost:11434';
+  const apiKey = await getEnvVar('OLLAMA_API_KEY');
 
   const reqHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
