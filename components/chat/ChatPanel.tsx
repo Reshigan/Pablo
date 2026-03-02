@@ -6,6 +6,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useChatStore } from '@/stores/chat';
 import { useToastStore } from '@/stores/toast';
+import { useEditorStore } from '@/stores/editor';
+import { parseGeneratedFiles } from '@/lib/code-parser';
+import { generateId } from '@/lib/db/queries';
 
 interface PipelineProgress {
   active: boolean;
@@ -202,6 +205,29 @@ export function ChatPanel() {
         }
 
         updateMessage(assistantId, { isStreaming: false });
+
+        // AI → Editor bridge: parse generated files and open them as tabs
+        const finalContent = useChatStore.getState().messages.find(m => m.id === assistantId)?.content ?? '';
+        const parsedFiles = parseGeneratedFiles(finalContent);
+        if (parsedFiles.length > 0) {
+          const editorStore = useEditorStore.getState();
+          const { addToast } = useToastStore.getState();
+          for (const file of parsedFiles) {
+            editorStore.openFile({
+              id: generateId('gen'),
+              path: file.filename,
+              name: file.filename.split('/').pop() || file.filename,
+              language: file.language,
+              content: file.content,
+            });
+          }
+          addToast({
+            type: 'success',
+            title: 'Files Generated',
+            message: `${parsedFiles.length} file(s) opened in editor`,
+            duration: 4000,
+          });
+        }
       } catch (err) {
         if (err instanceof Error && err.name === 'AbortError') {
           updateMessage(assistantId, {
