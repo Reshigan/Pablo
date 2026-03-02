@@ -22,6 +22,11 @@ import {
   type PipelineRun,
 } from '@/stores/pipeline';
 import { useMetricsStore } from '@/stores/metrics';
+import { useEditorStore } from '@/stores/editor';
+import { useToastStore } from '@/stores/toast';
+import { parseGeneratedFiles } from '@/lib/code-parser';
+import { generateId } from '@/lib/db/queries';
+import { getDB } from '@/lib/db/drizzle';
 
 const STATUS_ICONS: Record<StageStatus, typeof Circle> = {
   pending: Circle,
@@ -305,6 +310,50 @@ export function PipelineView() {
       if (!controller.signal.aborted) {
         completeRun(runId, 'completed');
         useMetricsStore.getState().incrementFeatures();
+
+        // AI → Editor bridge: parse generated files from all stage outputs and open as tabs
+        const completedRun = usePipelineStore.getState().runs.find(r => r.id === runId);
+        if (completedRun) {
+          const allOutput = completedRun.stages
+            .filter(s => s.output && s.status === 'completed')
+            .map(s => s.output)
+            .join('\n\n');
+          const parsedFiles = parseGeneratedFiles(allOutput);
+          if (parsedFiles.length > 0) {
+            const editorStore = useEditorStore.getState();
+            for (const file of parsedFiles) {
+              editorStore.openFile({
+                id: generateId('pipe'),
+                path: file.filename,
+                name: file.filename.split('/').pop() || file.filename,
+                language: file.language,
+                content: file.content,
+              });
+            }
+            useToastStore.getState().addToast({
+              type: 'success',
+              title: 'Pipeline Complete',
+              message: `${parsedFiles.length} file(s) generated and opened in editor`,
+              duration: 4000,
+            });
+          }
+
+          // Persist pipeline run to DB
+          try {
+            const db = getDB();
+            db.createPipelineRun({
+              id: runId,
+              sessionId: 'default',
+              featureDescription: description,
+              status: 'completed',
+              currentStage: 'review',
+              totalTokens: completedRun.totalTokens,
+              totalDurationMs: completedRun.totalDurationMs,
+            });
+          } catch {
+            // Non-blocking
+          }
+        }
       }
     } catch {
       completeRun(runId, 'failed');

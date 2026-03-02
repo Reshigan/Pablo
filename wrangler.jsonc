@@ -14,7 +14,7 @@
   "vars": {
     "ENVIRONMENT": "production",
     "OLLAMA_URL": "https://ollama.com",
-    "GITHUB_CLIENT_ID": "Ov23liug5kR3fkNrlxXd",
+    "GITHUB_CLIENT_ID": "",
     "NEXTAUTH_URL": "https://pablo.vantax.co.za"
   }
 }

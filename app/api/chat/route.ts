@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
 import { buildSystemPrompt } from '@/lib/domain-kb/loader';
+import { getDB } from '@/lib/db/drizzle';
 
 // Master system prompt (inlined to avoid fs reads in Workers)
 const MASTER_PROMPT_RAW = `You are Pablo, an AI software engineer built by GONXT (a division of Vanta X, South Africa). You build production-ready, enterprise-grade software with a specialisation in South African business systems.
@@ -64,6 +65,7 @@ interface ChatRequestBody {
   temperature?: number;
   max_tokens?: number;
   mode?: 'chat' | 'generate' | 'multi-turn';
+  sessionId?: string;
 }
 
 /**
@@ -352,7 +354,8 @@ async function tryExternalAPIStreaming(
  */
 async function handleMultiTurnGeneration(
   userMessage: string,
-  env: EnvConfig
+  env: EnvConfig,
+  sessionId?: string
 ): Promise<Response> {
   const encoder = new TextEncoder();
 
@@ -364,8 +367,17 @@ async function handleMultiTurnGeneration(
       };
 
       try {
-        // Build system prompt with domain knowledge
-        const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW);
+        // Load learned patterns for context injection
+        let patterns: Array<{ trigger: string; action: string; confidence: number }> = [];
+        if (sessionId) {
+          try {
+            const db = getDB();
+            patterns = db.getPatterns().map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
+          } catch { /* non-blocking */ }
+        }
+
+        // Build system prompt with domain knowledge + patterns
+        const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW, patterns);
 
         sendSSE('**Multi-Turn Generation Pipeline Started**\n\n', false, { step: 'init' });
         sendSSE('Task classified as: **complex feature** (using 7-step pipeline)\n\n', false, { step: 'classify' });
@@ -411,6 +423,35 @@ async function handleMultiTurnGeneration(
 
         sendSSE('', true);
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+
+        // Persist assistant response to DB
+        if (sessionId) {
+          try {
+            const db = getDB();
+            const fullContent = result.files.map(f => `### ${f.filename}\n\`\`\`${f.language}\n${f.content}\n\`\`\``).join('\n\n');
+            db.createMessage({
+              sessionId,
+              role: 'assistant',
+              content: fullContent,
+              model: 'multi-turn-pipeline',
+              tokens: result.total_tokens,
+              durationMs: result.total_duration_ms,
+            });
+            // Persist generated files to DB
+            for (const file of result.files) {
+              db.createFile({
+                sessionId,
+                path: file.filename,
+                name: file.filename.split('/').pop() || file.filename,
+                content: file.content,
+                language: file.language,
+              });
+            }
+          } catch {
+            // Non-blocking
+          }
+        }
+
         controller.close();
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error in multi-turn pipeline';
@@ -433,14 +474,28 @@ async function handleMultiTurnGeneration(
 async function handleSmartChat(
   messages: Array<{ role: string; content: string }>,
   userMessage: string,
-  env: EnvConfig
+  env: EnvConfig,
+  sessionId?: string
 ): Promise<Response> {
   // Route task to best model
   const route = routeTask(userMessage);
   const model = route.primary;
 
-  // Build system prompt with domain knowledge
-  const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW);
+  // Load learned patterns and open files for context injection
+  let patterns: Array<{ trigger: string; action: string; confidence: number }> = [];
+  let openFiles: Array<{ path: string; content: string; language: string }> = [];
+  if (sessionId) {
+    try {
+      const db = getDB();
+      patterns = db.getPatterns().map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
+      openFiles = db.getFilesBySession(sessionId)
+        .filter(f => !f.isDirectory && f.content)
+        .map(f => ({ path: f.path, content: f.content, language: f.language ?? 'plaintext' }));
+    } catch { /* non-blocking */ }
+  }
+
+  // Build system prompt with domain knowledge + patterns + codebase context
+  const systemPrompt = buildSystemPrompt(userMessage, MASTER_PROMPT_RAW, patterns, openFiles);
 
   // Replace the system message with our enhanced prompt
   const enhancedMessages = [
@@ -499,7 +554,7 @@ async function handleSmartChat(
   if (lastResortResponse) return lastResortResponse;
 
   // Last resort: mock response
-  return createMockSSEResponse(model.model);
+  return createMockSSEResponse(model.model, sessionId);
 }
 
 /**
@@ -527,15 +582,31 @@ export async function POST(request: NextRequest) {
   // Get the last user message
   const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
 
+  // Persist user message to DB if sessionId is provided
+  const sessionId = body.sessionId;
+  if (sessionId && lastUserMessage) {
+    try {
+      const db = getDB();
+      // Ensure session exists
+      let dbSession = db.getSession(sessionId);
+      if (!dbSession) {
+        dbSession = db.createSession({ id: sessionId, title: lastUserMessage.slice(0, 80) });
+      }
+      db.createMessage({ sessionId, role: 'user', content: lastUserMessage });
+    } catch {
+      // Non-blocking: don't fail the chat if DB write fails
+    }
+  }
+
   // Determine mode: explicit override, or auto-detect
   const effectiveMode = mode || (shouldDecompose(lastUserMessage) ? 'multi-turn' : 'chat');
 
   if (effectiveMode === 'multi-turn') {
-    return handleMultiTurnGeneration(lastUserMessage, env);
+    return handleMultiTurnGeneration(lastUserMessage, env, sessionId);
   }
 
   // Standard chat with smart routing + domain KB
-  return handleSmartChat(messages, lastUserMessage, env);
+  return handleSmartChat(messages, lastUserMessage, env, sessionId);
 }
 
 /**
@@ -566,7 +637,7 @@ export async function GET() {
 /**
  * Creates a mock SSE response when no AI backend is available
  */
-function createMockSSEResponse(model: string): Response {
+function createMockSSEResponse(model: string, sessionId?: string): Response {
   const encoder = new TextEncoder();
   const mockResponse =
     "I'm Pablo's AI assistant. No AI backend is currently available. " +
@@ -587,6 +658,13 @@ function createMockSSEResponse(model: string): Response {
           const doneData = JSON.stringify({ content: '', done: true, model });
           controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+          // Persist mock response to DB
+          if (sessionId) {
+            try {
+              const db = getDB();
+              db.createMessage({ sessionId, role: 'assistant', content: mockResponse, model });
+            } catch { /* non-blocking */ }
+          }
           controller.close();
           if (intervalId) clearInterval(intervalId);
           return;

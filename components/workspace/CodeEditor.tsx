@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import Editor, { type OnMount, type Monaco } from '@monaco-editor/react';
 
 type IStandaloneThemeData = Parameters<Monaco['editor']['defineTheme']>[1];
@@ -70,6 +70,24 @@ export function CodeEditor() {
       // Register Pablo theme
       monaco.editor.defineTheme('pablo-dark', PABLO_THEME);
       monaco.editor.setTheme('pablo-dark');
+
+      // Cmd+S / Ctrl+S: save file (mark clean + persist to API)
+      editorInstance.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
+        () => {
+          const store = useEditorStore.getState();
+          const tab = store.tabs.find(t => t.id === store.activeTabId);
+          if (tab && tab.isDirty) {
+            store.markClean(tab.id);
+            // Persist to API (non-blocking)
+            fetch('/api/files', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ sessionId: 'default', path: tab.path, content: tab.content }),
+            }).catch(() => { /* non-blocking */ });
+          }
+        }
+      );
 
       // Editor settings
       editorInstance.updateOptions({

@@ -21,6 +21,9 @@ import type {
   NewDomainKbEntry,
 } from './schema';
 
+// Make 'id' optional for create methods (auto-generated if not provided)
+type OptionalId<T> = Omit<T, 'id'> & { id?: string };
+
 // ─── ID Generation ───────────────────────────────────────────────────────────
 
 let idCounter = 0;
@@ -48,7 +51,7 @@ class InMemoryStore {
 
   // ─── Sessions ──────────────────────────────────────────────────────────
 
-  createSession(data: NewSession): Session {
+  createSession(data: OptionalId<NewSession>): Session {
     const now = new Date().toISOString();
     const session: Session = {
       id: data.id ?? generateId('ses'),
@@ -95,7 +98,7 @@ class InMemoryStore {
 
   // ─── Messages ──────────────────────────────────────────────────────────
 
-  createMessage(data: NewMessage): Message {
+  createMessage(data: OptionalId<NewMessage>): Message {
     const message: Message = {
       id: data.id ?? generateId('msg'),
       sessionId: data.sessionId,
@@ -118,7 +121,7 @@ class InMemoryStore {
 
   // ─── Files ─────────────────────────────────────────────────────────────
 
-  createFile(data: NewFileRecord): FileRecord {
+  createFile(data: OptionalId<NewFileRecord>): FileRecord {
     const now = new Date().toISOString();
     const file: FileRecord = {
       id: data.id ?? generateId('file'),
@@ -162,7 +165,7 @@ class InMemoryStore {
 
   // ─── Pipeline Runs ─────────────────────────────────────────────────────
 
-  createPipelineRun(data: NewPipelineRun): PipelineRun {
+  createPipelineRun(data: OptionalId<NewPipelineRun>): PipelineRun {
     const run: PipelineRun = {
       id: data.id ?? generateId('run'),
       sessionId: data.sessionId,
@@ -205,7 +208,7 @@ class InMemoryStore {
 
   // ─── Pipeline Stages ───────────────────────────────────────────────────
 
-  createPipelineStage(data: NewPipelineStage): PipelineStage {
+  createPipelineStage(data: OptionalId<NewPipelineStage>): PipelineStage {
     const stage: PipelineStage = {
       id: data.id ?? generateId('stg'),
       runId: data.runId,
@@ -239,7 +242,7 @@ class InMemoryStore {
 
   // ─── Patterns ──────────────────────────────────────────────────────────
 
-  createPattern(data: NewPattern): Pattern {
+  createPattern(data: OptionalId<NewPattern>): Pattern {
     const pattern: Pattern = {
       id: data.id ?? generateId('pat'),
       sessionId: data.sessionId ?? null,
@@ -272,7 +275,7 @@ class InMemoryStore {
 
   // ─── Domain KB ─────────────────────────────────────────────────────────
 
-  createDomainKbEntry(data: NewDomainKbEntry): DomainKbEntry {
+  createDomainKbEntry(data: OptionalId<NewDomainKbEntry>): DomainKbEntry {
     const now = new Date().toISOString();
     const entry: DomainKbEntry = {
       id: data.id ?? generateId('kb'),

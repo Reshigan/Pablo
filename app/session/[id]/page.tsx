@@ -10,6 +10,7 @@ import { TerminalPanel } from '@/components/workspace/Terminal';
 import { CommandPalette } from '@/components/modals/CommandPalette';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
+import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useUIStore } from '@/stores/ui';
 import { useEffect, useCallback } from 'react';
 
@@ -66,7 +67,9 @@ export default function SessionPage() {
       {/* Main Area: Sidebar + Workspace + Chat */}
       <div className="flex min-h-0 flex-1">
         {/* Sidebar */}
-        <Sidebar />
+        <ErrorBoundary name="Sidebar">
+          <Sidebar />
+        </ErrorBoundary>
 
         {/* Sidebar Resize Handle */}
         {sidebarOpen && (
@@ -77,7 +80,9 @@ export default function SessionPage() {
         )}
 
         {/* Workspace */}
-        <WorkspaceArea />
+        <ErrorBoundary name="Workspace">
+          <WorkspaceArea />
+        </ErrorBoundary>
 
         {/* Chat Resize Handle */}
         {chatOpen && (
@@ -93,7 +98,9 @@ export default function SessionPage() {
             className="flex h-full shrink-0 flex-col border-l border-pablo-border"
             style={{ width: chatWidth }}
           >
-            <ChatPanel />
+            <ErrorBoundary name="Chat">
+              <ChatPanel />
+            </ErrorBoundary>
           </div>
         )}
       </div>
@@ -107,7 +114,9 @@ export default function SessionPage() {
             </span>
           </div>
           <div style={{ height: 180 }}>
-            <TerminalPanel />
+            <ErrorBoundary name="Terminal">
+              <TerminalPanel />
+            </ErrorBoundary>
           </div>
         </div>
       )}

@@ -100,16 +100,38 @@ export function formatDomainKnowledge(entries: DomainEntry[]): string {
   return `\n\n## DOMAIN KNOWLEDGE (South African Enterprise)\n\n${sections.join('\n\n---\n\n')}`;
 }
 
+// Format learned patterns for injection into system prompt
+function formatPatterns(patterns: Array<{ trigger: string; action: string; confidence: number }>): string {
+  if (patterns.length === 0) return '';
+  const lines = patterns
+    .filter(p => p.confidence >= 0.4)
+    .map(p => `- When: "${p.trigger}" → Do: "${p.action}" (${Math.round(p.confidence * 100)}% confident)`);
+  if (lines.length === 0) return '';
+  return `\n\n## LEARNED PATTERNS\n${lines.join('\n')}`;
+}
+
+// Format codebase file context for injection into system prompt
+function formatCodebaseContext(files: Array<{ path: string; content: string; language: string }>): string {
+  if (files.length === 0) return '';
+  const sections = files.slice(0, 5).map(f => `### ${f.path}\n\`\`\`${f.language}\n${f.content.slice(0, 2000)}\n\`\`\``);
+  return `\n\n## CODEBASE CONTEXT (open files)\n${sections.join('\n\n')}`;
+}
+
 // Load and build the master system prompt with domain knowledge injected
-export function buildSystemPrompt(userMessage: string, basePrompt: string): string {
+export function buildSystemPrompt(
+  userMessage: string,
+  basePrompt: string,
+  patterns?: Array<{ trigger: string; action: string; confidence: number }>,
+  openFiles?: Array<{ path: string; content: string; language: string }>
+): string {
   const relevantKB = getRelevantKnowledge(userMessage);
   const formattedKB = formatDomainKnowledge(relevantKB);
 
   // Replace placeholders in base prompt
   let prompt = basePrompt;
   prompt = prompt.replace('{domain_knowledge}', () => formattedKB);
-  prompt = prompt.replace('{patterns}', () => ''); // Will be populated from learned patterns later
-  prompt = prompt.replace('{codebase_context}', () => ''); // Will be populated from file context later
+  prompt = prompt.replace('{patterns}', () => formatPatterns(patterns ?? []));
+  prompt = prompt.replace('{codebase_context}', () => formatCodebaseContext(openFiles ?? []));
 
   return prompt;
 }
