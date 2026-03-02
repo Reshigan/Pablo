@@ -62,18 +62,21 @@ export function ChatPanel() {
       setStreaming(true);
       setError(null);
 
-      // Build messages array for API
+      // Build messages array for API using latest store state
+      // (avoids stale closure after addMessage calls above)
+      const currentMessages = useChatStore.getState().messages;
       const apiMessages = [
         {
           role: 'system' as const,
           content:
             'You are Pablo, an AI coding assistant inside an IDE. Help the user build features, debug code, and explain concepts. Be concise and use markdown for code blocks.',
         },
-        ...messages.map((m) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        })),
-        { role: 'user' as const, content: content.trim() },
+        ...currentMessages
+          .filter((m) => m.id !== assistantId)
+          .map((m) => ({
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+          })),
       ];
 
       try {

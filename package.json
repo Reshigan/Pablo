@@ -5,12 +5,16 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:worker": "npx @opennextjs/cloudflare build",
+    "preview:worker": "npx wrangler dev",
+    "deploy": "npx wrangler deploy",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
     "@monaco-editor/react": "^4.7.0",
+    "@opennextjs/cloudflare": "^1.17.1",
     "@tanstack/react-query": "^5.90.21",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-search": "^0.16.0",
@@ -35,6 +39,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^4.69.0"
   }
 }

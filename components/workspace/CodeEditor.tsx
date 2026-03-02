@@ -2,11 +2,13 @@
 
 import { useCallback, useRef } from 'react';
 import Editor, { type OnMount, type Monaco } from '@monaco-editor/react';
-import type { editor } from 'monaco-editor';
+
+type IStandaloneThemeData = Parameters<Monaco['editor']['defineTheme']>[1];
+type IStandaloneCodeEditor = Parameters<OnMount>[0];
 import { useEditorStore } from '@/stores/editor';
 
 // Pablo dark theme for Monaco
-const PABLO_THEME: editor.IStandaloneThemeData = {
+const PABLO_THEME: IStandaloneThemeData = {
   base: 'vs-dark',
   inherit: true,
   rules: [
@@ -57,12 +59,12 @@ const PABLO_THEME: editor.IStandaloneThemeData = {
 };
 
 export function CodeEditor() {
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const editorRef = useRef<IStandaloneCodeEditor | null>(null);
   const { tabs, activeTabId, updateContent } = useEditorStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
 
   const handleEditorMount: OnMount = useCallback(
-    (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+    (editorInstance: IStandaloneCodeEditor, monaco: Monaco) => {
       editorRef.current = editorInstance;
 
       // Register Pablo theme

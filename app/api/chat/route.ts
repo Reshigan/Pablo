@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       return createMockSSEResponse(model);
     }
 
-    // Create SSE stream from Ollama response
+    // Create SSE stream - normalize both Ollama and OpenAI formats to unified SSE
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -99,24 +99,65 @@ export async function POST(request: NextRequest) {
             const lines = allLines.filter((line) => line.trim());
 
             for (const line of lines) {
-              try {
-                const chunk = JSON.parse(line);
-                const sseData = JSON.stringify({
-                  content: chunk.message?.content ?? '',
-                  done: chunk.done ?? false,
-                  model: chunk.model ?? model,
-                  eval_count: chunk.eval_count,
-                  total_duration: chunk.total_duration,
-                });
-                controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
-
-                if (chunk.done) {
+              // OpenAI-compatible SSE format: lines start with "data: "
+              if (isOpenAICompatible) {
+                const trimmed = line.trim();
+                if (!trimmed.startsWith('data: ')) continue;
+                const data = trimmed.slice(6);
+                if (data === '[DONE]') {
                   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   controller.close();
                   return;
                 }
-              } catch {
-                // Skip malformed JSON
+                try {
+                  const chunk = JSON.parse(data) as {
+                    choices?: Array<{
+                      delta?: { content?: string; role?: string };
+                      finish_reason?: string | null;
+                    }>;
+                    model?: string;
+                    usage?: { completion_tokens?: number; total_tokens?: number };
+                  };
+                  const content = chunk.choices?.[0]?.delta?.content ?? '';
+                  const finishReason = chunk.choices?.[0]?.finish_reason;
+                  const isDone = finishReason === 'stop' || finishReason === 'length';
+                  const sseData = JSON.stringify({
+                    content,
+                    done: isDone,
+                    model: chunk.model ?? model,
+                    eval_count: chunk.usage?.completion_tokens,
+                  });
+                  controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+
+                  if (isDone) {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    controller.close();
+                    return;
+                  }
+                } catch {
+                  // Skip malformed JSON
+                }
+              } else {
+                // Ollama format: raw JSON per line
+                try {
+                  const chunk = JSON.parse(line);
+                  const sseData = JSON.stringify({
+                    content: chunk.message?.content ?? '',
+                    done: chunk.done ?? false,
+                    model: chunk.model ?? model,
+                    eval_count: chunk.eval_count,
+                    total_duration: chunk.total_duration,
+                  });
+                  controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
+
+                  if (chunk.done) {
+                    controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+                    controller.close();
+                    return;
+                  }
+                } catch {
+                  // Skip malformed JSON
+                }
               }
             }
           }
