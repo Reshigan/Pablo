@@ -11,9 +11,12 @@ import {
   ExternalLink,
   Clock,
   User,
+  Upload,
+  Save,
 } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { useRepoStore } from '@/stores/repo';
+import { useEditorStore } from '@/stores/editor';
 import { toast } from '@/stores/toast';
 
 interface CommitData {
@@ -28,9 +31,15 @@ interface CommitData {
 export function GitPanel() {
   const selectedRepo = useRepoStore((s) => s.selectedRepo);
   const selectedBranch = useRepoStore((s) => s.selectedBranch);
+  const tabs = useEditorStore((s) => s.tabs);
   const [commits, setCommits] = useState<CommitData[]>([]);
   const [loading, setLoading] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
   const [showHistory, setShowHistory] = useState(true);
+  const [showCommitForm, setShowCommitForm] = useState(false);
+
+  const dirtyTabs = tabs.filter((t) => t.isDirty);
 
   const loadCommits = useCallback(async () => {
     if (!selectedRepo) return;
@@ -55,6 +64,52 @@ export function GitPanel() {
   useEffect(() => {
     if (selectedRepo) loadCommits();
   }, [selectedRepo, loadCommits]);
+
+  const handleCommitAndPush = useCallback(async () => {
+    if (!selectedRepo || !commitMessage.trim()) return;
+    const filesToCommit = tabs.filter((t) => t.content && t.path);
+    if (filesToCommit.length === 0) {
+      toast('No files to commit', 'Open some files first.');
+      return;
+    }
+
+    setCommitting(true);
+    try {
+      const response = await fetch('/api/github/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: selectedRepo.full_name,
+          branch: selectedBranch,
+          message: commitMessage.trim(),
+          files: filesToCommit.map((t) => ({ path: t.path, content: t.content })),
+        }),
+      });
+
+      if (!response.ok) {
+        const errData = (await response.json()) as { error?: string };
+        throw new Error(errData.error ?? `HTTP ${response.status}`);
+      }
+
+      const data = (await response.json()) as { sha: string; url: string };
+      toast('Committed successfully', `${filesToCommit.length} file(s) pushed — ${data.sha.slice(0, 7)}`);
+
+      // Mark all committed files as clean
+      const editorStore = useEditorStore.getState();
+      for (const tab of filesToCommit) {
+        editorStore.markClean(tab.id);
+      }
+
+      setCommitMessage('');
+      setShowCommitForm(false);
+      loadCommits();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      toast('Commit failed', msg);
+    } finally {
+      setCommitting(false);
+    }
+  }, [selectedRepo, selectedBranch, commitMessage, tabs, loadCommits]);
 
   const handleCreatePR = useCallback(() => {
     if (!selectedRepo) {
@@ -165,6 +220,58 @@ export function GitPanel() {
             </div>
           </button>
         ))}
+      </div>
+
+      {/* Commit & Push */}
+      <div className="border-t border-pablo-border">
+        <button
+          onClick={() => setShowCommitForm(!showCommitForm)}
+          className="flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors hover:bg-pablo-hover"
+        >
+          {showCommitForm ? (
+            <ChevronDown size={12} className="text-pablo-text-muted" />
+          ) : (
+            <ChevronRight size={12} className="text-pablo-text-muted" />
+          )}
+          <Upload size={12} className="text-pablo-gold" />
+          <span className="font-ui text-[11px] font-medium text-pablo-text-dim">
+            Commit & Push
+          </span>
+          {dirtyTabs.length > 0 && (
+            <span className="ml-auto rounded bg-pablo-gold/10 px-1.5 font-ui text-[10px] text-pablo-gold">
+              {dirtyTabs.length} modified
+            </span>
+          )}
+        </button>
+
+        {showCommitForm && (
+          <div className="border-t border-pablo-border/50 px-3 py-2">
+            <p className="mb-1.5 font-ui text-[10px] text-pablo-text-muted">
+              {tabs.filter(t => t.content && t.path).length} file(s) will be committed to <span className="text-pablo-gold">{selectedBranch}</span>
+            </p>
+            <input
+              type="text"
+              value={commitMessage}
+              onChange={(e) => setCommitMessage(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleCommitAndPush();
+                }
+              }}
+              placeholder="Commit message..."
+              className="w-full rounded border border-pablo-border bg-pablo-input px-2 py-1 font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+            />
+            <button
+              onClick={handleCommitAndPush}
+              disabled={committing || !commitMessage.trim()}
+              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded bg-pablo-gold px-3 py-1 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {committing ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />}
+              {committing ? 'Pushing...' : 'Commit & Push'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Quick actions */}

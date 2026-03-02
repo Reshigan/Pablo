@@ -71,20 +71,14 @@ export function CodeEditor() {
       monaco.editor.defineTheme('pablo-dark', PABLO_THEME);
       monaco.editor.setTheme('pablo-dark');
 
-      // Cmd+S / Ctrl+S: save file (mark clean + persist to API)
+      // Cmd+S / Ctrl+S: save file via store (persists to DB + marks clean)
       editorInstance.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
         () => {
           const store = useEditorStore.getState();
           const tab = store.tabs.find(t => t.id === store.activeTabId);
           if (tab && tab.isDirty) {
-            store.markClean(tab.id);
-            // Persist to API (non-blocking)
-            fetch('/api/files', {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ sessionId: 'default', path: tab.path, content: tab.content }),
-            }).catch(() => { /* non-blocking */ });
+            store.saveFile(tab.id);
           }
         }
       );
