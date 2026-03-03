@@ -185,6 +185,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
     }));
 
+    // Auto-save after accepting diff
+    const tabToSave = get().tabs.find((t) => t.path === diff.filename);
+    if (tabToSave && tabToSave.isDirty) {
+      get().saveFile(tabToSave.id).catch(() => { /* non-blocking */ });
+    }
+
     // Phase 4: Learn-on-Accept — capture pattern from accepted diff
     try {
       const { useLearningStore } = require('@/stores/learning') as typeof import('@/stores/learning');

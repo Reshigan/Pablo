@@ -167,6 +167,11 @@ export const useAgentStore = create<AgentState>((set, get) => ({
             updated.thinkingText = `Auto-fix attempt ${event.attempt}/${event.maxAttempts}`;
             break;
 
+          case 'step_action':
+            // Action events (commit, create_pr, deploy) — store for client-side execution
+            updated.thinkingText = `Executing ${event.action}...`;
+            break;
+
           case 'done':
             updated.phase = 'done';
             updated.summary = event.summary;
