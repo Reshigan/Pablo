@@ -231,7 +231,7 @@ const STREAM_IDLE_TIMEOUT_MS = 120_000;
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
 const MAX_PREV_OUTPUT_CHARS = 3000;
 /** Number of retries per stage before marking as failed */
-const MAX_STAGE_RETRIES = 1;
+const MAX_STAGE_RETRIES = 2;
 
 /**
  * Truncate a stage output to keep prompts manageable.
@@ -443,7 +443,11 @@ async function runStageWithChat(
           const payload = line.slice(6).trim();
           if (payload === '[DONE]') continue;
           try {
-            const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number };
+            const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number; error?: string };
+            // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
+            if (parsed.error) {
+              throw new Error(`Stream error: ${parsed.error}`);
+            }
             if (parsed.content) {
               output += parsed.content;
               if (!receivedFirstToken) {
