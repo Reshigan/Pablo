@@ -157,6 +157,7 @@ export async function runPythonProject(
 
   if (!mainFile) {
     callbacks.onError('No Python file found to execute');
+    callbacks.onStatusChange('error');
     return '';
   }
 
