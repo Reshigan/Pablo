@@ -57,7 +57,7 @@ interface ChatRequestBody {
   model?: string;
   temperature?: number;
   max_tokens?: number;
-  mode?: 'chat' | 'generate' | 'multi-turn';
+  mode?: 'chat' | 'generate' | 'multi-turn' | 'pipeline-stage';
   sessionId?: string;
 }
 
@@ -462,6 +462,58 @@ async function handleMultiTurnGeneration(
 }
 
 /**
+ * Handle pipeline stage requests with a slim prompt.
+ *
+ * Pipeline stages already contain focused instructions — so we explicitly skip:
+ * - the full master prompt
+ * - domain KB injection
+ * - enriched context-builder injection
+ *
+ * This keeps the prompt small and avoids accidental locale-specific defaults.
+ */
+async function handlePipelineStage(
+  messages: Array<{ role: string; content: string }>,
+  env: EnvConfig,
+  modelOverride?: string,
+): Promise<Response> {
+  const slimSystemPrompt = `You are Pablo, an expert software engineer. Generate production-ready outputs.
+
+Rules:
+- Follow the user's requirements exactly.
+- Do NOT assume any locale, currency, tax regime, or country-specific compliance rules unless explicitly requested.
+- Never include secrets; use environment variables.
+- Output code as markdown code blocks and include filenames (e.g. \`\`\`ts filename.ts\`).
+- If a stage asks for non-code (plan/review), respond concisely with a clear structure.`;
+
+  const enhancedMessages = [
+    { role: 'system', content: slimSystemPrompt },
+    ...messages.filter((m) => m.role !== 'system'),
+  ];
+
+  const modelsToTry = [
+    ...(modelOverride ? [modelOverride] : []),
+    'qwen3-coder:480b',
+    'gpt-oss:120b',
+  ];
+
+  for (const model of modelsToTry) {
+    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 8192, env);
+    if (response) return response;
+  }
+
+  // Optional safety net: if Ollama Cloud is down, fall back to Workers AI.
+  const fallback = await tryWorkersAIBinding(
+    enhancedMessages,
+    '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
+    0.2,
+    8192,
+  );
+  if (fallback) return fallback;
+
+  return createMockSSEResponse(modelOverride ?? 'pipeline-stage');
+}
+
+/**
  * Handle standard streaming chat with smart model routing and domain KB injection
  */
 async function handleSmartChat(
@@ -569,7 +621,7 @@ async function handleSmartChat(
  * 2. Model routing (R1 for reasoning, 70B for code, Flash for chat)
  * 3. Domain knowledge injection (optional, based on explicit user intent)
  * 4. For complex tasks: multi-turn 7-step generation pipeline
- * 5. Post-generation validation (16 checks across 5 categories)
+ * 5. Post-generation validation (12 checks across 4 categories)
  */
 export async function POST(request: NextRequest) {
   const session = await auth();
@@ -604,6 +656,10 @@ export async function POST(request: NextRequest) {
 
   // Determine mode: explicit override, or auto-detect
   const effectiveMode = mode || (shouldDecompose(lastUserMessage) ? 'multi-turn' : 'chat');
+
+  if (effectiveMode === 'pipeline-stage') {
+    return handlePipelineStage(messages, env, body.model);
+  }
 
   if (effectiveMode === 'multi-turn') {
     return handleMultiTurnGeneration(lastUserMessage, env, sessionId);
