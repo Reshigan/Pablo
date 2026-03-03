@@ -96,7 +96,7 @@ export function extractExplicitStack(description: string): Partial<TechStackHint
   else if (/\b(cloudflare\s*pages)\b/.test(text)) hints.infra = 'Cloudflare Pages';
   else if (/\b(vercel)\b/.test(text)) hints.infra = 'Vercel';
   else if (/\b(netlify)\b/.test(text)) hints.infra = 'Netlify';
-  else if (/\b(aws\s*lambda|lambda)\b/.test(text)) hints.infra = 'AWS Lambda';
+  else if (/\b(aws\s*lambda)\b/.test(text) || /\bdeploy\s+(?:to|on)\s+lambda\b/.test(text)) hints.infra = 'AWS Lambda';
   else if (/\b(fly\.?io)\b/.test(text)) hints.infra = 'Fly.io';
   else if (/\b(railway)\b/.test(text)) hints.infra = 'Railway';
   else if (/\b(render\.com)\b/.test(text) || /\bdeploy\s+(?:to|on)\s+render\b/.test(text)) hints.infra = 'Render';
@@ -152,7 +152,7 @@ export function parseTechStackFromPlan(planOutput: string): TechStackHint | null
   let infra = '';
 
   for (const line of lines) {
-    const trimmed = line.trim().replace(/^\*?\s*[-•]\s*/, '').replace(/\*\*/g, '');
+    const trimmed = line.trim().replace(/^(?:\*|[-•])\s*/, '').replace(/\*\*/g, '');
     const match = trimmed.match(
       /^(Frontend|Backend|Database|Storage|Infrastructure|Infra|Deploy(?:ment)?|ORM|Platform)\s*[:：]\s*(.+)/i
     );
@@ -191,11 +191,11 @@ export function resolveTechStack(
     infra: explicit.infra || fromPlan?.infra || 'not specified',
     fullLabel: '',
   };
-  const meaningful = [resolved.frontend, resolved.backend, resolved.database].some(v => v !== 'not specified');
-  resolved.fullLabel = meaningful
-    ? [resolved.frontend, resolved.backend, resolved.database,
-      resolved.storage !== 'none' ? resolved.storage : ''].filter(Boolean).join(' | ')
-    : '';
+  const parts = [resolved.frontend, resolved.backend, resolved.database]
+    .filter(v => v && v !== 'not specified');
+  const storagePart = resolved.storage !== 'none' ? resolved.storage : '';
+  if (storagePart) parts.push(storagePart);
+  resolved.fullLabel = parts.length > 0 ? parts.join(' | ') : '';
   return resolved;
 }
 
