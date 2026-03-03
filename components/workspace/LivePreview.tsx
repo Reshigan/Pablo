@@ -67,9 +67,9 @@ function assemblePreviewHtml(
 
   if (cssFiles.length > 0 || jsFiles.length > 0) {
     return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-${cssFiles.map(f => `<style>${f.content}</style>`).join('\n')}
+${cssFiles.map(f => `<style>${f.content.replace(/<\/style/gi, '<\\/style')}</style>`).join('\n')}
 </head><body><div id="app"></div>
-${jsFiles.map(f => `<script>${f.content}<\/script>`).join('\n')}
+${jsFiles.map(f => `<script>${f.content.replace(/<\/script/gi, '<\\/script')}<\/script>`).join('\n')}
 </body></html>`;
   }
 
