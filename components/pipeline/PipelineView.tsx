@@ -208,7 +208,7 @@ const FIRST_TOKEN_TIMEOUT_MS = 90_000;
 /** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort */
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
-const MAX_PREV_OUTPUT_CHARS = 1200;
+const MAX_PREV_OUTPUT_CHARS = 800;
 /** Number of retries per stage before marking as failed */
 const MAX_STAGE_RETRIES = 1;
 
@@ -244,6 +244,7 @@ function buildStagePrompt(
   const parts = [
     `Feature: ${featureDescription}`,
     `\nYour task (${stage.label}): ${stageInstructions[stage.id]}`,
+    '\nOutput format: For any code, respond with markdown code blocks that include filenames.',
   ];
 
   if (trimmedPrevious.length > 0) {
@@ -272,7 +273,11 @@ async function runStageWithChat(
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }], mode: 'chat' }),
+      body: JSON.stringify({
+        messages: [{ role: 'user', content: prompt }],
+        mode: 'pipeline-stage',
+        model: stage.model,
+      }),
       signal: stageAbort.signal,
     });
 
