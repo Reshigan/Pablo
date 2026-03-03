@@ -25,9 +25,11 @@ import { useState, useCallback, useRef } from 'react';
 import {
   usePipelineStore,
   PIPELINE_STAGES,
+  detectTechStack,
   type PipelineStage,
   type StageStatus,
   type PipelineRun,
+  type TechStackHint,
 } from '@/stores/pipeline';
 import { useAgentStore, type AgentPhase, type AgentRunState } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
@@ -225,7 +227,7 @@ const FIRST_TOKEN_TIMEOUT_MS = 90_000;
 /** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort */
 const STREAM_IDLE_TIMEOUT_MS = 60_000;
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
-const MAX_PREV_OUTPUT_CHARS = 800;
+const MAX_PREV_OUTPUT_CHARS = 3000;
 /** Number of retries per stage before marking as failed */
 const MAX_STAGE_RETRIES = 1;
 
@@ -239,38 +241,100 @@ function truncateOutput(text: string, maxChars: number): string {
   return text.slice(0, half) + '\n\n... (truncated) ...\n\n' + text.slice(-half);
 }
 
-/** Build a focused prompt for each pipeline stage */
+/** Build a focused prompt for each pipeline stage, with tech stack enforcement */
 function buildStagePrompt(
   featureDescription: string,
   stage: { id: PipelineStage; label: string; description: string },
   previousOutputs: string[],
+  techStack?: TechStackHint,
 ): string {
   const trimmedPrevious = previousOutputs.map(o => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
 
-  // Stage-specific instructions so the model focuses on the right thing
+  // Tech stack context line — injected into EVERY stage so the model never drifts
+  const stackLine = techStack
+    ? `\nTech Stack (MANDATORY — use ONLY these technologies):\n  Frontend: ${techStack.frontend}\n  Backend: ${techStack.backend}\n  Database: ${techStack.database}\n  Do NOT use any other framework, language, or library unless the user explicitly asks for it.\n`
+    : '';
+
+  // Stage-specific instructions — now tech-stack-aware
   const stageInstructions: Record<PipelineStage, string> = {
-    plan: 'Create a concise implementation plan. List the files to create, their purpose, and key design decisions. Do NOT write code yet.',
-    db: 'Generate the database schema / models. Include all tables, columns, types, relationships, and indexes. Output complete, runnable code.',
-    api: 'Generate the API routes and business logic services. Include all endpoints, request/response schemas, authentication, and error handling. Output complete, runnable code.',
-    ui: 'Generate the frontend UI components and pages. Include layouts, forms, tables, and navigation. Output complete, runnable code.',
-    ux_validation: `Perform a thorough UI/UX validation of all generated code from previous stages. Check and report on:
-1. **Wiring completeness**: Every button, form, and link must be connected to a real handler/API call — no placeholder onClick={() => {}}, no TODO handlers, no console.log stubs.
-2. **State management**: All UI state (loading, error, success, empty) must be handled. Forms must show validation errors. Lists must show empty states.
-3. **Accessibility**: Check for aria-labels, keyboard navigation, focus management, color contrast, and screen reader support.
-4. **Responsive design**: Verify mobile/tablet/desktop layouts work. No overflow or hidden content.
-5. **Error handling**: Every fetch/API call must have try/catch with user-visible error feedback. No silent failures.
-6. **Navigation flow**: All routes, links, and redirects must be wired. Back buttons, breadcrumbs, and page transitions must work.
-7. **Data flow**: Props, context, and store subscriptions must be correctly typed and connected end-to-end.
-Output a structured report with PASS/FAIL per check, and for each FAIL provide the exact code fix needed.`,
-    tests: 'Generate unit and integration tests for the API and business logic. Output complete, runnable test files.',
-    execute: 'Generate any remaining configuration files: requirements.txt / package.json, Dockerfile, .env.example, README, and a seed data script. Output complete files.',
-    review: 'Review all previous stage outputs for bugs, missing features, security issues, and code quality problems. List each issue with severity and a fix suggestion.',
+    plan: `Create a concise implementation plan for the requested feature.
+- List ALL files to create with their full paths and purpose.
+- Specify the exact tech stack to use: ${techStack?.fullLabel || 'detect from user request'}.
+- For each file, note the framework/library it uses.
+- Include key architecture decisions (state management, routing, API structure).
+- Do NOT write code yet — only the plan.`,
+
+    db: `Generate the database schema and models.
+${techStack?.backend.includes('Node') || techStack?.backend.includes('TypeScript')
+  ? '- Use Prisma schema OR Drizzle ORM OR TypeORM (match the tech stack).\n- Output .prisma schema files or TypeScript model files.'
+  : techStack?.backend.includes('Python')
+    ? '- Use SQLAlchemy declarative models with proper __tablename__.\n- Include all relationships, indexes, and constraints.'
+    : '- Use the ORM/schema tool appropriate for the specified backend.'}
+- ALL models MUST have: id (primary key), createdAt, updatedAt, isActive/is_active.
+- Include migration files if applicable.
+- Output complete, runnable code.`,
+
+    api: `Generate the API routes and business logic.
+${techStack?.backend.includes('Node')
+  ? '- Use Express.js, Hono, or Next.js API routes (match the plan).\n- Use TypeScript with proper types for all request/response objects.\n- Use zod or similar for input validation.'
+  : techStack?.backend.includes('Python')
+    ? '- Use FastAPI with Pydantic models for validation.\n- Include proper error handling with HTTPException.'
+    : '- Use the API framework specified in the plan.'}
+- Include authentication endpoints (register, login, refresh token).
+- All endpoints must have error handling and input validation.
+- Include CORS configuration.
+- Output complete, runnable code.`,
+
+    ui: `Generate the frontend UI components and pages.
+${techStack?.frontend.includes('React')
+  ? '- Use React functional components with hooks (useState, useEffect, etc.).\n- Use TypeScript with proper prop types and interfaces.\n- Use ' + (techStack.frontend.includes('Tailwind') ? 'Tailwind CSS' : 'CSS modules') + ' for styling.\n- Include proper loading states, error states, and empty states.\n- Wire ALL buttons, forms, and links to real handlers — NO placeholder onClick, NO TODO comments.\n- Use fetch() or axios to call the API endpoints from the previous stage.\n- Include responsive design (mobile, tablet, desktop).'
+  : techStack?.frontend.includes('Vue')
+    ? '- Use Vue 3 Composition API with <script setup>.\n- Use TypeScript.\n- Include proper state management.'
+    : '- Use the frontend framework specified in the plan.'}
+- Output complete, runnable component files.
+- Every component must be a complete, working file — not a snippet.`,
+
+    ux_validation: `Perform a thorough UI/UX validation of ALL generated code from previous stages.
+Check and report on:
+1. **Wiring completeness**: Every button, form, and link must connect to a real handler/API call. Flag any placeholder onClick, TODO handlers, or console.log stubs.
+2. **State management**: All UI state (loading, error, success, empty) must be handled.
+3. **Accessibility**: aria-labels, keyboard navigation, focus management.
+4. **Responsive design**: Mobile/tablet/desktop layouts.
+5. **Error handling**: Every API call must have try/catch with user-visible error feedback.
+6. **Data flow**: Props, context, and store subscriptions must be correctly typed.
+For each FAIL, provide the exact code fix as a complete corrected file.`,
+
+    tests: `Generate unit and integration tests.
+${techStack?.backend.includes('Node')
+  ? '- Use Vitest or Jest for testing.\n- Use TypeScript.\n- Test API endpoints with supertest or similar.'
+  : techStack?.backend.includes('Python')
+    ? '- Use pytest with pytest-asyncio for async tests.\n- Test API endpoints with httpx AsyncClient.'
+    : '- Use the testing framework appropriate for the stack.'}
+- Test happy paths, error cases, and edge cases.
+- Output complete, runnable test files.`,
+
+    execute: `Generate all remaining configuration and setup files:
+${techStack?.backend.includes('Node')
+  ? '- package.json with all dependencies\n- tsconfig.json\n- .env.example\n- Dockerfile (Node.js)\n- README.md with setup instructions\n- Seed data script'
+  : techStack?.backend.includes('Python')
+    ? '- requirements.txt with all dependencies\n- .env.example\n- Dockerfile (Python)\n- README.md with setup instructions\n- Seed data script'
+    : '- All dependency files\n- .env.example\n- Dockerfile\n- README.md\n- Seed data script'}
+- Output complete files.`,
+
+    review: `Review ALL previous stage outputs for:
+- Bugs and logic errors
+- Missing features from the original request
+- Security issues (hardcoded secrets, missing auth, SQL injection)
+- Code quality (naming, structure, duplication)
+- Cross-stage consistency (API endpoints match what UI calls, DB schema matches models)
+List each issue with severity (critical/warning/info) and a specific fix.`,
   };
 
   const parts = [
     `Feature: ${featureDescription}`,
+    stackLine,
     `\nYour task (${stage.label}): ${stageInstructions[stage.id]}`,
-    '\nOutput format: For any code, respond with markdown code blocks that include filenames.',
+    '\nOutput format: For any code, respond with markdown code blocks that include filenames (e.g. ```tsx src/components/Dashboard.tsx).',
   ];
 
   if (trimmedPrevious.length > 0) {
@@ -285,8 +349,9 @@ async function runStageWithChat(
   stage: { id: PipelineStage; label: string; description: string; model: string },
   previousOutputs: string[],
   abortSignal: AbortSignal,
+  techStack?: TechStackHint,
 ): Promise<{ output: string; tokens: number }> {
-  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs);
+  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs, techStack);
 
   // Create a per-stage abort that fires on timeout OR user cancel
   const stageAbort = new AbortController();
@@ -373,12 +438,13 @@ async function runStageWithRetry(
   stage: { id: PipelineStage; label: string; description: string; model: string },
   previousOutputs: string[],
   abortSignal: AbortSignal,
+  techStack?: TechStackHint,
 ): Promise<{ output: string; tokens: number }> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_STAGE_RETRIES; attempt++) {
     if (abortSignal.aborted) throw new Error('Aborted');
     try {
-      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal);
+      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal, techStack);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (abortSignal.aborted) throw lastError;
@@ -602,6 +668,9 @@ export function PipelineView() {
     setFeatureInput('');
     setIsBuilding(true);
 
+    // Detect tech stack from the feature description
+    const techStack = detectTechStack(description);
+
     const controller = new AbortController();
     abortRef.current = controller;
     const previousOutputs: string[] = [];
@@ -616,7 +685,7 @@ export function PipelineView() {
 
         try {
           const startTime = Date.now();
-          const result = await runStageWithRetry(description, stage, previousOutputs, controller.signal);
+          const result = await runStageWithRetry(description, stage, previousOutputs, controller.signal, techStack);
           const durationMs = Date.now() - startTime;
 
           updateStage(runId, stage.id, {
