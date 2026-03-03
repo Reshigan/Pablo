@@ -110,20 +110,6 @@ function checkFileSpecific(file: { path: string; content: string; language: stri
       });
     }
 
-    // SA-specific: VAT calculation check
-    if (file.content.includes('0.15') && file.content.includes('vat')) {
-      // Check for the common bug: vat = quantity * 0.15 instead of quantity * unit_price * 0.15
-      const vatBugPattern = /vat\s*=\s*\w+\s*\*\s*0\.15\b/;
-      if (vatBugPattern.test(file.content)) {
-        issues.push({
-          severity: 'critical',
-          category: 'logic',
-          file: file.path,
-          description: 'VAT calculation bug: vat = quantity * 0.15 (missing unit_price)',
-          suggestion: 'Correct formula: vat = quantity * unit_price * 0.15',
-        });
-      }
-    }
   }
 
   // TypeScript/JavaScript-specific

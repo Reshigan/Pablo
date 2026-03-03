@@ -1,7 +1,7 @@
 // lib/validation/codeValidator.ts
 // Post-generation validation engine
 // Runs BEFORE showing generated code to the user
-// Catches: logic errors, security issues, missing patterns, SA-specific problems
+// Catches: logic errors, security issues, missing patterns
 
 export interface ValidationIssue {
   id: string;
@@ -83,23 +83,8 @@ const SECURITY_CHECKS: CheckDefinition[] = [
   },
 ];
 
-// Logic checks (catches VAT bug and similar)
+// Logic checks (common business logic bugs)
 const LOGIC_CHECKS: CheckDefinition[] = [
-  {
-    id: 'LOG001',
-    name: 'VAT calculated on quantity instead of total',
-    severity: 'critical',
-    patterns: [
-      /vat\s*=\s*\w*\.?(?:quantity|qty)\s*\*\s*0\.15/gi,
-      /vat.*=.*quantity.*\*.*0\.15/gi,
-    ],
-    negative_patterns: [
-      /vat.*=.*(?:quantity|qty).*\*.*(?:price|unit_price|amount).*\*.*0\.15/gi,
-      /vat.*=.*(?:line_total|subtotal|amount).*\*.*0\.15/gi,
-    ],
-    fix: 'VAT must be calculated on the line total:\n  line_total = quantity * unit_price\n  vat_amount = round(line_total * 0.15, 2)\n  total_incl_vat = round(line_total + vat_amount, 2)',
-    auto_fixable: true,
-  },
   {
     id: 'LOG002',
     name: 'Missing commission auto-calculation',
@@ -169,36 +154,8 @@ const QUALITY_CHECKS: CheckDefinition[] = [
   },
 ];
 
-// Compliance checks (SA-specific)
-const COMPLIANCE_CHECKS: CheckDefinition[] = [
-  {
-    id: 'CMP001',
-    name: 'Missing POPIA consent fields',
-    severity: 'medium',
-    patterns: [/class\s+(?:Customer|Person|Contact|Client)\(Base\)/i],
-    negative_patterns: [/popia_consent/i, /consent_date/i],
-    fix: 'Add POPIA fields:\n  popia_consent = Column(Boolean, default=False)\n  popia_consent_date = Column(DateTime, nullable=True)\n  marketing_consent = Column(Boolean, default=False)',
-    auto_fixable: true,
-  },
-  {
-    id: 'CMP002',
-    name: 'Missing B-BBEE fields on company/supplier',
-    severity: 'low',
-    patterns: [/class\s+(?:Company|Supplier|Vendor)\(Base\)/i],
-    negative_patterns: [/bbbee_level/i],
-    fix: 'Add B-BBEE fields:\n  bbbee_level = Column(Integer, nullable=True)  # 1-8\n  bbbee_certificate_number = Column(String(50), nullable=True)\n  bbbee_expiry_date = Column(Date, nullable=True)',
-    auto_fixable: true,
-  },
-  {
-    id: 'CMP003',
-    name: 'Generic seed data (not SA-specific)',
-    severity: 'low',
-    patterns: [/John\s+Doe/i, /Jane\s+(?:Doe|Smith)/i, /Acme\s+Corp/i, /test@test\.com/i],
-    negative_patterns: [],
-    fix: 'Replace with SA seed data:\n  - People: Thabo Mokoena, Naledi van der Merwe, Sipho Dlamini, Priya Naidoo\n  - Companies: Protea Dynamics (Pty) Ltd, Ubuntu Solar Solutions\n  - Emails: thabo.mokoena@company.co.za\n  - Currency: R 1,234.56',
-    auto_fixable: true,
-  },
-];
+// Compliance checks
+const COMPLIANCE_CHECKS: CheckDefinition[] = [];
 
 // Completeness checks
 const COMPLETENESS_CHECKS: CheckDefinition[] = [
@@ -286,7 +243,7 @@ export function generateReviewPrompt(code: string, originalSpec: string, validat
     `- [${i.severity.toUpperCase()}] ${i.description}: ${i.fix_suggestion.split('\n')[0]}`
   ).join('\n');
 
-  return `You are a senior code reviewer specialising in South African enterprise software.
+  return `You are a senior code reviewer.
 
 Review the following generated code against the original specification.
 
@@ -304,9 +261,8 @@ ${issueList || 'No automated issues found.'}
 YOUR REVIEW TASKS:
 1. Verify ALL spec requirements are addressed (list any missing)
 2. Check business logic correctness (especially calculations, formulas, stage transitions)
-3. Check SA-specific accuracy (VAT 15%, ZAR formatting, POPIA, B-BBEE)
-4. Check security (auth, input validation, error handling)
-5. Check code quality (proper types, clean structure, no dead code)
+3. Check security (auth, input validation, error handling)
+4. Check code quality (proper types, clean structure, no dead code)
 
 Return your review as a JSON array of issues:
 [

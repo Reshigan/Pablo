@@ -67,7 +67,7 @@ Output ONLY the complete config.py file in a code block. No explanations.`,
     },
     {
       name: 'Database Models',
-      description: 'Generate models.py with all SQLAlchemy models, timestamps, enums, SA-specific fields',
+      description: 'Generate models.py with all SQLAlchemy models, timestamps, enums, and relationships',
       model_preference: 'coder',
       depends_on: [0],
       prompt_template: `Generate models.py for this project. Use the config from Step 1.
@@ -82,7 +82,6 @@ Requirements:
 - ALL models must have: id (primary key), created_at (DateTime, default=utcnow), updated_at (DateTime, onupdate=utcnow), is_active (Boolean, default=True)
 - Use proper Enum classes for status fields
 - Add proper foreign key relationships with back_populates
-- SA-specific: Include POPIA consent fields on Person/Customer models, B-BBEE fields on Company models
 - Proper __tablename__ on all models
 
 Output ONLY the complete models.py file in a code block. No explanations.`,
@@ -135,7 +134,7 @@ Output ONLY the complete auth.py file in a code block. No explanations.`,
     },
     {
       name: 'Business Logic Services',
-      description: 'Generate services.py with VAT calc, commission tiers, pipeline transitions, dashboard aggregations',
+      description: 'Generate services.py with business logic functions, calculations, transitions, and aggregations',
       model_preference: 'coder',
       depends_on: [1],
       prompt_template: `Generate services.py with business logic functions.
@@ -145,12 +144,12 @@ SPEC: ${spec}
 STEP 2 (models.py): {step_1}
 
 Requirements:
-- VAT calculation: vat = quantity * unit_price * 0.15 (NEVER quantity * 0.15)
-- Commission tiers: 5% up to R500K, 7% R500K-R2M, 10% above R2M
-- Pipeline stage transitions with probability auto-update
-- Dashboard aggregation functions (total revenue, active deals, top rep, monthly trends)
+- Implement ONLY the business rules described in the SPEC (do not assume country, currency, tax rate, or compliance regime)
+- If the SPEC includes tax/sales tax, implement the formula exactly as specified
+- If the SPEC includes commission tiers, implement the tiers exactly as specified
+- Implement pipeline/stage transitions only if described in the SPEC
+- Dashboard aggregation functions (total revenue, active deals, top rep, monthly trends) if relevant
 - All functions properly typed with return types
-- Currency formatting: R {amount:,.2f}
 
 Output ONLY the complete services.py file in a code block. No explanations.`,
     },
@@ -183,7 +182,7 @@ Output ONLY the complete routes.py file in a code block. No explanations.`,
     },
     {
       name: 'Seed Data & Main',
-      description: 'Generate seed.py + main.py with SA-realistic seed data, CORS, health check',
+      description: 'Generate seed.py + main.py with realistic seed data, CORS, health check',
       model_preference: 'coder',
       depends_on: [0, 1, 2, 3, 4, 5],
       prompt_template: `Generate two files: seed.py and main.py
@@ -198,11 +197,9 @@ STEP 5 (services.py): {step_4}
 STEP 6 (routes.py): {step_5}
 
 Requirements for seed.py:
-- Create realistic SA seed data (NOT John Doe, Jane Smith)
-- People: Thabo Mokoena, Naledi van der Merwe, Sipho Dlamini, Priya Naidoo
-- Companies: Protea Dynamics (Pty) Ltd, Ubuntu Solar Solutions, Kgomotso Holdings
-- Locations: Johannesburg, Cape Town, Durban, Pretoria
-- Currency values in ZAR (R)
+- Create realistic seed data appropriate for the domain
+- Use generic, internationally-friendly names/companies unless the SPEC requests a specific locale
+- Avoid placeholder-only data like John Doe / Jane Smith unless the SPEC requests it
 - Create admin user with hashed password
 - At least 5 customers, 5 products, 5 deals across different pipeline stages, 5 orders
 - Run with: python seed.py
