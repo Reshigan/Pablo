@@ -1,7 +1,8 @@
 // lib/domain-kb/loader.ts
 // Loads domain knowledge and system prompt for context injection
 
-import domainKB from './south-african-enterprise.json';
+// Intentionally empty by default: locale/business-specific KB should be injected only when explicitly requested.
+const domainKB: { entries: unknown[] } = { entries: [] };
 
 export interface DomainEntry {
   id: string;
@@ -25,44 +26,8 @@ export function getRelevantKnowledge(userMessage: string): DomainEntry[] {
   const msg = userMessage.toLowerCase();
   const allEntries = (domainKB as { entries: DomainEntry[] }).entries;
 
-  // Keyword to domain ID mapping
-  const keywordMap: Record<string, string[]> = {
-    'vat': ['sa_vat'],
-    'tax': ['sa_vat'],
-    'currency': ['sa_currency'],
-    'rand': ['sa_currency'],
-    'zar': ['sa_currency'],
-    'bbbee': ['sa_bbbee'],
-    'b-bbee': ['sa_bbbee'],
-    'bee': ['sa_bbbee'],
-    'popia': ['sa_popia'],
-    'privacy': ['sa_popia'],
-    'consent': ['sa_popia'],
-    'auth': ['sa_auth_security'],
-    'login': ['sa_auth_security'],
-    'password': ['sa_auth_security'],
-    'jwt': ['sa_auth_security'],
-    'security': ['sa_auth_security'],
-    'fastapi': ['sa_fastapi_patterns'],
-    'api': ['sa_fastapi_patterns'],
-    'backend': ['sa_fastapi_patterns'],
-    'seed': ['sa_seed_data'],
-    'demo': ['sa_seed_data'],
-    'test data': ['sa_seed_data'],
-    'pipeline': ['sa_sales_pipeline'],
-    'deal': ['sa_sales_pipeline'],
-    'commission': ['sa_sales_pipeline'],
-    'sales': ['sa_sales_pipeline', 'sa_seed_data', 'sa_vat', 'sa_currency'],
-    'payment': ['sa_banking_apis'],
-    'payfast': ['sa_banking_apis'],
-    'bank': ['sa_banking_apis'],
-    'solar': ['sa_solar_energy'],
-    'energy': ['sa_solar_energy'],
-    'ppa': ['sa_solar_energy'],
-    'sap': ['sa_sap_patterns'],
-    'bapi': ['sa_sap_patterns'],
-    'erp': ['sa_sap_patterns'],
-  };
+  // Keyword to domain ID mapping (optional; empty by default)
+  const keywordMap: Record<string, string[]> = {};
 
   const relevantIds = new Set<string>();
 
@@ -97,7 +62,7 @@ export function formatDomainKnowledge(entries: DomainEntry[]): string {
     return section;
   });
 
-  return `\n\n## DOMAIN KNOWLEDGE (South African Enterprise)\n\n${sections.join('\n\n---\n\n')}`;
+  return `\n\n## DOMAIN KNOWLEDGE\n\n${sections.join('\n\n---\n\n')}`;
 }
 
 // Format learned patterns for injection into system prompt
