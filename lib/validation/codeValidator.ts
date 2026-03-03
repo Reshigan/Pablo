@@ -86,15 +86,6 @@ const SECURITY_CHECKS: CheckDefinition[] = [
 // Logic checks (common business logic bugs)
 const LOGIC_CHECKS: CheckDefinition[] = [
   {
-    id: 'LOG002',
-    name: 'Missing commission auto-calculation',
-    severity: 'medium',
-    patterns: [/commission/i, /closed_won/i],
-    negative_patterns: [/calculate_commission/i, /commission.*=.*\*.*0\.0[5-9]/i],
-    fix: 'Add commission auto-calc on closed_won:\n  def calculate_commission(deal_value: float) -> float:\n      if deal_value <= 500_000: return round(deal_value * 0.05, 2)\n      elif deal_value <= 2_000_000: return round(25_000 + (deal_value - 500_000) * 0.07, 2)\n      else: return round(25_000 + 105_000 + (deal_value - 2_000_000) * 0.10, 2)',
-    auto_fixable: true,
-  },
-  {
     id: 'LOG003',
     name: 'Dashboard query uses wrong field',
     severity: 'medium',
