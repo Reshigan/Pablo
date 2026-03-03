@@ -143,7 +143,7 @@ export default defineConfig({
       f.name === 'App.tsx' || f.name === 'App.jsx' ||
       f.name === 'index.tsx' || f.name === 'index.jsx'
     );
-    const scriptSrc = entryFile ? `/${entryFile.path}` : '/main.tsx';
+    const scriptSrc = entryFile ? `/${entryFile.path.replace(/^\/+/, '')}` : '/main.tsx';
 
     extras.push({
       path: 'index.html',
