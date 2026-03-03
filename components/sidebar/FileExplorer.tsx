@@ -18,9 +18,10 @@ import {
   Star,
   AlertCircle,
 } from 'lucide-react';
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '@/stores/editor';
 import { useRepoStore, type GitHubRepo, type RepoFileNode } from '@/stores/repo';
+import { toast } from '@/stores/toast';
 
 function getFileIcon(name: string): string {
   const ext = name.split('.').pop()?.toLowerCase();
@@ -319,6 +320,154 @@ function RepoSelector() {
   );
 }
 
+function NewFileButton({ repo, branch, onCreated }: { repo: string; branch: string; onCreated: () => void }) {
+  const [showInput, setShowInput] = useState(false);
+  const [fileName, setFileName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showInput && inputRef.current) inputRef.current.focus();
+  }, [showInput]);
+
+  const handleCreate = useCallback(async () => {
+    if (!fileName.trim()) return;
+    setCreating(true);
+    try {
+      const res = await fetch('/api/github/file', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo,
+          path: fileName.trim(),
+          content: '',
+          message: `Create ${fileName.trim()}`,
+          branch,
+        }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      toast('File created', fileName.trim());
+      setFileName('');
+      setShowInput(false);
+      onCreated();
+    } catch (err) {
+      toast('Failed to create file', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setCreating(false);
+    }
+  }, [repo, branch, fileName, onCreated]);
+
+  if (showInput) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={fileName}
+          onChange={(e) => setFileName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowInput(false); }}
+          placeholder="path/to/file.ts"
+          className="w-24 rounded border border-pablo-border bg-pablo-input px-1.5 py-0.5 font-ui text-[10px] text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+        />
+        {creating ? <Loader2 size={12} className="animate-spin text-pablo-gold" /> : (
+          <button onClick={handleCreate} disabled={!fileName.trim()} className="text-pablo-green hover:text-pablo-green/80 disabled:opacity-30">
+            <FilePlus size={12} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setShowInput(true)}
+      className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
+      aria-label="New file"
+      title="Create new file"
+    >
+      <FilePlus size={14} />
+    </button>
+  );
+}
+
+function NewFolderButton({ repo, branch, onCreated }: { repo: string; branch: string; onCreated: () => void }) {
+  const [showInput, setShowInput] = useState(false);
+  const [folderName, setFolderName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (showInput && inputRef.current) inputRef.current.focus();
+  }, [showInput]);
+
+  const handleCreate = useCallback(async () => {
+    if (!folderName.trim()) return;
+    setCreating(true);
+    try {
+      // GitHub API doesn't support empty directories — create a .gitkeep file
+      const path = `${folderName.trim().replace(/\/$/, '')}/.gitkeep`;
+      const res = await fetch('/api/github/file', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo,
+          path,
+          content: '',
+          message: `Create ${folderName.trim()}/`,
+          branch,
+        }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? `HTTP ${res.status}`);
+      }
+      toast('Folder created', folderName.trim());
+      setFolderName('');
+      setShowInput(false);
+      onCreated();
+    } catch (err) {
+      toast('Failed to create folder', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setCreating(false);
+    }
+  }, [repo, branch, folderName, onCreated]);
+
+  if (showInput) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={folderName}
+          onChange={(e) => setFolderName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); if (e.key === 'Escape') setShowInput(false); }}
+          placeholder="folder/name"
+          className="w-24 rounded border border-pablo-border bg-pablo-input px-1.5 py-0.5 font-ui text-[10px] text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+        />
+        {creating ? <Loader2 size={12} className="animate-spin text-pablo-gold" /> : (
+          <button onClick={handleCreate} disabled={!folderName.trim()} className="text-pablo-green hover:text-pablo-green/80 disabled:opacity-30">
+            <FolderPlus size={12} />
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <button
+      onClick={() => setShowInput(true)}
+      className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim"
+      aria-label="New folder"
+      title="Create new folder"
+    >
+      <FolderPlus size={14} />
+    </button>
+  );
+}
+
 export function FileExplorer() {
   const {
     selectedRepo, fileTree, fileTreeLoading, fileTreeError,
@@ -365,22 +514,8 @@ export function FileExplorer() {
 
       {/* Toolbar */}
       <div className="flex items-center justify-end gap-1 border-b border-pablo-border px-2 py-1">
-        <button
-          disabled
-          title="File creation via GitHub API is read-only. Use git push to add files."
-          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted opacity-40 cursor-not-allowed"
-          aria-label="New file (disabled)"
-        >
-          <FilePlus size={14} />
-        </button>
-        <button
-          disabled
-          title="Folder creation via GitHub API is read-only. Use git push to add folders."
-          className="flex h-5 w-5 items-center justify-center rounded text-pablo-text-muted opacity-40 cursor-not-allowed"
-          aria-label="New folder (disabled)"
-        >
-          <FolderPlus size={14} />
-        </button>
+        <NewFileButton repo={selectedRepo.full_name} branch={selectedBranch} onCreated={handleRefresh} />
+        <NewFolderButton repo={selectedRepo.full_name} branch={selectedBranch} onCreated={handleRefresh} />
       </div>
 
       {/* Loading state */}
