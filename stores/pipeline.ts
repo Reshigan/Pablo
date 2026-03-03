@@ -152,7 +152,7 @@ export function parseTechStackFromPlan(planOutput: string): TechStackHint | null
   let infra = '';
 
   for (const line of lines) {
-    const trimmed = line.trim().replace(/^(?:\*|[-•])\s*/, '').replace(/\*\*/g, '');
+    const trimmed = line.trim().replace(/^(?:\d+[.)\]]?\s*|(?:\*|[-•])\s*)/, '').replace(/\*\*/g, '');
     const match = trimmed.match(
       /^(Frontend|Backend|Database|Storage|Infrastructure|Infra|Deploy(?:ment)?|ORM|Platform)\s*[:：]\s*(.+)/i
     );
