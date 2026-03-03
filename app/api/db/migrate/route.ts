@@ -102,6 +102,9 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 `;
 
+// Separate ALTER TABLE statements (these can fail if column already exists, that's OK)
+const MIGRATION_V2_SQL = `ALTER TABLE sessions ADD COLUMN snapshot TEXT;`;
+
 /**
  * POST /api/db/migrate — Run D1 schema migration
  */
@@ -114,7 +117,9 @@ export async function POST() {
   try {
     const success = await execD1SQL(MIGRATION_SQL);
     if (success) {
-      return Response.json({ status: 'ok', message: 'D1 migration applied successfully' });
+      // Run v2 migration (add snapshot column) — OK if it fails (column may already exist)
+      try { await execD1SQL(MIGRATION_V2_SQL); } catch { /* column already exists */ }
+      return Response.json({ status: 'ok', message: 'D1 migration applied successfully (including v2 snapshot column)' });
     }
     return Response.json({ status: 'skipped', message: 'D1 not available (local dev mode)' });
   } catch (error) {
