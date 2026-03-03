@@ -222,16 +222,19 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
   );
 }
 
-/** Max time (ms) for a single pipeline stage before aborting */
-const STAGE_TIMEOUT_MS = 480_000;
-/** Max time (ms) to wait for the very first SSE token (models need time to process long prompts) */
-const FIRST_TOKEN_TIMEOUT_MS = 180_000;
-/** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort */
-const STREAM_IDLE_TIMEOUT_MS = 120_000;
+/** Max time (ms) for a single pipeline stage before aborting.
+ *  480B models on Ollama Cloud can take 5-10 min for complex enterprise code. */
+const STAGE_TIMEOUT_MS = 900_000;   // 15 min (was 8 min — too short for complex UI/API stages)
+/** Max time (ms) to wait for the very first SSE token.
+ *  Large models need time to process long prompts with context from prior stages. */
+const FIRST_TOKEN_TIMEOUT_MS = 300_000;  // 5 min (was 3 min — 480B needs more prompt processing time)
+/** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort.
+ *  480B can pause between chunks while generating complex logic. */
+const STREAM_IDLE_TIMEOUT_MS = 180_000;  // 3 min (was 2 min — allows pauses between chunks)
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
-const MAX_PREV_OUTPUT_CHARS = 3000;
+const MAX_PREV_OUTPUT_CHARS = 4000;
 /** Number of retries per stage before marking as failed */
-const MAX_STAGE_RETRIES = 2;
+const MAX_STAGE_RETRIES = 3;
 
 /**
  * Truncate a stage output to keep prompts manageable.
@@ -491,9 +494,11 @@ async function runStageWithRetry(
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (abortSignal.aborted) throw lastError;
-      // Wait briefly before retry
+      // Exponential backoff before retry: 5s, 15s, 45s (base 5s × 3^attempt)
       if (attempt < MAX_STAGE_RETRIES) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        const backoffMs = 5000 * Math.pow(3, attempt);
+        console.warn(`[Pipeline] Stage "${stage.id}" attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${backoffMs / 1000}s...`);
+        await new Promise(resolve => setTimeout(resolve, backoffMs));
       }
     }
   }

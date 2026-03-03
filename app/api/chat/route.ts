@@ -420,7 +420,7 @@ Rules:
   ];
 
   for (const model of modelsToTry) {
-    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 4096, env);
+    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 16384, env);
     if (response) return response;
   }
 
