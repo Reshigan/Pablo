@@ -223,11 +223,11 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
 }
 
 /** Max time (ms) for a single pipeline stage before aborting */
-const STAGE_TIMEOUT_MS = 180_000;
+const STAGE_TIMEOUT_MS = 480_000;
 /** Max time (ms) to wait for the very first SSE token (models need time to process long prompts) */
-const FIRST_TOKEN_TIMEOUT_MS = 90_000;
+const FIRST_TOKEN_TIMEOUT_MS = 180_000;
 /** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort */
-const STREAM_IDLE_TIMEOUT_MS = 60_000;
+const STREAM_IDLE_TIMEOUT_MS = 120_000;
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
 const MAX_PREV_OUTPUT_CHARS = 3000;
 /** Number of retries per stage before marking as failed */
