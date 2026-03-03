@@ -202,11 +202,15 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
 }
 
 /** Max time (ms) for a single pipeline stage before aborting */
-const STAGE_TIMEOUT_MS = 90_000;
-/** Max inactivity (ms) — if no SSE data arrives for this long, abort */
-const STREAM_IDLE_TIMEOUT_MS = 30_000;
+const STAGE_TIMEOUT_MS = 180_000;
+/** Max time (ms) to wait for the very first SSE token (models need time to process long prompts) */
+const FIRST_TOKEN_TIMEOUT_MS = 90_000;
+/** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort */
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
 /** Max chars kept per previous-stage summary to prevent prompt bloat */
-const MAX_PREV_OUTPUT_CHARS = 1500;
+const MAX_PREV_OUTPUT_CHARS = 1200;
+/** Number of retries per stage before marking as failed */
+const MAX_STAGE_RETRIES = 1;
 
 /**
  * Truncate a stage output to keep prompts manageable.
@@ -218,20 +222,44 @@ function truncateOutput(text: string, maxChars: number): string {
   return text.slice(0, half) + '\n\n... (truncated) ...\n\n' + text.slice(-half);
 }
 
+/** Build a focused prompt for each pipeline stage */
+function buildStagePrompt(
+  featureDescription: string,
+  stage: { id: PipelineStage; label: string; description: string },
+  previousOutputs: string[],
+): string {
+  const trimmedPrevious = previousOutputs.map(o => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
+
+  // Stage-specific instructions so the model focuses on the right thing
+  const stageInstructions: Record<PipelineStage, string> = {
+    plan: 'Create a concise implementation plan. List the files to create, their purpose, and key design decisions. Do NOT write code yet.',
+    db: 'Generate the database schema / models. Include all tables, columns, types, relationships, and indexes. Output complete, runnable code.',
+    api: 'Generate the API routes and business logic services. Include all endpoints, request/response schemas, authentication, and error handling. Output complete, runnable code.',
+    ui: 'Generate the frontend UI components and pages. Include layouts, forms, tables, and navigation. Output complete, runnable code.',
+    tests: 'Generate unit and integration tests for the API and business logic. Output complete, runnable test files.',
+    execute: 'Generate any remaining configuration files: requirements.txt / package.json, Dockerfile, .env.example, README, and a seed data script. Output complete files.',
+    review: 'Review all previous stage outputs for bugs, missing features, security issues, and code quality problems. List each issue with severity and a fix suggestion.',
+  };
+
+  const parts = [
+    `Feature: ${featureDescription}`,
+    `\nYour task (${stage.label}): ${stageInstructions[stage.id]}`,
+  ];
+
+  if (trimmedPrevious.length > 0) {
+    parts.push(`\nContext from previous stages:\n${trimmedPrevious.join('\n---\n')}`);
+  }
+
+  return parts.join('\n');
+}
+
 async function runStageWithChat(
   featureDescription: string,
   stage: { id: PipelineStage; label: string; description: string; model: string },
   previousOutputs: string[],
   abortSignal: AbortSignal,
 ): Promise<{ output: string; tokens: number }> {
-  // Build prompt with truncated previous outputs to prevent bloat
-  const trimmedPrevious = previousOutputs.map(o => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
-  const prompt = [
-    `You are building: ${featureDescription}`,
-    `Current stage: ${stage.label} — ${stage.description}`,
-    trimmedPrevious.length > 0 ? `\nPrevious stage outputs:\n${trimmedPrevious.join('\n---\n')}` : '',
-    `\nGenerate the ${stage.label.toLowerCase()} code/output for this feature. Be concise and production-ready.`,
-  ].join('\n');
+  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs);
 
   // Create a per-stage abort that fires on timeout OR user cancel
   const stageAbort = new AbortController();
@@ -256,12 +284,16 @@ async function runStageWithChat(
     let output = '';
     let tokens = 0;
     let buffer = '';
+    let receivedFirstToken = false;
 
-    // Streaming inactivity timeout — resets on every chunk
+    // Two-phase idle timeout:
+    // Phase 1: wait up to FIRST_TOKEN_TIMEOUT_MS for the first token (model is processing prompt)
+    // Phase 2: after first token, wait up to STREAM_IDLE_TIMEOUT_MS between chunks
     let idleTimer: ReturnType<typeof setTimeout> | null = null;
     const resetIdleTimer = () => {
       if (idleTimer) clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => stageAbort.abort(), STREAM_IDLE_TIMEOUT_MS);
+      const timeout = receivedFirstToken ? STREAM_IDLE_TIMEOUT_MS : FIRST_TOKEN_TIMEOUT_MS;
+      idleTimer = setTimeout(() => stageAbort.abort(), timeout);
     };
     resetIdleTimer();
 
@@ -279,7 +311,13 @@ async function runStageWithChat(
           if (payload === '[DONE]') continue;
           try {
             const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number };
-            if (parsed.content) output += parsed.content;
+            if (parsed.content) {
+              output += parsed.content;
+              if (!receivedFirstToken) {
+                receivedFirstToken = true;
+                resetIdleTimer(); // switch to shorter idle timeout now that tokens are flowing
+              }
+            }
             if (parsed.eval_count) tokens = parsed.eval_count;
             else if (parsed.tokens) tokens = parsed.tokens;
           } catch {
@@ -296,6 +334,30 @@ async function runStageWithChat(
     clearTimeout(stageTimer);
     abortSignal.removeEventListener('abort', onUserAbort);
   }
+}
+
+/** Wrapper that retries a stage up to MAX_STAGE_RETRIES times */
+async function runStageWithRetry(
+  featureDescription: string,
+  stage: { id: PipelineStage; label: string; description: string; model: string },
+  previousOutputs: string[],
+  abortSignal: AbortSignal,
+): Promise<{ output: string; tokens: number }> {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_STAGE_RETRIES; attempt++) {
+    if (abortSignal.aborted) throw new Error('Aborted');
+    try {
+      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal);
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (abortSignal.aborted) throw lastError;
+      // Wait briefly before retry
+      if (attempt < MAX_STAGE_RETRIES) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+  }
+  throw lastError ?? new Error('Stage failed after retries');
 }
 
 // ─── Agent Run Card (Plan → Execute → Verify → Fix) ──────────────────
@@ -513,7 +575,7 @@ export function PipelineView() {
 
         try {
           const startTime = Date.now();
-          const result = await runStageWithChat(description, stage, previousOutputs, controller.signal);
+          const result = await runStageWithRetry(description, stage, previousOutputs, controller.signal);
           const durationMs = Date.now() - startTime;
 
           updateStage(runId, stage.id, {
