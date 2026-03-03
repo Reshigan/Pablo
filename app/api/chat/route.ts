@@ -501,7 +501,7 @@ export async function POST(request: NextRequest) {
       if (!dbSession) {
         dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
       }
-      await d1CreateMessage({ sessionId, role: 'user', content: lastUserMessage });
+      await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
     } catch {
       // Non-blocking: don't fail the chat if DB write fails
     }

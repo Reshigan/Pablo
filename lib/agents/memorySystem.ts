@@ -217,6 +217,7 @@ export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
         });
       } else {
         await d1CreatePattern({
+          id: pattern.id,
           type: 'code_pattern',
           trigger: pattern.trigger,
           action: pattern.action,

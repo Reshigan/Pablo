@@ -23,6 +23,7 @@ export interface D1Pattern {
 }
 
 export async function d1CreatePattern(data: {
+  id?: string;
   sessionId?: string | null;
   type: PatternType;
   trigger: string;
@@ -30,7 +31,7 @@ export async function d1CreatePattern(data: {
   confidence?: number;
   metadata?: string | null;
 }): Promise<D1Pattern> {
-  const id = generateId('pat');
+  const id = data.id ?? generateId('pat');
   const now = new Date().toISOString();
   const d1 = await getD1();
 
