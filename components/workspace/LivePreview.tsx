@@ -12,10 +12,14 @@ import {
   AlertTriangle,
   Code2,
   Eye,
+  Rocket,
+  Loader2,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo } from 'react';
 import { useEditorStore } from '@/stores/editor';
 import { usePipelineStore } from '@/stores/pipeline';
+import { useRepoStore } from '@/stores/repo';
+import { toast } from '@/stores/toast';
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 type PreviewMode = 'generated' | 'url';
@@ -153,6 +157,9 @@ export function LivePreview() {
   // Subscribe to editor tabs and pipeline runs for generated code preview
   const tabs = useEditorStore((s) => s.tabs);
   const runs = usePipelineStore((s) => s.runs);
+  const selectedRepo = useRepoStore((s) => s.selectedRepo);
+  const selectedBranch = useRepoStore((s) => s.selectedBranch);
+  const [deploying, setDeploying] = useState(false);
 
   // Pipeline-generated files have 'pipe' prefix in id
   const generatedTabs = useMemo(
@@ -239,6 +246,37 @@ export function LivePreview() {
   const switchToUrl = useCallback(() => {
     setPreviewMode('url');
   }, []);
+
+  const handleDeploy = useCallback(async () => {
+    const filesToDeploy = tabs.filter((t) => t.content && t.path);
+    if (filesToDeploy.length === 0) {
+      toast('No files to deploy', 'Open some files first.');
+      return;
+    }
+    setDeploying(true);
+    try {
+      const response = await fetch('/api/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          files: filesToDeploy.map((t) => ({ path: t.path, content: t.content })),
+          repo: selectedRepo?.full_name,
+          branch: selectedBranch,
+        }),
+      });
+      if (!response.ok) {
+        const errData = (await response.json()) as { error?: string };
+        throw new Error(errData.error ?? `HTTP ${response.status}`);
+      }
+      const data = (await response.json()) as { message: string; url: string };
+      toast('Deployed!', data.message);
+      if (data.url) window.open(data.url, '_blank');
+    } catch (err) {
+      toast('Deploy failed', err instanceof Error ? err.message : 'Unknown error');
+    } finally {
+      setDeploying(false);
+    }
+  }, [tabs, selectedRepo, selectedBranch]);
 
   const viewportConfig = VIEWPORT_SIZES[viewport];
 
@@ -430,6 +468,19 @@ export function LivePreview() {
             title="Open in new tab"
           >
             <ExternalLink size={12} />
+          </button>
+        )}
+
+        {/* Deploy button */}
+        {hasGeneratedContent && (
+          <button
+            onClick={handleDeploy}
+            disabled={deploying}
+            className="flex items-center gap-1 rounded bg-pablo-green/10 px-2 py-0.5 ml-1 font-ui text-[10px] text-pablo-green transition-colors hover:bg-pablo-green/20 disabled:opacity-50"
+            title="Deploy files to GitHub"
+          >
+            {deploying ? <Loader2 size={10} className="animate-spin" /> : <Rocket size={10} />}
+            {deploying ? 'Deploying...' : 'Deploy'}
           </button>
         )}
       </div>

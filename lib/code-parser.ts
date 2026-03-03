@@ -1,9 +1,12 @@
 /**
  * Code Parser — Extracts files from AI-generated markdown responses
  *
- * Parses two patterns:
+ * Parses multiple patterns:
  * 1. ### filename.ext  followed by a ```lang code block
  * 2. ```lang:filename.ext  (colon-separated language:filename)
+ * 3. **filename.ext** or `filename.ext` followed by code block
+ * 4. File: filename.ext or Filename: filename.ext followed by code block
+ * 5. // filename.ext or # filename.ext comment at start of code block
  *
  * Returns an array of { filename, language, content } objects.
  */
@@ -44,8 +47,34 @@ function langFromExt(filename: string): string {
     ini: 'ini',
     xml: 'xml',
     graphql: 'graphql',
+    prisma: 'prisma',
+    dockerfile: 'dockerfile',
   };
   return map[ext] ?? 'plaintext';
+}
+
+/** Check if a string looks like a file path */
+function looksLikeFilePath(str: string): boolean {
+  const trimmed = str.trim().replace(/[`*]/g, '');
+  if (/^[\w./_-]+\.\w{1,10}$/.test(trimmed)) return true;
+  const known = ['Dockerfile', 'Makefile', 'Procfile', '.gitignore', '.env'];
+  return known.some(k => trimmed.endsWith(k));
+}
+
+/** Clean a filename from markdown formatting */
+function cleanFilename(raw: string): string {
+  return raw.replace(/[`*"']/g, '').replace(/^\.?\//, '').trim();
+}
+
+/** Extract code block content starting after the opening fence */
+function extractCodeBlock(lines: string[], startFence: number): { contentLines: string[]; endIndex: number } {
+  const contentLines: string[] = [];
+  let j = startFence + 1;
+  while (j < lines.length && !lines[j].startsWith('```')) {
+    contentLines.push(lines[j]);
+    j++;
+  }
+  return { contentLines, endIndex: j + 1 };
 }
 
 /**
@@ -53,6 +82,7 @@ function langFromExt(filename: string): string {
  */
 export function parseGeneratedFiles(markdown: string): ParsedFile[] {
   const files: ParsedFile[] = [];
+  const seen = new Set<string>();
   const lines = markdown.split('\n');
 
   let i = 0;
@@ -60,28 +90,26 @@ export function parseGeneratedFiles(markdown: string): ParsedFile[] {
     const line = lines[i];
 
     // Pattern 1: ### filename.ext  (header followed by code block)
-    const headerMatch = line.match(/^#{1,3}\s+(.+\.\w+)\s*$/);
-    if (headerMatch) {
-      const filename = headerMatch[1].trim();
-      // Look for the next code block
+    const headerMatch = line.match(/^#{1,4}\s+(.+\.\w+)\s*$/);
+    if (headerMatch && looksLikeFilePath(headerMatch[1])) {
+      const filename = cleanFilename(headerMatch[1]);
       let j = i + 1;
       while (j < lines.length && !lines[j].startsWith('```')) {
         j++;
+        if (j - i > 5) break;
       }
       if (j < lines.length && lines[j].startsWith('```')) {
-        const fenceLang = lines[j].slice(3).split(':')[0].trim();
-        const contentLines: string[] = [];
-        j++;
-        while (j < lines.length && !lines[j].startsWith('```')) {
-          contentLines.push(lines[j]);
-          j++;
+        const fenceLang = lines[j].slice(3).split(':')[0].split(' ')[0].trim();
+        const { contentLines, endIndex } = extractCodeBlock(lines, j);
+        if (contentLines.length > 0 && !seen.has(filename)) {
+          seen.add(filename);
+          files.push({
+            filename,
+            language: fenceLang || langFromExt(filename),
+            content: contentLines.join('\n'),
+          });
         }
-        files.push({
-          filename,
-          language: fenceLang || langFromExt(filename),
-          content: contentLines.join('\n'),
-        });
-        i = j + 1;
+        i = endIndex;
         continue;
       }
     }
@@ -90,20 +118,88 @@ export function parseGeneratedFiles(markdown: string): ParsedFile[] {
     const fenceMatch = line.match(/^```(\w+):(.+\.\w+)\s*$/);
     if (fenceMatch) {
       const language = fenceMatch[1];
-      const filename = fenceMatch[2].trim();
-      const contentLines: string[] = [];
+      const filename = cleanFilename(fenceMatch[2]);
+      const { contentLines, endIndex } = extractCodeBlock(lines, i);
+      if (contentLines.length > 0 && !seen.has(filename)) {
+        seen.add(filename);
+        files.push({ filename, language, content: contentLines.join('\n') });
+      }
+      i = endIndex;
+      continue;
+    }
+
+    // Pattern 3: **filename.ext** or `filename.ext` followed by code block
+    const boldMatch = line.match(/^\*\*(.+\.\w+)\*\*\s*:?\s*$/) ?? line.match(/^`(.+\.\w+)`\s*:?\s*$/);
+    if (boldMatch && looksLikeFilePath(boldMatch[1])) {
+      const filename = cleanFilename(boldMatch[1]);
       let j = i + 1;
       while (j < lines.length && !lines[j].startsWith('```')) {
-        contentLines.push(lines[j]);
         j++;
+        if (j - i > 5) break;
       }
-      files.push({
-        filename,
-        language,
-        content: contentLines.join('\n'),
-      });
-      i = j + 1;
-      continue;
+      if (j < lines.length && lines[j].startsWith('```')) {
+        const fenceLang = lines[j].slice(3).split(':')[0].split(' ')[0].trim();
+        const { contentLines, endIndex } = extractCodeBlock(lines, j);
+        if (contentLines.length > 0 && !seen.has(filename)) {
+          seen.add(filename);
+          files.push({
+            filename,
+            language: fenceLang || langFromExt(filename),
+            content: contentLines.join('\n'),
+          });
+        }
+        i = endIndex;
+        continue;
+      }
+    }
+
+    // Pattern 4: File: filename.ext or Filename: filename.ext
+    const fileLabel = line.match(/^(?:File|Filename|Path|Create|Update|Edit)\s*:\s*`?(.+\.\w+)`?\s*$/i);
+    if (fileLabel && looksLikeFilePath(fileLabel[1])) {
+      const filename = cleanFilename(fileLabel[1]);
+      let j = i + 1;
+      while (j < lines.length && !lines[j].startsWith('```')) {
+        j++;
+        if (j - i > 5) break;
+      }
+      if (j < lines.length && lines[j].startsWith('```')) {
+        const fenceLang = lines[j].slice(3).split(':')[0].split(' ')[0].trim();
+        const { contentLines, endIndex } = extractCodeBlock(lines, j);
+        if (contentLines.length > 0 && !seen.has(filename)) {
+          seen.add(filename);
+          files.push({
+            filename,
+            language: fenceLang || langFromExt(filename),
+            content: contentLines.join('\n'),
+          });
+        }
+        i = endIndex;
+        continue;
+      }
+    }
+
+    // Pattern 5: Plain code block with filename in first comment line
+    if (line.startsWith('```') && line.length > 3) {
+      const fenceLang = line.slice(3).split(':')[0].split(' ')[0].trim();
+      if (fenceLang && !/[./]/.test(fenceLang)) {
+        const nextLine = i + 1 < lines.length ? lines[i + 1] : '';
+        const commentFileMatch = nextLine.match(/^(?:\/\/|#|--|\/\*)\s*(.+\.\w+)\s*\*?\/?$/)
+          ?? nextLine.match(/^(?:\/\/|#|--|\/\*)\s*(?:File|Path):\s*(.+\.\w+)/i);
+        if (commentFileMatch && looksLikeFilePath(commentFileMatch[1])) {
+          const filename = cleanFilename(commentFileMatch[1]);
+          const { contentLines, endIndex } = extractCodeBlock(lines, i);
+          if (contentLines.length > 0 && !seen.has(filename)) {
+            seen.add(filename);
+            files.push({
+              filename,
+              language: fenceLang || langFromExt(filename),
+              content: contentLines.join('\n'),
+            });
+          }
+          i = endIndex;
+          continue;
+        }
+      }
     }
 
     i++;
