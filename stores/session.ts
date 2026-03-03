@@ -63,6 +63,23 @@ interface SessionState {
   clearError: () => void;
 }
 
+// ─── API response mapper ─────────────────────────────────────────────────────
+// D1 returns { repoUrl, repo_branch, created_at, updated_at, ... }
+// Client expects { repoFullName, repoBranch, createdAt, updatedAt, ... }
+
+function mapApiSession(raw: Record<string, unknown>): AppSession {
+  return {
+    id: String(raw.id ?? ''),
+    title: String(raw.title ?? 'Untitled Session'),
+    repoFullName: raw.repoUrl != null ? String(raw.repoUrl) : (raw.repoFullName != null ? String(raw.repoFullName) : null),
+    repoBranch: String(raw.repoBranch ?? raw.repo_branch ?? 'main'),
+    status: (raw.status as AppSession['status']) ?? 'active',
+    createdAt: String(raw.createdAt ?? raw.created_at ?? new Date().toISOString()),
+    updatedAt: String(raw.updatedAt ?? raw.updated_at ?? new Date().toISOString()),
+    snapshot: (raw.snapshot as SessionSnapshot | null) ?? null,
+  };
+}
+
 // ─── Snapshot helpers ─────────────────────────────────────────────────────────
 
 function captureSnapshot(): SessionSnapshot {
@@ -159,7 +176,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         body: JSON.stringify({ title: title || 'Untitled Session' }),
       });
       if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
-      const session: AppSession = await res.json();
+      const session = mapApiSession(await res.json());
       set((state) => ({
         sessions: [session, ...state.sessions],
         currentSessionId: session.id,
@@ -179,7 +196,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const res = await fetch('/api/sessions');
       if (!res.ok) throw new Error(`Failed to load sessions: ${res.status}`);
-      const sessions: AppSession[] = await res.json();
+      const rawSessions: Record<string, unknown>[] = await res.json();
+      const sessions = rawSessions.map(mapApiSession);
       set({ sessions, isLoading: false });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load sessions';
@@ -192,7 +210,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     try {
       const res = await fetch(`/api/sessions/${id}`);
       if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
-      const session: AppSession = await res.json();
+      const session = mapApiSession(await res.json());
 
       // Restore snapshot if present
       if (session.snapshot) {
@@ -261,7 +279,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         body: JSON.stringify(updates),
       });
       if (!res.ok) return;
-      const updated: AppSession = await res.json();
+      const updated = mapApiSession(await res.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === id ? updated : s)),
       }));
