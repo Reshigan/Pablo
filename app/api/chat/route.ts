@@ -384,7 +384,10 @@ Rules:
     if (response) return response;
   }
 
-  return createMockSSEResponse(modelOverride ?? 'pipeline-stage');
+  return new Response(
+    JSON.stringify({ error: 'No AI backend available. Configure OLLAMA_URL and OLLAMA_API_KEY.' }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 /**
@@ -454,8 +457,11 @@ async function handleSmartChat(
   );
   if (fallbackExternalResponse) return fallbackExternalResponse;
 
-  // Last resort: mock response
-  return createMockSSEResponse(model.model, sessionId);
+  // No AI backend available — return error instead of mock
+  return new Response(
+    JSON.stringify({ error: 'No AI backend available. Configure OLLAMA_URL and OLLAMA_API_KEY.' }),
+    { status: 503, headers: { 'Content-Type': 'application/json' } },
+  );
 }
 
 /**
@@ -534,57 +540,5 @@ export async function GET() {
       code_generation: 'qwen3-coder:480b',
       fast_chat: 'gpt-oss:120b',
     },
-  });
-}
-
-/**
- * Creates a mock SSE response when no AI backend is available
- */
-function createMockSSEResponse(model: string, sessionId?: string): Response {
-  const encoder = new TextEncoder();
-  const mockResponse =
-    "I'm Pablo's AI assistant. No AI backend is currently available. " +
-    'The system tried Cloudflare Workers AI and the external Ollama API, but neither responded.\n\n' +
-    '**To fix:**\n' +
-    '- Cloudflare Workers AI should work automatically if the AI binding is configured in wrangler.jsonc\n' +
-    '- For external API: configure OLLAMA_URL and OLLAMA_API_KEY environment variables\n' +
-    '- For local dev: start Ollama locally (`ollama serve`)';
-
-  const words = mockResponse.split(' ');
-  let wordIndex = 0;
-
-  let intervalId: ReturnType<typeof setInterval> | null = null;
-  const stream = new ReadableStream({
-    start(controller) {
-      intervalId = setInterval(() => {
-        if (wordIndex >= words.length) {
-          const doneData = JSON.stringify({ content: '', done: true, model });
-          controller.enqueue(encoder.encode(`data: ${doneData}\n\n`));
-          controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-          // Persist mock response to DB
-          if (sessionId) {
-            try {
-              const db = getDB();
-              db.createMessage({ sessionId, role: 'assistant', content: mockResponse, model });
-            } catch { /* non-blocking */ }
-          }
-          controller.close();
-          if (intervalId) clearInterval(intervalId);
-          return;
-        }
-
-        const word = words[wordIndex] + (wordIndex < words.length - 1 ? ' ' : '');
-        const data = JSON.stringify({ content: word, done: false, model });
-        controller.enqueue(encoder.encode(`data: ${data}\n\n`));
-        wordIndex++;
-      }, 30);
-    },
-    cancel() {
-      if (intervalId) clearInterval(intervalId);
-    },
-  });
-
-  return new Response(stream, {
-    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
   });
 }

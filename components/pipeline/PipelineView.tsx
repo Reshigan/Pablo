@@ -68,6 +68,11 @@ function StageItem({
   const Icon = STATUS_ICONS[stage.status];
   const color = STATUS_COLORS[stage.status];
 
+  // Show a live preview snippet of what the stage is doing (first 120 chars)
+  const previewText = stage.output
+    ? stage.output.replace(/```[\s\S]*?```/g, '[code block]').replace(/\n+/g, ' ').trim().slice(0, 120)
+    : '';
+
   return (
     <div className="border-b border-pablo-border last:border-b-0">
       <button
@@ -88,6 +93,15 @@ function StageItem({
             )}
           </div>
           <p className="font-ui text-[10px] text-pablo-text-muted">{stageInfo.description}</p>
+          {/* Inline preview — always visible when there is output */}
+          {previewText && !isExpanded && (
+            <p className={`mt-0.5 font-code text-[10px] leading-snug truncate ${
+              stage.status === 'running' ? 'text-pablo-gold/70' : 'text-pablo-text-dim'
+            }`}>
+              {stage.status === 'running' && <span className="inline-block w-1.5 h-1.5 rounded-full bg-pablo-gold animate-pulse mr-1 align-middle" />}
+              {previewText}{stage.output.length > 120 ? '...' : ''}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {stage.durationMs !== undefined && (
@@ -113,7 +127,7 @@ function StageItem({
       </button>
       {isExpanded && stage.output && (
         <div className="border-t border-pablo-border bg-pablo-bg px-3 py-2">
-          <pre className="max-h-40 overflow-auto whitespace-pre-wrap font-code text-[11px] text-pablo-text-dim leading-relaxed">
+          <pre className="max-h-60 overflow-auto whitespace-pre-wrap font-code text-[11px] text-pablo-text-dim leading-relaxed">
             {stage.output}
           </pre>
         </div>
@@ -239,6 +253,15 @@ function buildStagePrompt(
     db: 'Generate the database schema / models. Include all tables, columns, types, relationships, and indexes. Output complete, runnable code.',
     api: 'Generate the API routes and business logic services. Include all endpoints, request/response schemas, authentication, and error handling. Output complete, runnable code.',
     ui: 'Generate the frontend UI components and pages. Include layouts, forms, tables, and navigation. Output complete, runnable code.',
+    ux_validation: `Perform a thorough UI/UX validation of all generated code from previous stages. Check and report on:
+1. **Wiring completeness**: Every button, form, and link must be connected to a real handler/API call — no placeholder onClick={() => {}}, no TODO handlers, no console.log stubs.
+2. **State management**: All UI state (loading, error, success, empty) must be handled. Forms must show validation errors. Lists must show empty states.
+3. **Accessibility**: Check for aria-labels, keyboard navigation, focus management, color contrast, and screen reader support.
+4. **Responsive design**: Verify mobile/tablet/desktop layouts work. No overflow or hidden content.
+5. **Error handling**: Every fetch/API call must have try/catch with user-visible error feedback. No silent failures.
+6. **Navigation flow**: All routes, links, and redirects must be wired. Back buttons, breadcrumbs, and page transitions must work.
+7. **Data flow**: Props, context, and store subscriptions must be correctly typed and connected end-to-end.
+Output a structured report with PASS/FAIL per check, and for each FAIL provide the exact code fix needed.`,
     tests: 'Generate unit and integration tests for the API and business logic. Output complete, runnable test files.',
     execute: 'Generate any remaining configuration files: requirements.txt / package.json, Dockerfile, .env.example, README, and a seed data script. Output complete files.',
     review: 'Review all previous stage outputs for bugs, missing features, security issues, and code quality problems. List each issue with severity and a fix suggestion.',
@@ -841,7 +864,7 @@ export function PipelineView() {
           </div>
         )}
         <div className="mt-1.5 flex items-center gap-2">
-          <span className="font-ui text-[10px] text-pablo-text-muted">7-Stage Pipeline:</span>
+          <span className="font-ui text-[10px] text-pablo-text-muted">{PIPELINE_STAGES.length}-Stage Pipeline:</span>
           <div className="flex items-center gap-1">
             {PIPELINE_STAGES.map((s, i) => (
               <span key={s.id} className="flex items-center gap-1">
@@ -883,7 +906,7 @@ export function PipelineView() {
             </p>
             <p className="max-w-xs font-ui text-[11px] text-pablo-text-muted leading-relaxed">
               Describe a feature and Pablo will plan, implement, test, and review it
-              automatically through a 7-stage pipeline.
+              automatically through an 8-stage pipeline.
             </p>
           </div>
         ) : (

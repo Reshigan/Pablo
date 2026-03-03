@@ -54,7 +54,7 @@ export default function LoginPage() {
           <ul className="mt-4 space-y-2">
             {[
               'Access your GitHub repositories directly in the IDE',
-              '7-stage Feature Factory pipeline with dual AI models',
+              '8-stage Feature Factory pipeline with UX validation',
               'Monaco editor with AI-assisted code generation',
               'Real-time chat with DeepSeek-R1 and Qwen3-Coder',
             ].map((feature) => (
