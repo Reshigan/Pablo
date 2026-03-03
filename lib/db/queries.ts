@@ -62,6 +62,7 @@ class InMemoryStore {
       updatedAt: now,
       status: data.status ?? 'active',
       metadata: data.metadata ?? null,
+      snapshot: data.snapshot ?? null,
     };
     this.sessions.set(session.id, session);
     return session;

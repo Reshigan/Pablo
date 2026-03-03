@@ -31,6 +31,7 @@ export const sessions = sqliteTable('sessions', {
     .notNull()
     .default('active'),
   metadata: text('metadata'), // JSON string for flexible data
+  snapshot: text('snapshot'), // JSON string of SessionSnapshot — full IDE state
 });
 
 // ─── Messages ────────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ export const pipelineRuns = sqliteTable('pipeline_runs', {
     .notNull()
     .default('pending'),
   currentStage: text('current_stage', {
-    enum: ['plan', 'db', 'api', 'ui', 'tests', 'execute', 'review'],
+    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'],
   }).default('plan'),
   planOutput: text('plan_output'), // JSON
   dbOutput: text('db_output'), // JSON
@@ -110,7 +111,7 @@ export const pipelineStages = sqliteTable('pipeline_stages', {
     .notNull()
     .references(() => pipelineRuns.id, { onDelete: 'cascade' }),
   stage: text('stage', {
-    enum: ['plan', 'db', 'api', 'ui', 'tests', 'execute', 'review'],
+    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'],
   }).notNull(),
   status: text('status', {
     enum: ['pending', 'running', 'completed', 'failed', 'skipped'],

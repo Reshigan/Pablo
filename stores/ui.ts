@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
-export type SidebarTab = 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp';
+export type SidebarTab = 'sessions' | 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp';
 export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline';
 
 /**

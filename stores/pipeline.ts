@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'tests' | 'execute' | 'review';
+export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review';
 export type StageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
 export interface StageResult {
@@ -32,6 +32,7 @@ export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: s
   { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'qwen3-coder-next' },
   { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'qwen3-coder-next' },
   { id: 'ui', label: 'UI', description: 'Build React components and pages', model: 'qwen3-coder-next' },
+  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'deepseek-r1' },
   { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'qwen3-coder-next' },
   { id: 'execute', label: 'Execute', description: 'Run tests and verify output', model: 'qwen3-coder-next' },
   { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'deepseek-r1' },
@@ -111,7 +112,10 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const nextStage = PIPELINE_STAGES[currentIdx + 1];
         const updatedStages = run.stages.map((s, i) => {
           if (i === currentIdx) {
-            return { ...s, status: 'completed' as StageStatus, completedAt: Date.now() };
+            // Don't overwrite 'failed' status — preserve the real outcome
+            return s.status === 'failed'
+              ? s
+              : { ...s, status: 'completed' as StageStatus, completedAt: Date.now() };
           }
           if (i === currentIdx + 1) {
             return { ...s, status: 'running' as StageStatus, startedAt: Date.now() };
