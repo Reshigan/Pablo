@@ -442,24 +442,25 @@ async function runStageWithChat(
           if (!line.startsWith('data: ')) continue;
           const payload = line.slice(6).trim();
           if (payload === '[DONE]') continue;
+          let parsed: { content?: string; tokens?: number; eval_count?: number; error?: string };
           try {
-            const parsed = JSON.parse(payload) as { content?: string; tokens?: number; eval_count?: number; error?: string };
-            // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
-            if (parsed.error) {
-              throw new Error(`Stream error: ${parsed.error}`);
-            }
-            if (parsed.content) {
-              output += parsed.content;
-              if (!receivedFirstToken) {
-                receivedFirstToken = true;
-                resetIdleTimer(); // switch to shorter idle timeout now that tokens are flowing
-              }
-            }
-            if (parsed.eval_count) tokens = parsed.eval_count;
-            else if (parsed.tokens) tokens = parsed.tokens;
+            parsed = JSON.parse(payload);
           } catch {
-            // skip unparseable
+            continue; // skip unparseable JSON
           }
+          // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
+          if (parsed.error) {
+            throw new Error(`Stream error: ${parsed.error}`);
+          }
+          if (parsed.content) {
+            output += parsed.content;
+            if (!receivedFirstToken) {
+              receivedFirstToken = true;
+              resetIdleTimer(); // switch to shorter idle timeout now that tokens are flowing
+            }
+          }
+          if (parsed.eval_count) tokens = parsed.eval_count;
+          else if (parsed.tokens) tokens = parsed.tokens;
         }
       }
     } finally {
