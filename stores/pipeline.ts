@@ -70,7 +70,7 @@ export function extractExplicitStack(description: string): Partial<TechStackHint
   else if (/\b(golang|go\s*(?:backend|server|api|service|lang))\b/.test(text)) hints.backend = 'Go';
   else if (/\b(rust|actix|axum)\b/.test(text)) hints.backend = 'Rust';
   else if (/\b(java|spring)\b/.test(text)) hints.backend = 'Java + Spring Boot';
-  else if (/\b(\.net|c#|dotnet)\b/.test(text)) hints.backend = '.NET';
+  else if (/(?:^|\s)(\.net)(?:\s|$)/i.test(description) || /\bc#/i.test(description) || /\b(dotnet)\b/.test(text)) hints.backend = '.NET';
 
   // Databases
   if (/\b(d1|cloudflare\s*d1)\b/.test(text)) hints.database = 'Cloudflare D1';
@@ -89,17 +89,17 @@ export function extractExplicitStack(description: string): Partial<TechStackHint
   else if (/\b(s3|aws\s*s3)\b/.test(text)) hints.storage = 'AWS S3';
   else if (/\b(gcs|google\s*cloud\s*storage)\b/.test(text)) hints.storage = 'Google Cloud Storage';
   else if (/\b(minio)\b/.test(text)) hints.storage = 'MinIO';
-  else if (/\b(blob|azure\s*blob)\b/.test(text)) hints.storage = 'Azure Blob Storage';
+  else if (/\b(azure\s*blob)\b/.test(text)) hints.storage = 'Azure Blob Storage';
 
   // Infrastructure / Deploy target
-  if (/\b(cloudflare\s*workers|workers)\b/.test(text)) hints.infra = 'Cloudflare Workers';
+  if (/\b(cloudflare\s*workers)\b/.test(text)) hints.infra = 'Cloudflare Workers';
   else if (/\b(cloudflare\s*pages)\b/.test(text)) hints.infra = 'Cloudflare Pages';
   else if (/\b(vercel)\b/.test(text)) hints.infra = 'Vercel';
   else if (/\b(netlify)\b/.test(text)) hints.infra = 'Netlify';
   else if (/\b(aws\s*lambda|lambda)\b/.test(text)) hints.infra = 'AWS Lambda';
   else if (/\b(fly\.?io)\b/.test(text)) hints.infra = 'Fly.io';
   else if (/\b(railway)\b/.test(text)) hints.infra = 'Railway';
-  else if (/\b(render)\b/.test(text)) hints.infra = 'Render';
+  else if (/\b(render\.com)\b/.test(text) || /\bdeploy\s+(?:to|on)\s+render\b/.test(text)) hints.infra = 'Render';
   else if (/\b(heroku)\b/.test(text)) hints.infra = 'Heroku';
   else if (/\b(docker)\b/.test(text)) hints.infra = 'Docker';
   else if (/\b(kubernetes|k8s)\b/.test(text)) hints.infra = 'Kubernetes';

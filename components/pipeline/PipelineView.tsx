@@ -766,6 +766,14 @@ export function PipelineView() {
             completedAt: Date.now(),
           });
           useMetricsStore.getState().recordRequest(false);
+
+          // If Plan stage failed, still resolve stack from explicit hints so stages 2-8
+          // get the user's explicit tech choices instead of running unconstrained
+          if (stage.id === 'plan' && !resolvedStack) {
+            resolvedStack = resolveTechStack(explicitHints, null);
+            usePipelineStore.getState().setTechStack(runId, resolvedStack);
+          }
+
           // Continue to next stage instead of killing the entire pipeline
           previousOutputs.push(`## ${stage.label}\n(failed: ${isTimeout ? 'timeout' : 'error'})`);
           continue;
