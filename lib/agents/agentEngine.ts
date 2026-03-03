@@ -205,6 +205,7 @@ export async function executeStep(
   context: AgentContext,
   env: EnvConfig,
   onEvent?: AgentEventCallback,
+  accumulatedFiles?: Array<{ path: string; content: string; language: string }>,
 ): Promise<{ plan: AgentPlan; filesWritten: Array<{ path: string; content: string; language: string }> }> {
   const step = plan.steps[plan.currentStepIndex];
   if (!step) return { plan: { ...plan, status: 'done' }, filesWritten: [] };
@@ -297,7 +298,8 @@ export async function executeStep(
       }
       case 'commit': {
         const message = (step.input.message as string) || 'Auto-commit from Pablo agent';
-        const files = (step.input.files as string[]) || filesWritten.map(f => f.path);
+        const allAvailable = [...(accumulatedFiles || []), ...filesWritten];
+        const files = (step.input.files as string[]) || allAvailable.map(f => f.path);
         onEvent?.({ type: 'output', content: `Committing ${files.length} files: ${message}` });
         // Emit action event for client-side execution (server-side fetch with relative URLs is not supported)
         onEvent?.({
@@ -306,7 +308,7 @@ export async function executeStep(
           payload: {
             message,
             files: files.map(f => {
-              const written = filesWritten.find(w => w.path === f);
+              const written = allAvailable.find(w => w.path === f);
               return { path: f, content: written?.content || '' };
             }),
           },
@@ -397,7 +399,7 @@ export async function runAgentLoop(
 
   // Phase 2: Execute all steps
   while (plan.currentStepIndex < plan.steps.length && (plan.status as string) !== 'failed') {
-    const { filesWritten } = await executeStep(plan, context, env, onEvent);
+    const { filesWritten } = await executeStep(plan, context, env, onEvent, allFiles);
     allFiles.push(...filesWritten);
   }
 

@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
             for (const file of allFiles) {
               const patterns = extractPatterns(message, file.content, file.language);
               if (patterns.length > 0) {
-                savePatterns(patterns);
+                await savePatterns(patterns);
               }
             }
           } catch {
