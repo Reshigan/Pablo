@@ -67,7 +67,7 @@ export function extractExplicitStack(description: string): Partial<TechStackHint
   else if (/\b(nest\.?js)\b/.test(text)) hints.backend = 'Node.js + NestJS';
   else if (/\b(python)\b/.test(text)) hints.backend = 'Python';
   else if (/\b(node\.?js)\b/.test(text)) hints.backend = 'Node.js';
-  else if (/\b(go|golang)\b/.test(text)) hints.backend = 'Go';
+  else if (/\b(golang|go\s*(?:backend|server|api|service|lang))\b/.test(text)) hints.backend = 'Go';
   else if (/\b(rust|actix|axum)\b/.test(text)) hints.backend = 'Rust';
   else if (/\b(java|spring)\b/.test(text)) hints.backend = 'Java + Spring Boot';
   else if (/\b(\.net|c#|dotnet)\b/.test(text)) hints.backend = '.NET';
@@ -299,11 +299,24 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   completeRun: (runId, status) => {
     set((state) => ({
-      runs: state.runs.map((run) =>
-        run.id === runId
-          ? { ...run, status, currentStage: null, completedAt: Date.now() }
-          : run
-      ),
+      runs: state.runs.map((run) => {
+        if (run.id !== runId) return run;
+        const completedAt = Date.now();
+        return {
+          ...run,
+          status,
+          currentStage: null,
+          completedAt,
+          totalDurationMs: completedAt - run.createdAt,
+          stages: run.stages.map((s) =>
+            s.status === 'running'
+              ? { ...s, status: (status === 'cancelled' ? 'skipped' : 'failed') as StageStatus, completedAt }
+              : s.status === 'pending'
+              ? { ...s, status: 'skipped' as StageStatus }
+              : s
+          ),
+        };
+      }),
     }));
   },
 
