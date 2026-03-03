@@ -202,9 +202,18 @@ export interface EnvConfig {
   OLLAMA_API_KEY?: string;
 }
 
+/** Timeout for non-streaming API calls (ms). Ollama Cloud 480B can take a while. */
+const NON_STREAMING_TIMEOUT_MS = 600_000; // 10 min
+
 export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LLMResponse> {
   const startTime = Date.now();
-  return callOllamaCloud(request, startTime, env);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), NON_STREAMING_TIMEOUT_MS);
+  try {
+    return await callOllamaCloud(request, startTime, env, controller.signal);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 interface OllamaCloudResult {
@@ -212,7 +221,7 @@ interface OllamaCloudResult {
   eval_count?: number;
 }
 
-async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig): Promise<LLMResponse> {
+async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig, signal?: AbortSignal): Promise<LLMResponse> {
   const OLLAMA_URL = env.OLLAMA_URL || 'https://ollama.com';
   const OLLAMA_KEY = env.OLLAMA_API_KEY;
 
@@ -238,6 +247,7 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
         temperature: request.model.temperature,
         stream: false,
       }),
+      signal,
     });
 
     interface OpenAIResult {
@@ -270,6 +280,7 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
         num_predict: request.model.max_tokens,
       },
     }),
+    signal,
   });
 
   const data = await response.json() as OllamaCloudResult;
