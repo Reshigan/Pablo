@@ -229,7 +229,18 @@ async function tryExternalAPIStreaming(
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
-          controller.error(error);
+          // Graceful stream error: send error SSE event instead of killing the stream
+          // This lets the client detect the failure and retry the stage
+          try {
+            const errMsg = error instanceof Error ? error.message : 'Stream interrupted';
+            const errData = JSON.stringify({ content: '', done: true, error: errMsg });
+            controller.enqueue(encoder.encode(`data: ${errData}\n\n`));
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+          } catch {
+            // If we can't even send the error event, just close
+            try { controller.close(); } catch { /* already closed */ }
+          }
         }
       },
     });
@@ -409,7 +420,7 @@ Rules:
   ];
 
   for (const model of modelsToTry) {
-    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 8192, env);
+    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 4096, env);
     if (response) return response;
   }
 
