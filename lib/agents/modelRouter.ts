@@ -14,7 +14,7 @@ export type TaskType =
   | 'test'           // Generate test code -> 70B coder
   | 'document';      // Generate docs/comments -> fast model
 
-export type ModelProvider = 'workers_ai' | 'ollama_cloud';
+export type ModelProvider = 'ollama_cloud';
 
 export interface ModelConfig {
   provider: ModelProvider;
@@ -32,43 +32,8 @@ export interface RouteDecision {
   reasoning: string;
 }
 
-// Model definitions
+// Model definitions — Ollama Cloud only (hosted at ollama.com)
 const MODELS = {
-  // Cloudflare Workers AI models (fast, pay-per-use, edge-deployed)
-  workers_r1_32b: {
-    provider: 'workers_ai' as const,
-    model: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b',
-    description: 'DeepSeek R1 distilled 32B - reasoning, planning, review',
-    max_tokens: 8192,
-    temperature: 0.3,
-    estimated_speed: '40-60 TPS',
-  },
-  workers_llama70b: {
-    provider: 'workers_ai' as const,
-    model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-    description: 'Llama 3.3 70B - code generation, fixing',
-    max_tokens: 8192,
-    temperature: 0.2,
-    estimated_speed: '30-50 TPS',
-  },
-  workers_glm_flash: {
-    provider: 'workers_ai' as const,
-    model: '@cf/zai-org/glm-4.7-flash',
-    description: 'GLM 4.7 Flash - fast chat, tool calling, simple tasks',
-    max_tokens: 4096,
-    temperature: 0.4,
-    estimated_speed: '100+ TPS',
-  },
-  workers_llama4_scout: {
-    provider: 'workers_ai' as const,
-    model: '@cf/meta/llama-4-scout-17b-16e-instruct',
-    description: 'Llama 4 Scout MoE - function calling, multi-modal',
-    max_tokens: 8192,
-    temperature: 0.3,
-    estimated_speed: '60-80 TPS',
-  },
-
-  // Ollama Cloud models (hosted at ollama.com, frontier quality)
   ollama_qwen_coder: {
     provider: 'ollama_cloud' as const,
     model: 'qwen3-coder:480b',
@@ -100,62 +65,62 @@ const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   plan: {
     task_type: 'plan',
     primary: MODELS.ollama_deepseek_r1,
-    fallback: MODELS.workers_r1_32b,
-    reasoning: 'Planning requires deep reasoning. R1 on Ollama for quality, Workers R1 as fallback.',
+    fallback: MODELS.ollama_gpt_oss,
+    reasoning: 'Planning requires deep reasoning. DeepSeek V3.2 primary, GPT-OSS fallback.',
   },
   decompose: {
     task_type: 'decompose',
     primary: MODELS.ollama_deepseek_r1,
-    fallback: MODELS.workers_r1_32b,
+    fallback: MODELS.ollama_gpt_oss,
     reasoning: 'Decomposition needs the same deep reasoning as planning.',
   },
   generate: {
     task_type: 'generate',
     primary: MODELS.ollama_qwen_coder,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'Code generation needs frontier quality. Qwen3-Coder-Next primary. Llama 70B fallback.',
+    fallback: MODELS.ollama_gpt_oss,
+    reasoning: 'Code generation needs frontier quality. Qwen3-Coder primary, GPT-OSS fallback.',
   },
   fix: {
     task_type: 'fix',
     primary: MODELS.ollama_qwen_coder,
-    fallback: MODELS.workers_llama70b,
+    fallback: MODELS.ollama_gpt_oss,
     reasoning: 'Fixing code requires the same quality as generating it.',
   },
   test: {
     task_type: 'test',
     primary: MODELS.ollama_qwen_coder,
-    fallback: MODELS.workers_llama70b,
-    reasoning: 'Test generation via Qwen3-Coder on Ollama Cloud. Workers AI 70B fallback.',
+    fallback: MODELS.ollama_gpt_oss,
+    reasoning: 'Test generation via Qwen3-Coder on Ollama Cloud.',
   },
   review: {
     task_type: 'review',
     primary: MODELS.ollama_deepseek_r1,
-    fallback: MODELS.workers_r1_32b,
-    reasoning: 'Review needs reasoning. DeepSeek V3.2 on Ollama primary, Workers R1 fallback.',
+    fallback: MODELS.ollama_gpt_oss,
+    reasoning: 'Review needs reasoning. DeepSeek V3.2 primary, GPT-OSS fallback.',
   },
   explain: {
     task_type: 'explain',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.workers_glm_flash,
-    reasoning: 'Explanations via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
+    fallback: MODELS.ollama_qwen_coder,
+    reasoning: 'Explanations via GPT-OSS. Qwen3-Coder fallback.',
   },
   chat: {
     task_type: 'chat',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.workers_glm_flash,
-    reasoning: 'General chat via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
+    fallback: MODELS.ollama_qwen_coder,
+    reasoning: 'General chat via GPT-OSS. Qwen3-Coder fallback.',
   },
   seed_data: {
     task_type: 'seed_data',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.workers_glm_flash,
-    reasoning: 'Seed data via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
+    fallback: MODELS.ollama_qwen_coder,
+    reasoning: 'Seed data via GPT-OSS. Qwen3-Coder fallback.',
   },
   document: {
     task_type: 'document',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.workers_glm_flash,
-    reasoning: 'Documentation via GPT-OSS on Ollama Cloud. Workers GLM Flash fallback.',
+    fallback: MODELS.ollama_qwen_coder,
+    reasoning: 'Documentation via GPT-OSS. Qwen3-Coder fallback.',
   },
 };
 
@@ -233,114 +198,13 @@ export interface LLMResponse {
 }
 
 export interface EnvConfig {
-  CLOUDFLARE_ACCOUNT_ID?: string;
-  CLOUDFLARE_API_TOKEN?: string;
   OLLAMA_URL?: string;
   OLLAMA_API_KEY?: string;
 }
 
 export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LLMResponse> {
   const startTime = Date.now();
-
-  if (request.model.provider === 'workers_ai') {
-    return callWorkersAI(request, startTime, env);
-  } else {
-    return callOllamaCloud(request, startTime, env);
-  }
-}
-
-interface WorkersAIResult {
-  result?: {
-    response?: string;
-    choices?: Array<{ message?: { content?: string } }>;
-    usage?: { total_tokens?: number };
-  };
-}
-
-async function callWorkersAI(request: LLMRequest, startTime: number, env: EnvConfig): Promise<LLMResponse> {
-  // Try the Workers AI binding first (works in deployed Workers without REST API credentials)
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const ai = (ctx.env as Record<string, unknown>).AI;
-    if (ai) {
-      const aiBinding = ai as {
-        run: (
-          model: string,
-          input: Record<string, unknown>,
-          options?: Record<string, unknown>
-        ) => Promise<ReadableStream | string | Record<string, unknown>>;
-      };
-
-      const result = await aiBinding.run(request.model.model, {
-        messages: [
-          { role: 'system', content: request.systemPrompt },
-          { role: 'user', content: request.userMessage },
-        ],
-        max_tokens: request.model.max_tokens,
-        temperature: request.model.temperature,
-        stream: false,
-      });
-
-      // Parse binding response
-      if (typeof result === 'string') {
-        return {
-          content: result,
-          model: request.model.model,
-          provider: 'workers_ai',
-          tokens_used: 0,
-          duration_ms: Date.now() - startTime,
-        };
-      }
-      const bindingResult = result as { response?: string; usage?: { total_tokens?: number } };
-      return {
-        content: bindingResult.response || '',
-        model: request.model.model,
-        provider: 'workers_ai',
-        tokens_used: bindingResult.usage?.total_tokens || 0,
-        duration_ms: Date.now() - startTime,
-      };
-    }
-  } catch {
-    // AI binding not available (local dev), fall through to REST API
-  }
-
-  // Fallback to REST API (requires CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN)
-  const ACCOUNT_ID = env.CLOUDFLARE_ACCOUNT_ID;
-  const AUTH_TOKEN = env.CLOUDFLARE_API_TOKEN;
-
-  if (!ACCOUNT_ID || !AUTH_TOKEN) {
-    throw new Error('Workers AI not configured: AI binding unavailable and missing CLOUDFLARE_ACCOUNT_ID or CLOUDFLARE_API_TOKEN');
-  }
-
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/ai/run/${request.model.model}`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${AUTH_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        messages: [
-          { role: 'system', content: request.systemPrompt },
-          { role: 'user', content: request.userMessage },
-        ],
-        max_tokens: request.model.max_tokens,
-        temperature: request.model.temperature,
-        stream: request.stream ?? false,
-      }),
-    }
-  );
-
-  const data = await response.json() as WorkersAIResult;
-  return {
-    content: data.result?.response || data.result?.choices?.[0]?.message?.content || '',
-    model: request.model.model,
-    provider: 'workers_ai',
-    tokens_used: data.result?.usage?.total_tokens || 0,
-    duration_ms: Date.now() - startTime,
-  };
+  return callOllamaCloud(request, startTime, env);
 }
 
 interface OllamaCloudResult {

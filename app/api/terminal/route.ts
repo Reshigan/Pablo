@@ -4,16 +4,38 @@ import { auth } from '@/lib/auth';
 /**
  * POST /api/terminal - Execute a command and return output
  *
- * In production (Cloudflare Workers), this would connect to a Docker sandbox.
- * For local dev, we provide a set of built-in commands and simulate output.
+ * Supports three execution modes (checked in order):
+ * 1. SANDBOX_URL env var → proxy to external Docker/Fly.io sandbox
+ * 2. Cloudflare Workers env (via getCloudflareContext) → proxy to sandbox binding
+ * 3. Fallback → built-in command set (safe, no real execution)
  *
- * When a real sandbox backend is available, this route proxies to it via WebSocket.
+ * GET /api/terminal - Returns terminal capabilities and sandbox status
  */
 
 interface TerminalRequest {
   command: string;
   cwd?: string;
   sessionId?: string;
+}
+
+/**
+ * Resolve sandbox URL from env (process.env or Cloudflare Workers binding)
+ */
+async function resolveSandboxUrl(): Promise<string | null> {
+  // 1. Check process.env
+  if (process.env.SANDBOX_URL) return process.env.SANDBOX_URL;
+
+  // 2. Check Cloudflare Workers env binding
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const cfEnv = ctx.env as Record<string, string | undefined>;
+    if (cfEnv.SANDBOX_URL) return cfEnv.SANDBOX_URL;
+  } catch {
+    // Not running on Cloudflare Workers
+  }
+
+  return null;
 }
 
 // Built-in commands that work without a sandbox
@@ -102,14 +124,22 @@ export async function POST(request: NextRequest) {
   const cmd = parts[0];
   const args = parts.slice(1).join(' ');
 
-  // Check for sandbox URL (real execution)
-  const sandboxUrl = process.env.SANDBOX_URL;
+  // Check for sandbox URL (real execution via Docker/Fly.io/Durable Object)
+  const sandboxUrl = await resolveSandboxUrl();
   if (sandboxUrl) {
     try {
       const sandboxResponse = await fetch(`${sandboxUrl}/exec`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: trimmed, cwd: body.cwd }),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Pablo-IDE/2.0',
+        },
+        body: JSON.stringify({
+          command: trimmed,
+          cwd: body.cwd || '/home/pablo/workspace',
+          sessionId: body.sessionId,
+        }),
+        signal: AbortSignal.timeout(30_000), // 30s timeout for sandbox commands
       });
       if (sandboxResponse.ok) {
         const result = (await sandboxResponse.json()) as {
@@ -118,7 +148,20 @@ export async function POST(request: NextRequest) {
         };
         return Response.json(result);
       }
-    } catch {
+      // If sandbox returns error, include the status
+      return Response.json({
+        output: `Sandbox error: ${sandboxResponse.status} ${sandboxResponse.statusText}`,
+        exitCode: 1,
+      });
+    } catch (e) {
+      // Timeout or network error — fall through to built-in commands
+      const isTimeout = e instanceof DOMException && e.name === 'AbortError';
+      if (isTimeout) {
+        return Response.json({
+          output: 'Command timed out after 30 seconds',
+          exitCode: 124,
+        });
+      }
       // Fall through to built-in commands
     }
   }
@@ -136,5 +179,44 @@ export async function POST(request: NextRequest) {
   return Response.json({
     output: `pablo: command not found: ${cmd}\nType "help" for available commands`,
     exitCode: 127,
+  });
+}
+
+/**
+ * GET /api/terminal - Returns terminal capabilities and sandbox connection status
+ */
+export async function GET() {
+  const session = await auth();
+  if (!session) {
+    return new Response('Unauthorized', { status: 401 });
+  }
+
+  const sandboxUrl = await resolveSandboxUrl();
+  const hasSandbox = !!sandboxUrl;
+
+  // If sandbox is configured, try to ping it
+  let sandboxStatus: 'connected' | 'unreachable' | 'not_configured' = 'not_configured';
+  if (hasSandbox) {
+    try {
+      const ping = await fetch(`${sandboxUrl}/health`, {
+        signal: AbortSignal.timeout(5_000),
+      });
+      sandboxStatus = ping.ok ? 'connected' : 'unreachable';
+    } catch {
+      sandboxStatus = 'unreachable';
+    }
+  }
+
+  return Response.json({
+    mode: hasSandbox ? 'sandbox' : 'builtin',
+    sandboxStatus,
+    builtinCommands: Object.keys(BUILTIN_COMMANDS),
+    capabilities: {
+      realExecution: hasSandbox,
+      fileSystem: hasSandbox,
+      networking: hasSandbox,
+      processManagement: hasSandbox,
+      builtinFallback: true,
+    },
   });
 }

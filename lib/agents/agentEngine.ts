@@ -295,6 +295,83 @@ export async function executeStep(
         });
         break;
       }
+      case 'commit': {
+        const message = (step.input.message as string) || 'Auto-commit from Pablo agent';
+        const files = (step.input.files as string[]) || filesWritten.map(f => f.path);
+        onEvent?.({ type: 'output', content: `Committing ${files.length} files: ${message}` });
+        try {
+          const commitResp = await fetch('/api/github/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              message,
+              files: files.map(f => {
+                const written = filesWritten.find(w => w.path === f);
+                return { path: f, content: written?.content || '' };
+              }),
+            }),
+          });
+          const commitData = await commitResp.json() as Record<string, unknown>;
+          step.output = commitResp.ok
+            ? `Committed: ${commitData.sha || 'success'}`
+            : `Commit failed: ${commitData.error || commitResp.statusText}`;
+        } catch (e) {
+          step.output = `Commit API error: ${e instanceof Error ? e.message : 'unknown'}`;
+        }
+        break;
+      }
+      case 'create_pr': {
+        const title = (step.input.title as string) || 'PR from Pablo agent';
+        const body = (step.input.body as string) || '';
+        const head = (step.input.head as string) || '';
+        const base = (step.input.base as string) || 'main';
+        onEvent?.({ type: 'output', content: `Creating PR: ${title}` });
+        try {
+          const prResp = await fetch('/api/github/pull-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, body, head, base }),
+          });
+          const prData = await prResp.json() as Record<string, unknown>;
+          step.output = prResp.ok
+            ? `PR created: ${prData.url || prData.html_url || 'success'}`
+            : `PR failed: ${prData.error || prResp.statusText}`;
+        } catch (e) {
+          step.output = `PR API error: ${e instanceof Error ? e.message : 'unknown'}`;
+        }
+        break;
+      }
+      case 'deploy': {
+        const target = (step.input.target as string) || 'production';
+        onEvent?.({ type: 'output', content: `Deploying to ${target}...` });
+        try {
+          const deployResp = await fetch('/api/deploy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ target }),
+          });
+          const deployData = await deployResp.json() as Record<string, unknown>;
+          step.output = deployResp.ok
+            ? `Deployed: ${deployData.url || 'success'}`
+            : `Deploy failed: ${deployData.error || deployResp.statusText}`;
+        } catch (e) {
+          step.output = `Deploy API error: ${e instanceof Error ? e.message : 'unknown'}`;
+        }
+        break;
+      }
+      case 'shell': {
+        const command = (step.input.command as string) || '';
+        onEvent?.({ type: 'output', content: `Shell: ${command}` });
+        // Shell execution requires a sandbox backend — return informational message
+        step.output = `Shell command queued: "${command}" — sandbox execution requires terminal backend (see Phase 7)`;
+        break;
+      }
+      case 'ask_user': {
+        const question = (step.input.question as string) || step.description;
+        onEvent?.({ type: 'output', content: `Asking user: ${question}` });
+        step.output = `Waiting for user response to: ${question}`;
+        break;
+      }
       default: {
         onEvent?.({ type: 'output', content: `Executing: ${step.description}` });
         step.output = `Step type "${step.type}" executed`;

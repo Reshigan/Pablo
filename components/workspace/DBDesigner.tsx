@@ -27,36 +27,93 @@ interface TableSchema {
   columns: Column[];
 }
 
-const DEMO_TABLES: TableSchema[] = [
+/**
+ * Drizzle schema tables — mirrors lib/db/schema.ts
+ * This provides a real view of the Pablo D1 database schema
+ */
+const DRIZZLE_SCHEMA_TABLES: TableSchema[] = [
   {
-    name: 'users',
+    name: 'sessions',
     columns: [
       { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
-      { name: 'email', type: 'TEXT', primaryKey: false, nullable: false },
-      { name: 'name', type: 'TEXT', primaryKey: false, nullable: false },
-      { name: 'role', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'user'" },
+      { name: 'title', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'Untitled Session'" },
+      { name: 'repo_url', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'repo_branch', type: 'TEXT', primaryKey: false, nullable: true, defaultValue: "'main'" },
       { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
-    ],
-  },
-  {
-    name: 'projects',
-    columns: [
-      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
-      { name: 'name', type: 'TEXT', primaryKey: false, nullable: false },
-      { name: 'owner_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'users', column: 'id' } },
+      { name: 'updated_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
       { name: 'status', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'active'" },
+      { name: 'metadata', type: 'TEXT', primaryKey: false, nullable: true },
+    ],
+  },
+  {
+    name: 'messages',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'session_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'sessions', column: 'id' } },
+      { name: 'role', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'content', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'model', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'tokens', type: 'INTEGER', primaryKey: false, nullable: true },
+      { name: 'duration_ms', type: 'INTEGER', primaryKey: false, nullable: true },
       { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
     ],
   },
   {
-    name: 'tasks',
+    name: 'files',
     columns: [
       { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'session_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'sessions', column: 'id' } },
+      { name: 'path', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'name', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'content', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "''" },
+      { name: 'language', type: 'TEXT', primaryKey: false, nullable: true, defaultValue: "'plaintext'" },
+      { name: 'is_directory', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
+      { name: 'parent_path', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+      { name: 'updated_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+    ],
+  },
+  {
+    name: 'pipeline_runs',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'session_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'sessions', column: 'id' } },
+      { name: 'feature_description', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'status', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "'pending'" },
+      { name: 'current_stage', type: 'TEXT', primaryKey: false, nullable: true, defaultValue: "'plan'" },
+      { name: 'total_tokens', type: 'INTEGER', primaryKey: false, nullable: true, defaultValue: '0' },
+      { name: 'total_duration_ms', type: 'INTEGER', primaryKey: false, nullable: true, defaultValue: '0' },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+      { name: 'completed_at', type: 'TEXT', primaryKey: false, nullable: true },
+    ],
+  },
+  {
+    name: 'patterns',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'session_id', type: 'TEXT', primaryKey: false, nullable: true, foreignKey: { table: 'sessions', column: 'id' } },
+      { name: 'type', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'trigger', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'action', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'confidence', type: 'REAL', primaryKey: false, nullable: false, defaultValue: '0.5' },
+      { name: 'usage_count', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
+      { name: 'last_used_at', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'metadata', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+    ],
+  },
+  {
+    name: 'domain_kb',
+    columns: [
+      { name: 'id', type: 'TEXT', primaryKey: true, nullable: false },
+      { name: 'category', type: 'TEXT', primaryKey: false, nullable: false },
       { name: 'title', type: 'TEXT', primaryKey: false, nullable: false },
-      { name: 'project_id', type: 'TEXT', primaryKey: false, nullable: false, foreignKey: { table: 'projects', column: 'id' } },
-      { name: 'assignee_id', type: 'TEXT', primaryKey: false, nullable: true, foreignKey: { table: 'users', column: 'id' } },
-      { name: 'priority', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
-      { name: 'completed', type: 'INTEGER', primaryKey: false, nullable: false, defaultValue: '0' },
+      { name: 'content', type: 'TEXT', primaryKey: false, nullable: false },
+      { name: 'tags', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'source', type: 'TEXT', primaryKey: false, nullable: true },
+      { name: 'confidence', type: 'REAL', primaryKey: false, nullable: false, defaultValue: '0.8' },
+      { name: 'created_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
+      { name: 'updated_at', type: 'TEXT', primaryKey: false, nullable: false, defaultValue: "datetime('now')" },
     ],
   },
 ];
@@ -128,7 +185,7 @@ function TableCard({ table, isSelected, onClick, onDelete }: { table: TableSchem
 }
 
 export function DBDesigner() {
-  const [tables, setTables] = useState<TableSchema[]>(DEMO_TABLES);
+  const [tables, setTables] = useState<TableSchema[]>(DRIZZLE_SCHEMA_TABLES);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [showSQL, setShowSQL] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);

@@ -4,9 +4,8 @@
  * Local dev  → In-memory SQLite via the existing InMemoryStore (no native addons needed)
  * Workers    → Cloudflare D1 via Drizzle ORM
  *
- * The `getDB()` helper returns the singleton InMemoryStore instance.
- * When deployed to Cloudflare Workers with a D1 binding, `getDrizzleDB()`
- * can be used instead to get a real Drizzle instance.
+ * `getDB()` returns the InMemoryStore for backward compat.
+ * `getD1()` returns a Drizzle D1 instance when running inside Cloudflare Workers.
  */
 
 import { db as inMemoryDB } from './queries';
@@ -19,13 +18,39 @@ export function getDB() {
 }
 
 /**
- * For Cloudflare Workers with D1 binding:
- * import { drizzle } from 'drizzle-orm/d1';
- * import * as schema from './schema';
- *
- * export function getDrizzleDB(d1: D1Database) {
- *   return drizzle(d1, { schema });
- * }
+ * Get a Drizzle ORM instance backed by Cloudflare D1.
+ * Returns null when running outside Cloudflare Workers (local dev).
  */
+export async function getD1(): Promise<ReturnType<typeof import('drizzle-orm/d1').drizzle> | null> {
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const d1 = (ctx.env as Record<string, unknown>).DB;
+    if (!d1) return null;
+
+    const { drizzle } = await import('drizzle-orm/d1');
+    const schema = await import('./schema');
+    return drizzle(d1 as unknown as Parameters<typeof drizzle>[0], { schema });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Execute raw SQL against D1 (for migrations).
+ * Returns false if D1 is not available.
+ */
+export async function execD1SQL(sql: string): Promise<boolean> {
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const d1 = (ctx.env as Record<string, unknown>).DB as { exec: (sql: string) => Promise<unknown> } | undefined;
+    if (!d1) return false;
+    await d1.exec(sql);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 export { inMemoryDB };

@@ -17,6 +17,9 @@ import {
   Search,
   Shield,
   Wrench,
+  Paperclip,
+  X,
+  FileText,
 } from 'lucide-react';
 import { useState, useCallback, useRef } from 'react';
 import {
@@ -557,11 +560,21 @@ export function PipelineView() {
   const agentStore = useAgentStore();
   const [featureInput, setFeatureInput] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const abortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
-    const description = featureInput.trim();
+    let description = featureInput.trim();
+    // Include attached documents in the feature description
+    if (attachments.length > 0) {
+      const attachmentText = attachments
+        .map((att) => `\n\n--- Attached: ${att.name} ---\n${att.content}`)
+        .join('');
+      description += attachmentText;
+      setAttachments([]);
+    }
     const runId = startRun(description);
     setFeatureInput('');
     setIsBuilding(true);
@@ -732,6 +745,24 @@ export function PipelineView() {
     [handleStart]
   );
 
+  const handleFileAttach = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
+      };
+      reader.readAsText(file);
+    });
+    e.target.value = '';
+  }, []);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   return (
     <div className="flex h-full flex-col bg-pablo-panel">
       {/* Header */}
@@ -755,15 +786,60 @@ export function PipelineView() {
             className="min-h-[48px] max-h-24 flex-1 resize-none rounded-lg border border-pablo-border bg-pablo-input px-3 py-2 font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
             rows={2}
           />
-          <button
-            onClick={handleStart}
-            disabled={!featureInput.trim() || isBuilding}
-            className="flex h-8 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            {isBuilding ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
-            {isBuilding ? 'Building...' : 'Build'}
-          </button>
+          <div className="flex flex-col gap-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx"
+              onChange={handleFileAttach}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border border-pablo-border transition-colors ${
+                attachments.length > 0
+                  ? 'text-pablo-gold border-pablo-gold/30 bg-pablo-gold/5'
+                  : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+              }`}
+              title="Attach document"
+              aria-label="Attach document"
+            >
+              <Paperclip size={14} />
+            </button>
+            <button
+              onClick={handleStart}
+              disabled={!featureInput.trim() || isBuilding}
+              className="flex h-8 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {isBuilding ? <Loader2 size={12} className="animate-spin" /> : <Play size={12} />}
+              {isBuilding ? 'Building...' : 'Build'}
+            </button>
+          </div>
         </div>
+        {/* Attachment chips */}
+        {attachments.length > 0 && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {attachments.map((att, i) => (
+              <span
+                key={`${att.name}-${i}`}
+                className="flex items-center gap-1 rounded-md bg-pablo-gold/10 px-2 py-0.5 font-ui text-[10px] text-pablo-gold"
+              >
+                <FileText size={10} />
+                {att.name}
+                <button
+                  type="button"
+                  onClick={() => removeAttachment(i)}
+                  className="ml-0.5 rounded-full hover:bg-pablo-gold/20"
+                  aria-label={`Remove ${att.name}`}
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="mt-1.5 flex items-center gap-2">
           <span className="font-ui text-[10px] text-pablo-text-muted">7-Stage Pipeline:</span>
           <div className="flex items-center gap-1">

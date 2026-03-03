@@ -70,131 +70,14 @@ async function getEnvConfig(): Promise<EnvConfig> {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return {
-      CLOUDFLARE_ACCOUNT_ID: cfEnv.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
-      CLOUDFLARE_API_TOKEN: cfEnv.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
       OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL,
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
     };
   } catch {
     return {
-      CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
-      CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
       OLLAMA_URL: process.env.OLLAMA_URL,
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
     };
-  }
-}
-
-/**
- * Try to use Cloudflare Workers AI directly via the AI binding.
- * This is the fastest path for Workers AI models.
- */
-async function tryWorkersAIBinding(
-  messages: Array<{ role: string; content: string }>,
-  model: string,
-  temperature: number,
-  max_tokens: number
-): Promise<Response | null> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const ai = (ctx.env as Record<string, unknown>).AI;
-    if (!ai) return null;
-
-    const aiBinding = ai as {
-      run: (
-        model: string,
-        input: Record<string, unknown>,
-        options?: Record<string, unknown>
-      ) => Promise<ReadableStream | string>;
-    };
-
-    const result = await aiBinding.run(model, {
-      messages: messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature,
-      max_tokens,
-      stream: true,
-    });
-
-    // Workers AI with stream:true returns a ReadableStream of SSE events
-    if (result instanceof ReadableStream) {
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      const outputStream = new ReadableStream({
-        async start(controller) {
-          const reader = result.getReader();
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-
-              const text = decoder.decode(value, { stream: true });
-              const allLines = (buffer + text).split('\n');
-              buffer = allLines.pop() ?? '';
-
-              for (const line of allLines) {
-                const trimmed = line.trim();
-                if (!trimmed || !trimmed.startsWith('data: ')) continue;
-                const data = trimmed.slice(6);
-                if (data === '[DONE]') {
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ content: '', done: true, model })}\n\n`)
-                  );
-                  controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-                  controller.close();
-                  return;
-                }
-                try {
-                  const chunk = JSON.parse(data) as { response?: string };
-                  const content = chunk.response ?? '';
-                  controller.enqueue(
-                    encoder.encode(`data: ${JSON.stringify({ content, done: false, model })}\n\n`)
-                  );
-                } catch {
-                  // Skip malformed JSON
-                }
-              }
-            }
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ content: '', done: true, model })}\n\n`)
-            );
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (error) {
-            controller.error(error);
-          }
-        },
-      });
-
-      return new Response(outputStream, {
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-      });
-    }
-
-    // Non-streaming fallback (string response)
-    const responseText = typeof result === 'string' ? result : JSON.stringify(result);
-    const encoder = new TextEncoder();
-    const outputStream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ content: responseText, done: false, model })}\n\n`)
-        );
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ content: '', done: true, model })}\n\n`)
-        );
-        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-        controller.close();
-      },
-    });
-
-    return new Response(outputStream, {
-      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
-    });
-  } catch {
-    // Workers AI not available (local dev or binding not configured)
-    return null;
   }
 }
 
@@ -501,15 +384,6 @@ Rules:
     if (response) return response;
   }
 
-  // Optional safety net: if Ollama Cloud is down, fall back to Workers AI.
-  const fallback = await tryWorkersAIBinding(
-    enhancedMessages,
-    '@cf/meta/llama-3.3-70b-instruct-fp8-fast',
-    0.2,
-    8192,
-  );
-  if (fallback) return fallback;
-
   return createMockSSEResponse(modelOverride ?? 'pipeline-stage');
 }
 
@@ -559,18 +433,7 @@ async function handleSmartChat(
     ...messages.filter(m => m.role !== 'system'),
   ];
 
-  // Try Workers AI binding first (fastest for Workers AI models)
-  if (model.provider === 'workers_ai') {
-    const bindingResponse = await tryWorkersAIBinding(
-      enhancedMessages,
-      model.model,
-      model.temperature,
-      model.max_tokens
-    );
-    if (bindingResponse) return bindingResponse;
-  }
-
-  // Try external API (Ollama Cloud)
+  // Try Ollama Cloud primary model
   const externalResponse = await tryExternalAPIStreaming(
     enhancedMessages,
     model.model,
@@ -580,17 +443,8 @@ async function handleSmartChat(
   );
   if (externalResponse) return externalResponse;
 
-  // Try the routing table's fallback model before the hardcoded 8B
+  // Try the routing table's fallback model
   const fallbackModel = route.fallback;
-  if (fallbackModel.provider === 'workers_ai') {
-    const fallbackRouteResponse = await tryWorkersAIBinding(
-      enhancedMessages,
-      fallbackModel.model,
-      fallbackModel.temperature,
-      fallbackModel.max_tokens
-    );
-    if (fallbackRouteResponse) return fallbackRouteResponse;
-  }
   const fallbackExternalResponse = await tryExternalAPIStreaming(
     enhancedMessages,
     fallbackModel.model,
@@ -599,15 +453,6 @@ async function handleSmartChat(
     env
   );
   if (fallbackExternalResponse) return fallbackExternalResponse;
-
-  // Last-resort fallback: Workers AI with Llama 3.1 8B (always available)
-  const lastResortResponse = await tryWorkersAIBinding(
-    enhancedMessages,
-    '@cf/meta/llama-3.1-8b-instruct',
-    0.7,
-    4096
-  );
-  if (lastResortResponse) return lastResortResponse;
 
   // Last resort: mock response
   return createMockSSEResponse(model.model, sessionId);
@@ -683,13 +528,11 @@ export async function GET() {
       'Post-generation validation (12 automated checks)',
       'Auto-fix loop (up to 3 iterations)',
     ],
+    provider: 'Ollama Cloud (ollama.com)',
     models: {
-      reasoning: 'deepseek-v3.2 (Ollama Cloud)',
-      code_generation: 'qwen3-coder:480b (Ollama Cloud)',
-      fast_chat: 'gpt-oss:120b (Ollama Cloud)',
-      fallback_reasoning: '@cf/deepseek-ai/deepseek-r1-distill-qwen-32b (Workers AI)',
-      fallback_code: '@cf/meta/llama-3.3-70b-instruct-fp8-fast (Workers AI)',
-      fallback_chat: '@cf/zai-org/glm-4.7-flash (Workers AI)',
+      reasoning: 'deepseek-v3.2',
+      code_generation: 'qwen3-coder:480b',
+      fast_chat: 'gpt-oss:120b',
     },
   });
 }

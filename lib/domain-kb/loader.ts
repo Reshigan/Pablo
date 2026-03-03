@@ -1,8 +1,80 @@
 // lib/domain-kb/loader.ts
 // Loads domain knowledge and system prompt for context injection
+// Supports selectable domain packs (opt-in, locale-neutral by default)
 
 // Intentionally empty by default: locale/business-specific KB should be injected only when explicitly requested.
-const domainKB: { entries: unknown[] } = { entries: [] };
+const domainKB: { entries: DomainEntry[] } = { entries: [] };
+
+// Available domain packs (registered at build time)
+interface DomainPack {
+  id: string;
+  name: string;
+  description: string;
+  locale: string;
+  entries: DomainEntry[];
+}
+
+const registeredPacks: Map<string, DomainPack> = new Map();
+
+// Active packs (selected by the user at runtime)
+let activePacks: Set<string> = new Set();
+
+/**
+ * Register a domain pack (call at app init or from settings)
+ */
+export function registerDomainPack(pack: DomainPack): void {
+  registeredPacks.set(pack.id, pack);
+}
+
+/**
+ * List all available domain packs
+ */
+export function listDomainPacks(): Array<{ id: string; name: string; description: string; locale: string; active: boolean }> {
+  return Array.from(registeredPacks.values()).map(p => ({
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    locale: p.locale,
+    active: activePacks.has(p.id),
+  }));
+}
+
+/**
+ * Enable a domain pack — its entries become part of the active KB
+ */
+export function enableDomainPack(packId: string): boolean {
+  const pack = registeredPacks.get(packId);
+  if (!pack) return false;
+  activePacks.add(packId);
+  // Merge entries into active KB (avoid duplicates by id)
+  const existingIds = new Set(domainKB.entries.map(e => e.id));
+  for (const entry of pack.entries) {
+    if (!existingIds.has(entry.id)) {
+      domainKB.entries.push(entry);
+    }
+  }
+  return true;
+}
+
+/**
+ * Disable a domain pack — remove its entries from the active KB
+ */
+export function disableDomainPack(packId: string): boolean {
+  if (!activePacks.has(packId)) return false;
+  const pack = registeredPacks.get(packId);
+  if (!pack) return false;
+  activePacks.delete(packId);
+  const packEntryIds = new Set(pack.entries.map(e => e.id));
+  domainKB.entries = domainKB.entries.filter(e => !packEntryIds.has(e.id));
+  return true;
+}
+
+/**
+ * Get active pack IDs (for persistence in settings)
+ */
+export function getActivePacks(): string[] {
+  return Array.from(activePacks);
+}
 
 export interface DomainEntry {
   id: string;
