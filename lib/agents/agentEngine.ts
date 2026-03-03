@@ -287,12 +287,13 @@ export async function executeStep(
         break;
       }
       case 'done': {
-        const summary = buildSummary(plan, filesWritten);
+        const allAvailableForSummary = [...(accumulatedFiles || []), ...filesWritten];
+        const summary = buildSummary(plan, allAvailableForSummary);
         step.output = summary;
         onEvent?.({
           type: 'done',
           summary,
-          filesChanged: filesWritten.map((f) => f.path),
+          filesChanged: allAvailableForSummary.map((f) => f.path),
         });
         break;
       }

@@ -210,14 +210,23 @@ export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
     try {
       const { getDB } = await import('@/lib/db/drizzle');
       const db = getDB();
-      db.createPattern({
-        id: pattern.id,
-        type: 'code_pattern',
-        trigger: pattern.trigger,
-        action: pattern.action,
-        confidence: pattern.confidence,
-        metadata: JSON.stringify({ domain: pattern.domain, language: pattern.language }),
-      });
+      if (existing) {
+        // Update existing pattern in DB with bumped confidence
+        db.updatePattern(existing.id, {
+          confidence: existing.confidence,
+          usageCount: existing.useCount,
+          lastUsedAt: new Date(existing.lastUsedAt).toISOString(),
+        });
+      } else {
+        db.createPattern({
+          id: pattern.id,
+          type: 'code_pattern',
+          trigger: pattern.trigger,
+          action: pattern.action,
+          confidence: pattern.confidence,
+          metadata: JSON.stringify({ domain: pattern.domain, language: pattern.language }),
+        });
+      }
     } catch {
       // Non-blocking — pattern stays in local cache
     }
