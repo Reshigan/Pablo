@@ -299,64 +299,46 @@ export async function executeStep(
         const message = (step.input.message as string) || 'Auto-commit from Pablo agent';
         const files = (step.input.files as string[]) || filesWritten.map(f => f.path);
         onEvent?.({ type: 'output', content: `Committing ${files.length} files: ${message}` });
-        try {
-          const commitResp = await fetch('/api/github/commit', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message,
-              files: files.map(f => {
-                const written = filesWritten.find(w => w.path === f);
-                return { path: f, content: written?.content || '' };
-              }),
+        // Emit action event for client-side execution (server-side fetch with relative URLs is not supported)
+        onEvent?.({
+          type: 'step_action',
+          action: 'commit',
+          payload: {
+            message,
+            files: files.map(f => {
+              const written = filesWritten.find(w => w.path === f);
+              return { path: f, content: written?.content || '' };
             }),
-          });
-          const commitData = await commitResp.json() as Record<string, unknown>;
-          step.output = commitResp.ok
-            ? `Committed: ${commitData.sha || 'success'}`
-            : `Commit failed: ${commitData.error || commitResp.statusText}`;
-        } catch (e) {
-          step.output = `Commit API error: ${e instanceof Error ? e.message : 'unknown'}`;
-        }
+          },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `Commit prepared: ${files.length} files — "${message}" (client will execute)`;
         break;
       }
       case 'create_pr': {
         const title = (step.input.title as string) || 'PR from Pablo agent';
-        const body = (step.input.body as string) || '';
+        const prBody = (step.input.body as string) || '';
         const head = (step.input.head as string) || '';
         const base = (step.input.base as string) || 'main';
         onEvent?.({ type: 'output', content: `Creating PR: ${title}` });
-        try {
-          const prResp = await fetch('/api/github/pull-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, body, head, base }),
-          });
-          const prData = await prResp.json() as Record<string, unknown>;
-          step.output = prResp.ok
-            ? `PR created: ${prData.url || prData.html_url || 'success'}`
-            : `PR failed: ${prData.error || prResp.statusText}`;
-        } catch (e) {
-          step.output = `PR API error: ${e instanceof Error ? e.message : 'unknown'}`;
-        }
+        // Emit action event for client-side execution
+        onEvent?.({
+          type: 'step_action',
+          action: 'create_pr',
+          payload: { title, body: prBody, head, base },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `PR prepared: "${title}" (${head} → ${base}) (client will execute)`;
         break;
       }
       case 'deploy': {
         const target = (step.input.target as string) || 'production';
         onEvent?.({ type: 'output', content: `Deploying to ${target}...` });
-        try {
-          const deployResp = await fetch('/api/deploy', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ target }),
-          });
-          const deployData = await deployResp.json() as Record<string, unknown>;
-          step.output = deployResp.ok
-            ? `Deployed: ${deployData.url || 'success'}`
-            : `Deploy failed: ${deployData.error || deployResp.statusText}`;
-        } catch (e) {
-          step.output = `Deploy API error: ${e instanceof Error ? e.message : 'unknown'}`;
-        }
+        // Emit action event for client-side execution
+        onEvent?.({
+          type: 'step_action',
+          action: 'deploy',
+          payload: { target },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `Deploy prepared: target=${target} (client will execute)`;
         break;
       }
       case 'shell': {

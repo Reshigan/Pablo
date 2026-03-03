@@ -179,16 +179,17 @@ export function extractKnowledge(
   return entries;
 }
 
-// ─── Unified Pattern Store (routes through /api/patterns backed by D1) ───
+// ─── Unified Pattern Store (in-memory + direct DB persistence) ───
 
-// Local cache to avoid hitting the API on every call
+// Local cache to avoid hitting the DB on every call
 let patternCache: LearnedPattern[] = [];
 let cacheLoadedAt = 0;
 const CACHE_TTL_MS = 30_000; // 30s
 
 /**
- * Save learned patterns via the /api/patterns endpoint (D1-backed)
- * Falls back to local cache if API is unavailable
+ * Save learned patterns to in-memory cache and persist to D1 via direct DB call.
+ * Uses getDB() directly instead of fetch('/api/patterns') to avoid relative URL
+ * issues when called from server-side route handlers.
  */
 export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
   for (const pattern of patterns) {
@@ -205,18 +206,17 @@ export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
       patternCache.push(pattern);
     }
 
-    // Persist to API (non-blocking)
+    // Persist to in-memory DB directly (works server-side without URL issues)
     try {
-      await fetch('/api/patterns', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'code_pattern',
-          trigger: pattern.trigger,
-          action: pattern.action,
-          confidence: pattern.confidence,
-          metadata: JSON.stringify({ domain: pattern.domain, language: pattern.language }),
-        }),
+      const { getDB } = await import('@/lib/db/drizzle');
+      const db = getDB();
+      db.createPattern({
+        id: pattern.id,
+        type: 'code_pattern',
+        trigger: pattern.trigger,
+        action: pattern.action,
+        confidence: pattern.confidence,
+        metadata: JSON.stringify({ domain: pattern.domain, language: pattern.language }),
       });
     } catch {
       // Non-blocking — pattern stays in local cache
@@ -244,23 +244,26 @@ export function getLearnedPatterns(domain?: string): LearnedPattern[] {
 }
 
 /**
- * Load patterns from the API into the local cache (call on app init)
+ * Load patterns from the DB into the local cache (call on app init).
+ * Uses getDB() directly instead of fetch('/api/patterns') to avoid
+ * relative URL issues when called from server-side route handlers.
  */
 export async function loadPatternsFromAPI(): Promise<void> {
   if (Date.now() - cacheLoadedAt < CACHE_TTL_MS) return;
   try {
-    const res = await fetch('/api/patterns');
-    if (res.ok) {
-      const data = (await res.json()) as Array<{
-        id: string;
-        trigger: string;
-        action: string;
-        confidence: number;
-        usageCount: number;
-        metadata?: string;
-        createdAt: string;
-        lastUsedAt?: string;
-      }>;
+    const { getDB } = await import('@/lib/db/drizzle');
+    const db = getDB();
+    const data = db.getPatterns() as Array<{
+      id: string;
+      trigger: string;
+      action: string;
+      confidence: number;
+      usageCount: number;
+      metadata?: string;
+      createdAt: string;
+      lastUsedAt?: string;
+    }>;
+    if (data && data.length > 0) {
       patternCache = data.map((p) => {
         const meta = p.metadata ? (JSON.parse(p.metadata) as { domain?: string; language?: string }) : {};
         return {
@@ -275,8 +278,8 @@ export async function loadPatternsFromAPI(): Promise<void> {
           useCount: p.usageCount,
         };
       });
-      cacheLoadedAt = Date.now();
     }
+    cacheLoadedAt = Date.now();
   } catch {
     // Non-blocking — use existing cache
   }

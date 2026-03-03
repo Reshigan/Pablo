@@ -437,6 +437,7 @@ export function ChatPanel() {
       messages,
       isStreaming,
       agentMode,
+      attachments,
       addMessage,
       appendToMessage,
       updateMessage,
