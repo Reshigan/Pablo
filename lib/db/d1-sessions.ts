@@ -129,30 +129,11 @@ export async function d1UpdateSession(
 export async function d1DeleteSession(id: string): Promise<boolean> {
   const d1 = await getD1();
   if (d1) {
-    const result = await d1.delete(sessions).where(eq(sessions.id, id));
-    return (result?.rowsAffected ?? 0) > 0;
+    // Check if session exists first, then delete
+    const existing = await d1.select({ id: sessions.id }).from(sessions).where(eq(sessions.id, id));
+    if (existing.length === 0) return false;
+    await d1.delete(sessions).where(eq(sessions.id, id));
+    return true;
   }
   return false;
-}
-
-/**
- * Ensure the sessions table has the snapshot column.
- * Safe to call multiple times (ALTER TABLE IF NOT EXISTS pattern).
- */
-export async function d1EnsureSnapshotColumn(): Promise<void> {
-  const d1 = await getD1();
-  if (d1) {
-    try {
-      // Check if snapshot column exists by trying a query
-      await d1.select({ snapshot: sessions.snapshot }).from(sessions).limit(1);
-    } catch {
-      // Column doesn't exist, add it
-      try {
-        const { execD1SQL } = await import('./drizzle');
-        await execD1SQL('ALTER TABLE sessions ADD COLUMN snapshot TEXT');
-      } catch {
-        // Already exists or can't alter — ignore
-      }
-    }
-  }
 }
