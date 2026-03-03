@@ -386,47 +386,54 @@ export function ChatPanel() {
               break;
             }
 
+            let parsed: {
+              content?: string;
+              done?: boolean;
+              eval_count?: number;
+              model?: string;
+              step?: string;
+              status?: string;
+              error?: string;
+            };
             try {
-              const parsed = JSON.parse(data) as {
-                content?: string;
-                done?: boolean;
-                eval_count?: number;
-                model?: string;
-                step?: string;
-                status?: string;
-              };
-
-              // Track multi-turn pipeline progress
-              if (parsed.model === 'multi-turn-pipeline') {
-                if (parsed.step && parsed.status) {
-                  setPipeline(prev => ({
-                    ...prev,
-                    active: true,
-                    currentStep: parsed.step || prev.currentStep,
-                    status: parsed.status || prev.status,
-                  }));
-                }
-                // Extract validation score from content
-                if (parsed.content?.includes('**Score:**')) {
-                  const scoreMatch = parsed.content.match(/\*\*Score:\*\*\s*(\d+)/);
-                  if (scoreMatch) {
-                    setPipeline(prev => ({ ...prev, validationScore: parseInt(scoreMatch[1], 10) }));
-                  }
-                }
-              }
-
-              if (parsed.content) {
-                appendToMessage(assistantId, parsed.content);
-              }
-              if (parsed.done) {
-                if (parsed.eval_count) {
-                  addTokens(parsed.eval_count);
-                }
-                // Reset pipeline state when done
-                setPipeline(prev => prev.active ? { ...prev, active: false } : prev);
-              }
+              parsed = JSON.parse(data);
             } catch {
-              // Skip malformed SSE data
+              continue; // Skip malformed SSE data
+            }
+
+            // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
+            if (parsed.error) {
+              throw new Error(`Stream error: ${parsed.error}`);
+            }
+
+            // Track multi-turn pipeline progress
+            if (parsed.model === 'multi-turn-pipeline') {
+              if (parsed.step && parsed.status) {
+                setPipeline(prev => ({
+                  ...prev,
+                  active: true,
+                  currentStep: parsed.step || prev.currentStep,
+                  status: parsed.status || prev.status,
+                }));
+              }
+              // Extract validation score from content
+              if (parsed.content?.includes('**Score:**')) {
+                const scoreMatch = parsed.content.match(/\*\*Score:\*\*\s*(\d+)/);
+                if (scoreMatch) {
+                  setPipeline(prev => ({ ...prev, validationScore: parseInt(scoreMatch[1], 10) }));
+                }
+              }
+            }
+
+            if (parsed.content) {
+              appendToMessage(assistantId, parsed.content);
+            }
+            if (parsed.done) {
+              if (parsed.eval_count) {
+                addTokens(parsed.eval_count);
+              }
+              // Reset pipeline state when done
+              setPipeline(prev => prev.active ? { ...prev, active: false } : prev);
             }
           }
         }
