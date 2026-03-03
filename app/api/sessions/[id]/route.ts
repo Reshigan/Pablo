@@ -24,7 +24,15 @@ export async function GET(
   const messages = db.getMessagesBySession(id);
   const files = db.getFilesBySession(id);
 
-  return Response.json({ ...found, messages, files });
+  // Parse snapshot from JSON if stored as string
+  let snapshot = null;
+  if (found.snapshot) {
+    try {
+      snapshot = typeof found.snapshot === 'string' ? JSON.parse(found.snapshot) : found.snapshot;
+    } catch { /* invalid JSON, ignore */ }
+  }
+
+  return Response.json({ ...found, snapshot, messages, files });
 }
 
 /**
@@ -43,10 +51,21 @@ export async function PATCH(
   const body = (await request.json()) as {
     title?: string;
     status?: 'active' | 'paused' | 'completed' | 'error';
+    repoFullName?: string | null;
+    repoBranch?: string;
+    snapshot?: Record<string, unknown>;
   };
 
   const db = getDB();
-  const updated = db.updateSession(id, body);
+  // Serialize snapshot to JSON string for storage
+  const updatePayload: Record<string, unknown> = {};
+  if (body.title !== undefined) updatePayload.title = body.title;
+  if (body.status !== undefined) updatePayload.status = body.status;
+  if (body.repoFullName !== undefined) updatePayload.repoUrl = body.repoFullName;
+  if (body.repoBranch !== undefined) updatePayload.repoBranch = body.repoBranch;
+  if (body.snapshot !== undefined) updatePayload.snapshot = JSON.stringify(body.snapshot);
+
+  const updated = db.updateSession(id, updatePayload);
   if (!updated) {
     return Response.json({ error: 'Session not found' }, { status: 404 });
   }

@@ -112,7 +112,10 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
         const nextStage = PIPELINE_STAGES[currentIdx + 1];
         const updatedStages = run.stages.map((s, i) => {
           if (i === currentIdx) {
-            return { ...s, status: 'completed' as StageStatus, completedAt: Date.now() };
+            // Don't overwrite 'failed' status — preserve the real outcome
+            return s.status === 'failed'
+              ? s
+              : { ...s, status: 'completed' as StageStatus, completedAt: Date.now() };
           }
           if (i === currentIdx + 1) {
             return { ...s, status: 'running' as StageStatus, startedAt: Date.now() };

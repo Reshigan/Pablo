@@ -12,9 +12,20 @@ import { SettingsModal } from '@/components/modals/SettingsModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useUIStore } from '@/stores/ui';
-import { useEffect, useCallback } from 'react';
+import { useSessionStore } from '@/stores/session';
+import { useChatStore } from '@/stores/chat';
+import { usePipelineStore } from '@/stores/pipeline';
+import { useEditorStore } from '@/stores/editor';
+import { useRepoStore } from '@/stores/repo';
+import { useEffect, useCallback, useRef, use } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2 } from 'lucide-react';
 
-export default function SessionPage() {
+export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const router = useRouter();
+  const initRef = useRef(false);
+
   const {
     sidebarOpen,
     chatOpen,
@@ -28,6 +39,58 @@ export default function SessionPage() {
     setSidebarWidth,
     setChatWidth,
   } = useUIStore();
+
+  const {
+    currentSessionId,
+    isLoading,
+    createSession,
+    loadSession,
+    saveSession,
+    setCurrentSessionId,
+  } = useSessionStore();
+
+  // Initialize session on mount
+  useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+
+    if (id === 'new') {
+      // Create a fresh session and redirect to its ID
+      createSession().then((session) => {
+        router.replace(`/session/${session.id}`);
+      }).catch(() => {
+        // If session creation fails, set a temporary ID so the IDE still works
+        setCurrentSessionId(`local-${Date.now()}`);
+      });
+    } else {
+      // Load existing session and restore state
+      loadSession(id).catch(() => {
+        // Session not found in API — just set the ID so IDE works
+        setCurrentSessionId(id);
+      });
+    }
+  }, [id, createSession, loadSession, setCurrentSessionId, router]);
+
+  // Save session on beforeunload (page close/refresh)
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      const sessionId = useSessionStore.getState().currentSessionId;
+      if (sessionId && !sessionId.startsWith('local-')) {
+        // Use sendBeacon for reliable save on page close
+        const snapshot = captureSnapshotSync();
+        if (snapshot) {
+          const blob = new Blob(
+            [JSON.stringify({ snapshot })],
+            { type: 'application/json' }
+          );
+          navigator.sendBeacon(`/api/sessions/${sessionId}`, blob);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
 
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
@@ -50,14 +113,31 @@ export default function SessionPage() {
         e.preventDefault();
         toggleCommandPalette();
       }
+      // Cmd+S: Save session
+      if (isMeta && e.key === 's') {
+        e.preventDefault();
+        saveSession().catch(() => { /* non-blocking */ });
+      }
     },
-    [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette]
+    [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette, saveSession]
   );
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
+
+  // Show loading state while initializing session
+  if (isLoading && !currentSessionId) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-pablo-bg">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 size={32} className="animate-spin text-pablo-gold" />
+          <p className="font-ui text-sm text-pablo-text-dim">Loading session...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
@@ -130,4 +210,29 @@ export default function SessionPage() {
       <ToastContainer />
     </div>
   );
+}
+
+/**
+ * Synchronous snapshot capture for sendBeacon on page close.
+ * Returns null if stores aren't available.
+ */
+function captureSnapshotSync(): Record<string, unknown> | null {
+  try {
+    const chat = useChatStore.getState();
+    const pipeline = usePipelineStore.getState();
+    const editor = useEditorStore.getState();
+    const repo = useRepoStore.getState();
+
+    return {
+      messages: chat.messages,
+      pipelineRuns: pipeline.runs,
+      editorTabs: editor.tabs,
+      activeTabId: editor.activeTabId,
+      pendingDiffs: editor.pendingDiffs,
+      selectedRepo: repo.selectedRepo,
+      selectedBranch: repo.selectedBranch,
+    };
+  } catch {
+    return null;
+  }
 }

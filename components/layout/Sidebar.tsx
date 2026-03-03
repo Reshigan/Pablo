@@ -7,6 +7,7 @@ import {
   Brain,
   BarChart3,
   Plug,
+  LayoutList,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
@@ -16,6 +17,7 @@ import { GitPanel } from '@/components/sidebar/GitPanel';
 import { MemoryPanel } from '@/components/sidebar/MemoryPanel';
 import { MetricsPanel } from '@/components/sidebar/MetricsPanel';
 import { MCPPanel } from '@/components/sidebar/MCPPanel';
+import { SessionsPanel } from '@/components/sidebar/SessionsPanel';
 
 interface SidebarTabConfig {
   id: SidebarTab;
@@ -24,6 +26,7 @@ interface SidebarTabConfig {
 }
 
 const tabs: SidebarTabConfig[] = [
+  { id: 'sessions', icon: LayoutList, label: 'Sessions' },
   { id: 'files', icon: Files, label: 'File Explorer' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'git', icon: GitBranch, label: 'Source Control' },
@@ -52,6 +55,7 @@ function SidebarTabIcon({ tab, isActive, onClick }: { tab: SidebarTabConfig; isA
 }
 
 const panelComponents: Record<SidebarTab, React.ComponentType> = {
+  sessions: SessionsPanel,
   files: FileExplorer,
   search: SearchPanel,
   git: GitPanel,

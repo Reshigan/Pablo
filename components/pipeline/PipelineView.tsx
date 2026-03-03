@@ -99,7 +99,7 @@ function StageItem({
               stage.status === 'running' ? 'text-pablo-gold/70' : 'text-pablo-text-dim'
             }`}>
               {stage.status === 'running' && <span className="inline-block w-1.5 h-1.5 rounded-full bg-pablo-gold animate-pulse mr-1 align-middle" />}
-              {previewText}{stage.output.length > 120 ? '...' : ''}
+              {previewText}{previewText.length >= 120 ? '...' : ''}
             </p>
           )}
         </div>
