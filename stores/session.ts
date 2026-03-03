@@ -137,6 +137,28 @@ function restoreSnapshot(snapshot: SessionSnapshot): void {
   }
 }
 
+// ─── Clear all stores (for session isolation) ────────────────────────────────
+
+function clearAllStores(): void {
+  const { useChatStore } = require('./chat') as typeof import('./chat');
+  const { usePipelineStore } = require('./pipeline') as typeof import('./pipeline');
+  const { useEditorStore } = require('./editor') as typeof import('./editor');
+  const { useRepoStore } = require('./repo') as typeof import('./repo');
+
+  // Clear chat messages and state
+  useChatStore.getState().clearMessages();
+  useChatStore.setState({ isStreaming: false });
+
+  // Clear pipeline runs
+  usePipelineStore.setState({ runs: [], activeRunId: null });
+
+  // Clear editor tabs and diffs
+  useEditorStore.setState({ tabs: [], activeTabId: null, pendingDiffs: [] });
+
+  // Clear repo selection (but keep the repos list so it doesn't need to reload)
+  useRepoStore.getState().clearRepo();
+}
+
 // ─── Auto-save interval ──────────────────────────────────────────────────────
 
 let autoSaveTimer: ReturnType<typeof setInterval> | null = null;
@@ -177,6 +199,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       });
       if (!res.ok) throw new Error(`Failed to create session: ${res.status}`);
       const session = mapApiSession(await res.json());
+
+      // Clear all stores so the new session starts fresh
+      clearAllStores();
+
       set((state) => ({
         sessions: [session, ...state.sessions],
         currentSessionId: session.id,
@@ -212,7 +238,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
       const session = mapApiSession(await res.json());
 
-      // Restore snapshot if present
+      // Clear all stores first so stale state from previous session is removed
+      clearAllStores();
+
+      // Restore snapshot if present (otherwise stores stay clean)
       if (session.snapshot) {
         restoreSnapshot(session.snapshot);
       }
