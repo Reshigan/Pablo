@@ -286,6 +286,94 @@ export async function commitAndPush(
   }
 }
 
+// ─── MCP Tool Proxy ─────────────────────────────────────────────────
+
+/**
+ * Call an MCP tool on a connected server (client-side only)
+ */
+export async function callMCPTool(
+  serverUrl: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  apiKey?: string,
+): Promise<ToolResult> {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Pablo-IDE/5.0',
+    };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const response = await fetch(`${serverUrl.replace(/\/$/, '')}/tools/call`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ name: toolName, arguments: args }),
+    });
+
+    if (!response.ok) {
+      return { success: false, output: '', error: `MCP tool call failed: ${response.status}` };
+    }
+
+    const data = (await response.json()) as {
+      content?: Array<{ type: string; text?: string }>;
+      isError?: boolean;
+    };
+
+    const textContent = (data.content || [])
+      .filter((c) => c.type === 'text' && c.text)
+      .map((c) => c.text)
+      .join('\n');
+
+    return {
+      success: !data.isError,
+      output: textContent || 'MCP tool returned no text content',
+      metadata: { serverUrl, toolName },
+    };
+  } catch (error) {
+    return { success: false, output: '', error: error instanceof Error ? error.message : 'MCP call failed' };
+  }
+}
+
+/**
+ * List tools from an MCP server
+ */
+export async function listMCPTools(
+  serverUrl: string,
+  apiKey?: string,
+): Promise<ToolResult> {
+  try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'User-Agent': 'Pablo-IDE/5.0',
+    };
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
+    const response = await fetch(`${serverUrl.replace(/\/$/, '')}/tools/list`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      return { success: false, output: '', error: `MCP list tools failed: ${response.status}` };
+    }
+
+    const data = (await response.json()) as {
+      tools?: Array<{ name: string; description: string }>;
+    };
+
+    const tools = data.tools || [];
+    const output = tools.map((t) => `- ${t.name}: ${t.description}`).join('\n');
+    return {
+      success: true,
+      output: output || 'No tools available',
+      metadata: { toolCount: tools.length },
+    };
+  } catch (error) {
+    return { success: false, output: '', error: error instanceof Error ? error.message : 'MCP list failed' };
+  }
+}
+
 // ─── Tool Registry ───────────────────────────────────────────────────
 
 /**
@@ -302,5 +390,7 @@ export function getToolDescriptions(): Array<{ name: string; description: string
     { name: 'create_branch', description: 'Create a new git branch', parameters: 'repo: string, branchName: string, fromBranch: string' },
     { name: 'create_pr', description: 'Create a pull request', parameters: 'repo: string, title: string, head: string, base: string, body?: string' },
     { name: 'commit_push', description: 'Commit files and push to the repo', parameters: 'repo: string, branch: string, files: {path, content}[], message: string' },
+    { name: 'mcp_call_tool', description: 'Call a tool on a connected MCP server', parameters: 'serverUrl: string, toolName: string, args: object, apiKey?: string' },
+    { name: 'mcp_list_tools', description: 'List available tools from an MCP server', parameters: 'serverUrl: string, apiKey?: string' },
   ];
 }

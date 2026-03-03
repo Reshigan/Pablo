@@ -173,6 +173,48 @@ export function ChatPanel() {
                 case 'file_written':
                   streamContent += `### ${event.path}\n\`\`\`${event.language}\n${event.content}\n\`\`\`\n\n`;
                   break;
+                case 'step_action': {
+                  // Execute client-side actions (commit, create_pr, deploy)
+                  const actionPayload = event.payload as Record<string, unknown>;
+                  streamContent += `> Executing **${event.action}**...\n`;
+                  try {
+                    if (event.action === 'commit') {
+                      const commitFiles = actionPayload.files as Array<{ path: string; content: string }> | undefined;
+                      const commitMsg = (actionPayload.message as string) || 'Auto-commit from Pablo';
+                      if (commitFiles && commitFiles.length > 0) {
+                        const commitResp = await fetch('/api/deploy', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ files: commitFiles, project_name: commitMsg }),
+                        });
+                        streamContent += commitResp.ok
+                          ? `  Committed ${commitFiles.length} files\n\n`
+                          : `  Commit failed: ${commitResp.status}\n\n`;
+                      }
+                    } else if (event.action === 'create_pr') {
+                      const prTitle = (actionPayload.title as string) || 'PR from Pablo';
+                      const prBody = (actionPayload.body as string) || '';
+                      const head = (actionPayload.head as string) || '';
+                      const base = (actionPayload.base as string) || 'main';
+                      const prResp = await fetch('/api/github/pull-request', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ title: prTitle, body: prBody, head, base }),
+                      });
+                      if (prResp.ok) {
+                        const prData = (await prResp.json()) as { html_url?: string; number?: number };
+                        streamContent += `  PR #${prData.number} created: ${prData.html_url}\n\n`;
+                      } else {
+                        streamContent += `  PR creation failed: ${prResp.status}\n\n`;
+                      }
+                    } else if (event.action === 'deploy') {
+                      streamContent += `  Deploy target: ${actionPayload.target || 'production'} (queued)\n\n`;
+                    }
+                  } catch (actionErr) {
+                    streamContent += `  Action failed: ${actionErr instanceof Error ? actionErr.message : 'Unknown error'}\n\n`;
+                  }
+                  break;
+                }
                 case 'verification_result':
                   streamContent += `## Verification: ${event.passed ? 'PASSED' : 'NEEDS FIXES'}\n`;
                   if (event.issues.length > 0) {

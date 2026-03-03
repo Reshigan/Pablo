@@ -75,6 +75,7 @@ export type AgentEvent =
   | { type: 'verification_result'; passed: boolean; issues: string[] }
   | { type: 'fix_attempt'; attempt: number; maxAttempts: number; issues: string[] }
   | { type: 'done'; summary: string; filesChanged: string[] }
+  | { type: 'step_action'; action: string; payload: Record<string, unknown> }
   | { type: 'error'; message: string };
 
 export type AgentEventCallback = (event: AgentEvent) => void;
@@ -313,7 +314,7 @@ export async function executeStep(
               return { path: f, content: written?.content || '' };
             }),
           },
-        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        });
         step.output = `Commit prepared: ${files.length} files — "${message}" (client will execute)`;
         break;
       }
@@ -328,7 +329,7 @@ export async function executeStep(
           type: 'step_action',
           action: 'create_pr',
           payload: { title, body: prBody, head, base },
-        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        });
         step.output = `PR prepared: "${title}" (${head} → ${base}) (client will execute)`;
         break;
       }
@@ -340,7 +341,7 @@ export async function executeStep(
           type: 'step_action',
           action: 'deploy',
           payload: { target },
-        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        });
         step.output = `Deploy prepared: target=${target} (client will execute)`;
         break;
       }
