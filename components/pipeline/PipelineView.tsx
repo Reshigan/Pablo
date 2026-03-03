@@ -498,7 +498,11 @@ async function runStageWithRetry(
       if (attempt < MAX_STAGE_RETRIES) {
         const backoffMs = 5000 * Math.pow(3, attempt);
         console.warn(`[Pipeline] Stage "${stage.id}" attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${backoffMs / 1000}s...`);
-        await new Promise(resolve => setTimeout(resolve, backoffMs));
+        await new Promise<void>(resolve => {
+          const timer = setTimeout(resolve, backoffMs);
+          const onAbort = () => { clearTimeout(timer); resolve(); };
+          abortSignal.addEventListener('abort', onAbort, { once: true });
+        });
       }
     }
   }
