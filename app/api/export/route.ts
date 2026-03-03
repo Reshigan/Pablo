@@ -1,17 +1,8 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getDB } from '@/lib/db/drizzle';
+import { d1GetSession } from '@/lib/db/d1-sessions';
+import { d1GetFilesBySession } from '@/lib/db/d1-files';
 
-/**
- * GET /api/export?sessionId=xxx - Export all session files as a downloadable zip
- *
- * Since we can't use native Node.js 'archiver' in Cloudflare Workers,
- * we build a simple zip-like bundle as a JSON manifest + files,
- * or use the browser-side JSZip approach.
- *
- * This endpoint returns the file tree as JSON. The client-side
- * uses JSZip to create the actual zip file for download.
- */
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -23,13 +14,12 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: 'sessionId is required' }, { status: 400 });
   }
 
-  const db = getDB();
-  const dbSession = db.getSession(sessionId);
+  const dbSession = await d1GetSession(sessionId);
   if (!dbSession) {
     return Response.json({ error: 'Session not found' }, { status: 404 });
   }
 
-  const files = db.getFilesBySession(sessionId);
+  const files = await d1GetFilesBySession(sessionId);
 
   return Response.json({
     session: {

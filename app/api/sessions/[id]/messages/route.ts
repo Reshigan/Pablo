@@ -1,10 +1,8 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getDB } from '@/lib/db/drizzle';
+import { d1GetMessagesBySession, d1CreateMessage } from '@/lib/db/d1-messages';
+import { d1GetSession } from '@/lib/db/d1-sessions';
 
-/**
- * GET /api/sessions/:id/messages - Get all messages for a session
- */
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,14 +13,10 @@ export async function GET(
   }
 
   const { id } = await params;
-  const db = getDB();
-  const messages = db.getMessagesBySession(id);
+  const messages = await d1GetMessagesBySession(id);
   return Response.json(messages);
 }
 
-/**
- * POST /api/sessions/:id/messages - Create a message in a session
- */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -41,15 +35,12 @@ export async function POST(
     durationMs?: number;
   };
 
-  const db = getDB();
-
-  // Verify session exists
-  const found = db.getSession(id);
+  const found = await d1GetSession(id);
   if (!found) {
     return Response.json({ error: 'Session not found' }, { status: 404 });
   }
 
-  const message = db.createMessage({
+  const message = await d1CreateMessage({
     sessionId: id,
     role: body.role,
     content: body.content,

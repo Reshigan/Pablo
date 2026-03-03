@@ -1,10 +1,12 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getDB } from '@/lib/db/drizzle';
+import {
+  d1CreateFile,
+  d1GetFilesBySession,
+  d1GetFileByPath,
+  d1UpdateFile,
+} from '@/lib/db/d1-files';
 
-/**
- * GET /api/files?sessionId=xxx - List files for a session
- */
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -16,14 +18,10 @@ export async function GET(request: NextRequest) {
     return Response.json({ error: 'sessionId is required' }, { status: 400 });
   }
 
-  const db = getDB();
-  const files = db.getFilesBySession(sessionId);
+  const files = await d1GetFilesBySession(sessionId);
   return Response.json(files);
 }
 
-/**
- * POST /api/files - Create or update a file
- */
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -47,19 +45,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const db = getDB();
-
-  // Check if file already exists at this path - update it instead
-  const existing = db.getFileByPath(body.sessionId, body.path);
+  const existing = await d1GetFileByPath(body.sessionId, body.path);
   if (existing) {
-    const updated = db.updateFile(existing.id, {
+    const updated = await d1UpdateFile(existing.id, {
       content: body.content ?? existing.content,
-      language: body.language ?? existing.language,
+      language: body.language ?? existing.language ?? undefined,
     });
     return Response.json(updated);
   }
 
-  const file = db.createFile({
+  const file = await d1CreateFile({
     sessionId: body.sessionId,
     path: body.path,
     name: body.name,
@@ -72,9 +67,6 @@ export async function POST(request: NextRequest) {
   return Response.json(file, { status: 201 });
 }
 
-/**
- * PATCH /api/files - Update file content (for save)
- */
 export async function PATCH(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -88,12 +80,9 @@ export async function PATCH(request: NextRequest) {
     content: string;
   };
 
-  const db = getDB();
-
-  // Find by id or by sessionId+path
   let fileId = body.id;
   if (!fileId && body.sessionId && body.path) {
-    const found = db.getFileByPath(body.sessionId, body.path);
+    const found = await d1GetFileByPath(body.sessionId, body.path);
     if (found) fileId = found.id;
   }
 
@@ -101,7 +90,8 @@ export async function PATCH(request: NextRequest) {
     return Response.json({ error: 'File not found' }, { status: 404 });
   }
 
-  const updated = db.updateFile(fileId, { content: body.content });
+  const updated = await d1UpdateFile(fileId, { content: body.content });
+
   if (!updated) {
     return Response.json({ error: 'File not found' }, { status: 404 });
   }

@@ -1,10 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { getDB } from '@/lib/db/drizzle';
+import { d1CreatePattern, d1GetPatterns } from '@/lib/db/d1-patterns';
 
-/**
- * GET /api/patterns - List learned patterns
- */
 export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -12,14 +9,10 @@ export async function GET(request: NextRequest) {
   }
 
   const type = request.nextUrl.searchParams.get('type') ?? undefined;
-  const db = getDB();
-  const patterns = db.getPatterns(type);
+  const patterns = await d1GetPatterns(type);
   return Response.json(patterns);
 }
 
-/**
- * POST /api/patterns - Create a new pattern (auto-extracted or manual)
- */
 export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session) {
@@ -42,8 +35,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const db = getDB();
-  const pattern = db.createPattern({
+  const pattern = await d1CreatePattern({
     sessionId: body.sessionId ?? null,
     type: body.type,
     trigger: body.trigger,

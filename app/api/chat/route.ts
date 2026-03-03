@@ -3,7 +3,10 @@ import { auth } from '@/lib/auth';
 import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
 import { buildSystemPrompt } from '@/lib/domain-kb/loader';
-import { getDB } from '@/lib/db/drizzle';
+import { d1GetPatterns } from '@/lib/db/d1-patterns';
+import { d1GetFilesBySession, d1CreateFile } from '@/lib/db/d1-files';
+import { d1CreateMessage } from '@/lib/db/d1-messages';
+import { d1GetSession, d1CreateSession } from '@/lib/db/d1-sessions';
 import { buildContext, patternSource, fileSource, conversationSource, domainKBSource } from '@/lib/context-builder';
 import { getRelevantKnowledge } from '@/lib/domain-kb/loader';
 
@@ -247,8 +250,8 @@ async function handleMultiTurnGeneration(
         let patterns: Array<{ trigger: string; action: string; confidence: number }> = [];
         if (sessionId) {
           try {
-            const db = getDB();
-            patterns = db.getPatterns().map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
+            const dbPatterns = await d1GetPatterns();
+            patterns = dbPatterns.map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
           } catch { /* non-blocking */ }
         }
 
@@ -303,9 +306,8 @@ async function handleMultiTurnGeneration(
         // Persist assistant response to DB
         if (sessionId) {
           try {
-            const db = getDB();
             const fullContent = result.files.map(f => `### ${f.filename}\n\`\`\`${f.language}\n${f.content}\n\`\`\``).join('\n\n');
-            db.createMessage({
+            await d1CreateMessage({
               sessionId,
               role: 'assistant',
               content: fullContent,
@@ -313,9 +315,9 @@ async function handleMultiTurnGeneration(
               tokens: result.total_tokens,
               durationMs: result.total_duration_ms,
             });
-            // Persist generated files to DB
+            // Persist generated files to D1
             for (const file of result.files) {
-              db.createFile({
+              await d1CreateFile({
                 sessionId,
                 path: file.filename,
                 name: file.filename.split('/').pop() || file.filename,
@@ -408,9 +410,10 @@ async function handleSmartChat(
   let openFiles: Array<{ path: string; content: string; language: string }> = [];
   if (sessionId) {
     try {
-      const db = getDB();
-      patterns = db.getPatterns().map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
-      openFiles = db.getFilesBySession(sessionId)
+      const dbPatterns = await d1GetPatterns();
+      patterns = dbPatterns.map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
+      const dbFiles = await d1GetFilesBySession(sessionId);
+      openFiles = dbFiles
         .filter(f => !f.isDirectory && f.content)
         .map(f => ({ path: f.path, content: f.content, language: f.language ?? 'plaintext' }));
     } catch { /* non-blocking */ }
@@ -493,13 +496,12 @@ export async function POST(request: NextRequest) {
   const sessionId = body.sessionId;
   if (sessionId && lastUserMessage) {
     try {
-      const db = getDB();
-      // Ensure session exists
-      let dbSession = db.getSession(sessionId);
+      // Ensure session exists in D1
+      let dbSession = await d1GetSession(sessionId);
       if (!dbSession) {
-        dbSession = db.createSession({ id: sessionId, title: lastUserMessage.slice(0, 80) });
+        dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
       }
-      db.createMessage({ sessionId, role: 'user', content: lastUserMessage });
+      await d1CreateMessage({ sessionId, role: 'user', content: lastUserMessage });
     } catch {
       // Non-blocking: don't fail the chat if DB write fails
     }
