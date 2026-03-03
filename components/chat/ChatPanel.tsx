@@ -250,15 +250,7 @@ export function ChatPanel() {
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
-      // If agent mode is on, route through agent engine
-      if (agentMode) {
-        return sendAgentMessage(content);
-      }
-
-      // Reset pipeline state from any previous multi-turn run
-      setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
-
-      // Build content with attachments included
+      // Build content with attachments included (must happen BEFORE agent mode check)
       let fullContent = content.trim();
       if (attachments.length > 0) {
         const attachmentText = attachments
@@ -267,6 +259,14 @@ export function ChatPanel() {
         fullContent += attachmentText;
         setAttachments([]); // Clear after sending
       }
+
+      // If agent mode is on, route through agent engine (with attachments included)
+      if (agentMode) {
+        return sendAgentMessage(fullContent);
+      }
+
+      // Reset pipeline state from any previous multi-turn run
+      setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
 
       // Add user message
       addMessage({ role: 'user', content: fullContent });
