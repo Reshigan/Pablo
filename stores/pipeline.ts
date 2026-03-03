@@ -191,8 +191,11 @@ export function resolveTechStack(
     infra: explicit.infra || fromPlan?.infra || 'not specified',
     fullLabel: '',
   };
-  resolved.fullLabel = [resolved.frontend, resolved.backend, resolved.database,
-    resolved.storage !== 'none' ? resolved.storage : ''].filter(Boolean).join(' | ');
+  const meaningful = [resolved.frontend, resolved.backend, resolved.database].some(v => v !== 'not specified');
+  resolved.fullLabel = meaningful
+    ? [resolved.frontend, resolved.backend, resolved.database,
+      resolved.storage !== 'none' ? resolved.storage : ''].filter(Boolean).join(' | ')
+    : '';
   return resolved;
 }
 
