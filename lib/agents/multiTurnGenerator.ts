@@ -407,7 +407,7 @@ export async function generateAndValidate(
   const allCode = result.files.map(f => `# === ${f.filename} ===\n${f.content}`).join('\n\n');
 
   // Step 3: Validate
-  onProgress?.('Validation', 'starting', 'Running 16 automated checks...');
+  onProgress?.('Validation', 'starting', 'Running 12 automated checks...');
   const validation = validateGeneratedCode(allCode, 'python');
   result.validation = validation;
   result.issues_found = validation.issues.length;

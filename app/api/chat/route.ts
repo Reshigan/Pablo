@@ -624,7 +624,7 @@ export async function GET() {
       'Smart model routing (R1 reasoning + 70B code gen + Flash chat)',
       'Domain knowledge injection (optional)',
       'Multi-turn 7-step generation pipeline',
-      'Post-generation validation (16 automated checks)',
+      'Post-generation validation (12 automated checks)',
       'Auto-fix loop (up to 3 iterations)',
     ],
     models: {
