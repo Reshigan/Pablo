@@ -185,9 +185,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ),
     }));
 
-    // Auto-save after accepting diff
+    // Auto-save after accepting diff — always save regardless of isDirty
+    // (new tabs from openFile start with isDirty: false even though content is new)
     const tabToSave = get().tabs.find((t) => t.path === diff.filename);
-    if (tabToSave && tabToSave.isDirty) {
+    if (tabToSave) {
+      // Mark dirty first so saveFile doesn't skip it
+      if (!tabToSave.isDirty) {
+        set((state) => ({
+          tabs: state.tabs.map((t) =>
+            t.id === tabToSave.id ? { ...t, isDirty: true } : t
+          ),
+        }));
+      }
       get().saveFile(tabToSave.id).catch(() => { /* non-blocking */ });
     }
 

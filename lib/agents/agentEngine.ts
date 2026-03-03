@@ -309,6 +309,7 @@ export async function executeStep(
           action: 'commit',
           payload: {
             message,
+            repo: context.repo,
             files: files.map(f => {
               const written = allAvailable.find(w => w.path === f);
               return { path: f, content: written?.content || '' };
@@ -328,7 +329,7 @@ export async function executeStep(
         onEvent?.({
           type: 'step_action',
           action: 'create_pr',
-          payload: { title, body: prBody, head, base },
+          payload: { title, body: prBody, head, base, repo: context.repo },
         });
         step.output = `PR prepared: "${title}" (${head} → ${base}) (client will execute)`;
         break;
