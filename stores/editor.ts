@@ -184,6 +184,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         d.fileId === fileId ? { ...d, status: 'accepted' } : d
       ),
     }));
+
+    // Phase 4: Learn-on-Accept — capture pattern from accepted diff
+    try {
+      const { useLearningStore } = require('@/stores/learning') as typeof import('@/stores/learning');
+      const learningStore = useLearningStore.getState();
+      const ext = diff.filename.split('.').pop()?.toLowerCase() || '';
+      const langTag = ext === 'ts' || ext === 'tsx' ? 'typescript'
+        : ext === 'py' ? 'python'
+        : ext === 'js' || ext === 'jsx' ? 'javascript'
+        : ext;
+
+      // Build a concise summary of what was accepted
+      const oldLines = diff.oldContent.split('\n').length;
+      const newLines = diff.newContent.split('\n').length;
+      const summary = newLines > oldLines
+        ? `Added ${newLines - oldLines} lines to ${diff.filename}`
+        : oldLines > newLines
+        ? `Removed ${oldLines - newLines} lines from ${diff.filename}`
+        : `Modified ${diff.filename} (${newLines} lines)`;
+
+      learningStore.addPattern({
+        type: 'code_pattern',
+        trigger: `User accepted code change in ${diff.filename}`,
+        action: summary,
+        context: diff.newContent.slice(0, 500),
+        confidence: 0.7,
+        tags: [langTag, 'user-accepted', diff.language],
+      });
+    } catch {
+      // Non-blocking — don't fail the accept if learning fails
+    }
   },
 
   rejectDiff: (fileId) =>

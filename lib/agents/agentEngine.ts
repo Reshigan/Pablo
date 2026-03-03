@@ -205,6 +205,7 @@ export async function executeStep(
   context: AgentContext,
   env: EnvConfig,
   onEvent?: AgentEventCallback,
+  accumulatedFiles?: Array<{ path: string; content: string; language: string }>,
 ): Promise<{ plan: AgentPlan; filesWritten: Array<{ path: string; content: string; language: string }> }> {
   const step = plan.steps[plan.currentStepIndex];
   if (!step) return { plan: { ...plan, status: 'done' }, filesWritten: [] };
@@ -286,13 +287,74 @@ export async function executeStep(
         break;
       }
       case 'done': {
-        const summary = buildSummary(plan, filesWritten);
+        const allAvailableForSummary = [...(accumulatedFiles || []), ...filesWritten];
+        const summary = buildSummary(plan, allAvailableForSummary);
         step.output = summary;
         onEvent?.({
           type: 'done',
           summary,
-          filesChanged: filesWritten.map((f) => f.path),
+          filesChanged: allAvailableForSummary.map((f) => f.path),
         });
+        break;
+      }
+      case 'commit': {
+        const message = (step.input.message as string) || 'Auto-commit from Pablo agent';
+        const allAvailable = [...(accumulatedFiles || []), ...filesWritten];
+        const files = (step.input.files as string[]) || allAvailable.map(f => f.path);
+        onEvent?.({ type: 'output', content: `Committing ${files.length} files: ${message}` });
+        // Emit action event for client-side execution (server-side fetch with relative URLs is not supported)
+        onEvent?.({
+          type: 'step_action',
+          action: 'commit',
+          payload: {
+            message,
+            files: files.map(f => {
+              const written = allAvailable.find(w => w.path === f);
+              return { path: f, content: written?.content || '' };
+            }),
+          },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `Commit prepared: ${files.length} files — "${message}" (client will execute)`;
+        break;
+      }
+      case 'create_pr': {
+        const title = (step.input.title as string) || 'PR from Pablo agent';
+        const prBody = (step.input.body as string) || '';
+        const head = (step.input.head as string) || '';
+        const base = (step.input.base as string) || 'main';
+        onEvent?.({ type: 'output', content: `Creating PR: ${title}` });
+        // Emit action event for client-side execution
+        onEvent?.({
+          type: 'step_action',
+          action: 'create_pr',
+          payload: { title, body: prBody, head, base },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `PR prepared: "${title}" (${head} → ${base}) (client will execute)`;
+        break;
+      }
+      case 'deploy': {
+        const target = (step.input.target as string) || 'production';
+        onEvent?.({ type: 'output', content: `Deploying to ${target}...` });
+        // Emit action event for client-side execution
+        onEvent?.({
+          type: 'step_action',
+          action: 'deploy',
+          payload: { target },
+        } as AgentEvent & { type: 'step_action'; action: string; payload: unknown });
+        step.output = `Deploy prepared: target=${target} (client will execute)`;
+        break;
+      }
+      case 'shell': {
+        const command = (step.input.command as string) || '';
+        onEvent?.({ type: 'output', content: `Shell: ${command}` });
+        // Shell execution requires a sandbox backend — return informational message
+        step.output = `Shell command queued: "${command}" — sandbox execution requires terminal backend (see Phase 7)`;
+        break;
+      }
+      case 'ask_user': {
+        const question = (step.input.question as string) || step.description;
+        onEvent?.({ type: 'output', content: `Asking user: ${question}` });
+        step.output = `Waiting for user response to: ${question}`;
         break;
       }
       default: {
@@ -338,7 +400,7 @@ export async function runAgentLoop(
 
   // Phase 2: Execute all steps
   while (plan.currentStepIndex < plan.steps.length && (plan.status as string) !== 'failed') {
-    const { filesWritten } = await executeStep(plan, context, env, onEvent);
+    const { filesWritten } = await executeStep(plan, context, env, onEvent, allFiles);
     allFiles.push(...filesWritten);
   }
 

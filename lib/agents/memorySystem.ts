@@ -179,47 +179,119 @@ export function extractKnowledge(
   return entries;
 }
 
-// ─── In-Memory Pattern Store ─────────────────────────────────────────
+// ─── Unified Pattern Store (in-memory + direct DB persistence) ───
 
-const patternStore: Map<string, LearnedPattern> = new Map();
-
-// ─── Persistence (In-Memory) ─────────────────────────────────────────
+// Local cache to avoid hitting the DB on every call
+let patternCache: LearnedPattern[] = [];
+let cacheLoadedAt = 0;
+const CACHE_TTL_MS = 30_000; // 30s
 
 /**
- * Save learned patterns to the in-memory store
+ * Save learned patterns to in-memory cache and persist to D1 via direct DB call.
+ * Uses getDB() directly instead of fetch('/api/patterns') to avoid relative URL
+ * issues when called from server-side route handlers.
  */
-export function savePatterns(patterns: LearnedPattern[]): void {
+export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
   for (const pattern of patterns) {
-    // Check if similar pattern already exists
-    let existing: LearnedPattern | undefined;
-    for (const stored of patternStore.values()) {
-      if (stored.trigger === pattern.trigger && stored.action === pattern.action) {
-        existing = stored;
-        break;
-      }
-    }
+    // Check local cache first
+    const existing = patternCache.find(
+      (p) => p.trigger === pattern.trigger && p.action === pattern.action,
+    );
 
     if (existing) {
-      // Increase confidence and use count
       existing.confidence = Math.min(existing.confidence + 0.1, 1);
       existing.lastUsedAt = Date.now();
       existing.useCount += 1;
-      patternStore.set(existing.id, existing);
     } else {
-      patternStore.set(pattern.id, pattern);
+      patternCache.push(pattern);
+    }
+
+    // Persist to in-memory DB directly (works server-side without URL issues)
+    try {
+      const { getDB } = await import('@/lib/db/drizzle');
+      const db = getDB();
+      if (existing) {
+        // Update existing pattern in DB with bumped confidence
+        db.updatePattern(existing.id, {
+          confidence: existing.confidence,
+          usageCount: existing.useCount,
+          lastUsedAt: new Date(existing.lastUsedAt).toISOString(),
+        });
+      } else {
+        db.createPattern({
+          id: pattern.id,
+          type: 'code_pattern',
+          trigger: pattern.trigger,
+          action: pattern.action,
+          confidence: pattern.confidence,
+          metadata: JSON.stringify({ domain: pattern.domain, language: pattern.language }),
+        });
+      }
+    } catch {
+      // Non-blocking — pattern stays in local cache
     }
   }
 }
 
 /**
- * Get all learned patterns, optionally filtered by domain
+ * Synchronous save for use in stores (fire-and-forget)
+ */
+export function savePatternsSync(patterns: LearnedPattern[]): void {
+  void savePatterns(patterns);
+}
+
+/**
+ * Get all learned patterns, optionally filtered by domain.
+ * Tries /api/patterns first, falls back to local cache.
  */
 export function getLearnedPatterns(domain?: string): LearnedPattern[] {
-  const all = Array.from(patternStore.values());
+  const all = patternCache;
   if (domain) {
     return all.filter((p) => p.domain === domain);
   }
   return all;
+}
+
+/**
+ * Load patterns from the DB into the local cache (call on app init).
+ * Uses getDB() directly instead of fetch('/api/patterns') to avoid
+ * relative URL issues when called from server-side route handlers.
+ */
+export async function loadPatternsFromAPI(): Promise<void> {
+  if (Date.now() - cacheLoadedAt < CACHE_TTL_MS) return;
+  try {
+    const { getDB } = await import('@/lib/db/drizzle');
+    const db = getDB();
+    const data = db.getPatterns() as Array<{
+      id: string;
+      trigger: string;
+      action: string;
+      confidence: number;
+      usageCount: number;
+      metadata?: string;
+      createdAt: string;
+      lastUsedAt?: string;
+    }>;
+    if (data && data.length > 0) {
+      patternCache = data.map((p) => {
+        const meta = p.metadata ? (JSON.parse(p.metadata) as { domain?: string; language?: string }) : {};
+        return {
+          id: p.id,
+          trigger: p.trigger,
+          action: p.action,
+          confidence: p.confidence,
+          domain: meta.domain || 'general',
+          language: meta.language || 'typescript',
+          createdAt: new Date(p.createdAt).getTime(),
+          lastUsedAt: p.lastUsedAt ? new Date(p.lastUsedAt).getTime() : Date.now(),
+          useCount: p.usageCount,
+        };
+      });
+    }
+    cacheLoadedAt = Date.now();
+  } catch {
+    // Non-blocking — use existing cache
+  }
 }
 
 /**
@@ -237,10 +309,9 @@ export function getRelevantPatterns(
 
   // Score each pattern by relevance
   const scored = allPatterns.map((p) => {
-    let score = p.confidence * 0.3; // Base score from confidence
-    score += Math.min(p.useCount * 0.05, 0.2); // Bonus for frequently used patterns
+    let score = p.confidence * 0.3;
+    score += Math.min(p.useCount * 0.05, 0.2);
 
-    // Term matching
     const triggerLower = p.trigger.toLowerCase();
     const actionLower = p.action.toLowerCase();
     for (const term of msgTerms) {
@@ -248,7 +319,6 @@ export function getRelevantPatterns(
       if (actionLower.includes(term)) score += 0.1;
     }
 
-    // Domain matching
     const domain = detectDomain(userMessage, '');
     if (p.domain === domain) score += 0.15;
 
@@ -267,7 +337,6 @@ export function getRelevantPatterns(
 export function getMemorySnapshot(): MemorySnapshot {
   const patterns = getLearnedPatterns();
 
-  // Count by domain
   const domainCounts: Record<string, number> = {};
   for (const p of patterns) {
     domainCounts[p.domain] = (domainCounts[p.domain] || 0) + 1;
@@ -278,7 +347,7 @@ export function getMemorySnapshot(): MemorySnapshot {
 
   return {
     patterns,
-    knowledge: [], // Knowledge entries stored separately
+    knowledge: [],
     totalInteractions: patterns.reduce((sum, p) => sum + p.useCount, 0),
     topDomains,
   };

@@ -18,15 +18,11 @@ async function getEnvConfig(): Promise<EnvConfig> {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return {
-      CLOUDFLARE_ACCOUNT_ID: cfEnv.CLOUDFLARE_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID,
-      CLOUDFLARE_API_TOKEN: cfEnv.CLOUDFLARE_API_TOKEN || process.env.CLOUDFLARE_API_TOKEN,
       OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL,
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
     };
   } catch {
     return {
-      CLOUDFLARE_ACCOUNT_ID: process.env.CLOUDFLARE_ACCOUNT_ID,
-      CLOUDFLARE_API_TOKEN: process.env.CLOUDFLARE_API_TOKEN,
       OLLAMA_URL: process.env.OLLAMA_URL,
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
     };
@@ -105,7 +101,7 @@ export async function POST(request: NextRequest) {
             for (const file of allFiles) {
               const patterns = extractPatterns(message, file.content, file.language);
               if (patterns.length > 0) {
-                savePatterns(patterns);
+                await savePatterns(patterns);
               }
             }
           } catch {

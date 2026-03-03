@@ -1,0 +1,48 @@
+{
+  "id": "south-african-enterprise",
+  "name": "South African Enterprise",
+  "description": "VAT, PAYE, B-BBEE, POPIA, and South African business compliance rules",
+  "locale": "ZA",
+  "entries": [
+    {
+      "id": "za-vat",
+      "category": "tax",
+      "title": "South African VAT (15%)",
+      "priority": "critical",
+      "content": "South Africa uses a 15% VAT rate. All invoices must show VAT-inclusive and VAT-exclusive amounts. VAT registration is mandatory for businesses with annual turnover exceeding R1,000,000. Formula: vat_amount = line_total * 0.15; total_incl = line_total + vat_amount",
+      "code_pattern": "vat_rate = Decimal('0.15')\nvat_amount = line_total * vat_rate\ntotal_incl_vat = line_total + vat_amount"
+    },
+    {
+      "id": "za-paye",
+      "category": "tax",
+      "title": "PAYE Tax Tables",
+      "priority": "high",
+      "content": "Pay-As-You-Earn tax brackets for South Africa. Employers must deduct PAYE from employee salaries based on progressive tax brackets. UIF contribution is 1% employee + 1% employer.",
+      "code_pattern": "# PAYE brackets (annual)\nbrackets = [\n  (237100, Decimal('0.18')),\n  (370500, Decimal('0.26')),\n  (512800, Decimal('0.31')),\n  (673000, Decimal('0.36')),\n  (857900, Decimal('0.39')),\n  (1817000, Decimal('0.41')),\n  (float('inf'), Decimal('0.45'))\n]"
+    },
+    {
+      "id": "za-bbbee",
+      "category": "compliance",
+      "title": "B-BBEE Scorecard",
+      "priority": "medium",
+      "content": "Broad-Based Black Economic Empowerment scoring: Ownership (25pts), Management Control (19pts), Skills Development (20pts), Enterprise and Supplier Development (40pts + bonus), Socio-Economic Development (5pts).",
+      "code_pattern": ""
+    },
+    {
+      "id": "za-popia",
+      "category": "compliance",
+      "title": "POPIA Data Protection",
+      "priority": "high",
+      "content": "Protection of Personal Information Act requires: explicit consent for data collection, data minimisation, purpose limitation, storage limitation, and right to deletion. All systems must have data subject access request (DSAR) endpoints.",
+      "code_pattern": ""
+    },
+    {
+      "id": "za-banking",
+      "category": "finance",
+      "title": "SA Banking Integration",
+      "priority": "medium",
+      "content": "Major banks: ABSA, FNB, Nedbank, Standard Bank, Capitec. EFT batch files use standard NAEDO/DebiCheck formats. Currency: ZAR (South African Rand).",
+      "code_pattern": ""
+    }
+  ]
+}

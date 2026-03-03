@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -66,6 +66,8 @@ export function ChatPanel() {
 
   const [input, setInput] = useState('');
   const [agentMode, setAgentMode] = useState(false);
+  const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [pipeline, setPipeline] = useState<PipelineProgress>({
     active: false,
     currentStep: '',
@@ -256,8 +258,18 @@ export function ChatPanel() {
       // Reset pipeline state from any previous multi-turn run
       setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
 
+      // Build content with attachments included
+      let fullContent = content.trim();
+      if (attachments.length > 0) {
+        const attachmentText = attachments
+          .map((att) => `\n\n--- Attached: ${att.name} ---\n${att.content}`)
+          .join('');
+        fullContent += attachmentText;
+        setAttachments([]); // Clear after sending
+      }
+
       // Add user message
-      addMessage({ role: 'user', content: content.trim() });
+      addMessage({ role: 'user', content: fullContent });
 
       // Create assistant message placeholder
       const assistantId = addMessage({
@@ -425,6 +437,7 @@ export function ChatPanel() {
       messages,
       isStreaming,
       agentMode,
+      attachments,
       addMessage,
       appendToMessage,
       updateMessage,
@@ -453,6 +466,25 @@ export function ChatPanel() {
       handleSubmit(e);
     }
   };
+
+  const handleFileAttach = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const text = reader.result as string;
+        setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
+      };
+      reader.readAsText(file);
+    });
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  }, []);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-pablo-panel">
@@ -614,10 +646,24 @@ export function ChatPanel() {
               rows={1}
             />
             <div className="flex items-center gap-1">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx"
+                onChange={handleFileAttach}
+                className="hidden"
+              />
               <button
                 type="button"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-pablo-text-muted transition-colors duration-150 hover:bg-pablo-hover hover:text-pablo-text-dim"
+                onClick={() => fileInputRef.current?.click()}
+                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
+                  attachments.length > 0
+                    ? 'text-pablo-gold hover:bg-pablo-gold/10'
+                    : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+                }`}
                 aria-label="Attach file"
+                title="Attach document"
               >
                 <Paperclip size={14} />
               </button>
@@ -642,6 +688,28 @@ export function ChatPanel() {
               )}
             </div>
           </div>
+          {/* Attachment chips */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {attachments.map((att, i) => (
+                <span
+                  key={`${att.name}-${i}`}
+                  className="flex items-center gap-1 rounded-md bg-pablo-gold/10 px-2 py-0.5 font-ui text-[10px] text-pablo-gold"
+                >
+                  <FileText size={10} />
+                  {att.name}
+                  <button
+                    type="button"
+                    onClick={() => removeAttachment(i)}
+                    className="ml-0.5 rounded-full hover:bg-pablo-gold/20"
+                    aria-label={`Remove ${att.name}`}
+                  >
+                    <X size={10} />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
           <div className="flex items-center justify-between">
             <span className="font-ui text-[10px] text-pablo-text-muted">
               Enter to send, Shift+Enter for new line

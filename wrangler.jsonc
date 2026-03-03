@@ -11,6 +11,13 @@
   "ai": {
     "binding": "AI"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pablo-db",
+      "database_id": "placeholder-create-via-wrangler-d1-create"
+    }
+  ],
   "vars": {
     "ENVIRONMENT": "production",
     "OLLAMA_URL": "https://ollama.com",

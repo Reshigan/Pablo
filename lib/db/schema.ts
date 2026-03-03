@@ -137,7 +137,7 @@ export const patterns = sqliteTable('patterns', {
   type: text('type', {
     enum: ['code_pattern', 'error_fix', 'architecture', 'convention', 'shortcut'],
   }).notNull(),
-  trigger: text('trigger').notNull(), // What triggers this pattern
+  trigger: text('trigger_text').notNull(), // What triggers this pattern
   action: text('action').notNull(), // What to do
   confidence: real('confidence').notNull().default(0.5),
   usageCount: integer('usage_count').notNull().default(0),
