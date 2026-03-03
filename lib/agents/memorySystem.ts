@@ -188,7 +188,7 @@ const CACHE_TTL_MS = 30_000; // 30s
 
 /**
  * Save learned patterns to in-memory cache and persist to D1 via direct DB call.
- * Uses getDB() directly instead of fetch('/api/patterns') to avoid relative URL
+ * Uses D1 directly instead of fetch('/api/patterns') to avoid relative URL
  * issues when called from server-side route handlers.
  */
 export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
@@ -206,19 +206,17 @@ export async function savePatterns(patterns: LearnedPattern[]): Promise<void> {
       patternCache.push(pattern);
     }
 
-    // Persist to in-memory DB directly (works server-side without URL issues)
+    // Persist to D1 directly (works server-side without URL issues)
     try {
-      const { getDB } = await import('@/lib/db/drizzle');
-      const db = getDB();
+      const { d1CreatePattern, d1UpdatePattern } = await import('@/lib/db/d1-patterns');
       if (existing) {
-        // Update existing pattern in DB with bumped confidence
-        db.updatePattern(existing.id, {
+        await d1UpdatePattern(existing.id, {
           confidence: existing.confidence,
           usageCount: existing.useCount,
           lastUsedAt: new Date(existing.lastUsedAt).toISOString(),
         });
       } else {
-        db.createPattern({
+        await d1CreatePattern({
           id: pattern.id,
           type: 'code_pattern',
           trigger: pattern.trigger,
@@ -254,23 +252,22 @@ export function getLearnedPatterns(domain?: string): LearnedPattern[] {
 
 /**
  * Load patterns from the DB into the local cache (call on app init).
- * Uses getDB() directly instead of fetch('/api/patterns') to avoid
+ * Uses D1 directly instead of fetch('/api/patterns') to avoid
  * relative URL issues when called from server-side route handlers.
  */
 export async function loadPatternsFromAPI(): Promise<void> {
   if (Date.now() - cacheLoadedAt < CACHE_TTL_MS) return;
   try {
-    const { getDB } = await import('@/lib/db/drizzle');
-    const db = getDB();
-    const data = db.getPatterns() as Array<{
+    const { d1GetPatterns } = await import('@/lib/db/d1-patterns');
+    const data = await d1GetPatterns() as Array<{
       id: string;
       trigger: string;
       action: string;
       confidence: number;
       usageCount: number;
-      metadata?: string;
+      metadata?: string | null;
       createdAt: string;
-      lastUsedAt?: string;
+      lastUsedAt?: string | null;
     }>;
     if (data && data.length > 0) {
       patternCache = data.map((p) => {
