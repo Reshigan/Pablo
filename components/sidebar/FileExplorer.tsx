@@ -17,9 +17,6 @@ import {
   Loader2,
   Star,
   AlertCircle,
-  Trash2,
-  Edit3,
-  MoreHorizontal,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '@/stores/editor';
