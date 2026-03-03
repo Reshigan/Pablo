@@ -82,18 +82,21 @@ interface ChatRequestBody {
 /**
  * Get environment config from Cloudflare Worker context or process.env
  */
+/** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
+const OLLAMA_CLOUD_URL = 'https://ollama.com';
+
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL,
+      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
     };
   } catch {
     return {
-      OLLAMA_URL: process.env.OLLAMA_URL,
+      OLLAMA_URL: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
     };
   }
