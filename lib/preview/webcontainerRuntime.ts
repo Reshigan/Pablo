@@ -9,6 +9,7 @@ import { toFileSystemTree, scaffoldProject } from './runtimeManager';
 
 let instance: WebContainer | null = null;
 let serverProcess: WebContainerProcess | null = null;
+let unsubServerReady: (() => void) | null = null;
 
 export interface WebContainerCallbacks {
   onTerminalOutput: (data: string) => void;
@@ -85,8 +86,14 @@ export async function startPreview(
       })
     );
 
+    // Remove previous server-ready listener before adding a new one
+    if (unsubServerReady) {
+      unsubServerReady();
+      unsubServerReady = null;
+    }
+
     // Listen for the dev server URL
-    container.on('server-ready', (port: number, url: string) => {
+    unsubServerReady = container.on('server-ready', (port: number, url: string) => {
       callbacks.onServerReady(url, port);
       callbacks.onStatusChange('ready');
     });

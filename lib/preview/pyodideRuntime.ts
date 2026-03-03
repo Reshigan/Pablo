@@ -133,6 +133,7 @@ export async function runPythonProject(
   files: Array<{ path: string; content: string }>,
   callbacks: PyodideCallbacks,
 ): Promise<string> {
+  callbacks.onStatusChange('loading');
   const pyodide = await getPyodide();
 
   // Write all files to Pyodide's virtual filesystem

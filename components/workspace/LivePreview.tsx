@@ -213,7 +213,7 @@ export function LivePreview() {
   }
 
   const viewportConfig = VIEWPORT_SIZES[viewport];
-  const isRunning = runtimeStatus === 'installing' || runtimeStatus === 'starting' || runtimeStatus === 'loading' || runtimeStatus === 'running';
+  const isRunning = runtimeStatus === 'booting' || runtimeStatus === 'installing' || runtimeStatus === 'starting' || runtimeStatus === 'loading' || runtimeStatus === 'running';
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-pablo-bg">
