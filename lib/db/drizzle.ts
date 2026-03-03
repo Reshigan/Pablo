@@ -25,13 +25,18 @@ export async function getD1(): Promise<ReturnType<typeof import('drizzle-orm/d1'
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     const ctx = await getCloudflareContext({ async: true });
-    const d1 = (ctx.env as Record<string, unknown>).DB;
-    if (!d1) return null;
+    const env = ctx.env as Record<string, unknown>;
+    const d1 = env.DB;
+    if (!d1) {
+      console.error('[getD1] DB binding not found. Available bindings:', Object.keys(env).join(', '));
+      return null;
+    }
 
     const { drizzle } = await import('drizzle-orm/d1');
     const schema = await import('./schema');
     return drizzle(d1 as unknown as Parameters<typeof drizzle>[0], { schema });
-  } catch {
+  } catch (err) {
+    console.error('[getD1] Failed to get D1:', err instanceof Error ? err.message : err);
     return null;
   }
 }
@@ -44,11 +49,16 @@ export async function execD1SQL(sql: string): Promise<boolean> {
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     const ctx = await getCloudflareContext({ async: true });
-    const d1 = (ctx.env as Record<string, unknown>).DB as { exec: (sql: string) => Promise<unknown> } | undefined;
-    if (!d1) return false;
+    const env = ctx.env as Record<string, unknown>;
+    const d1 = env.DB as { exec: (sql: string) => Promise<unknown> } | undefined;
+    if (!d1) {
+      console.error('[execD1SQL] DB binding not found. Available bindings:', Object.keys(env).join(', '));
+      return false;
+    }
     await d1.exec(sql);
     return true;
-  } catch {
+  } catch (err) {
+    console.error('[execD1SQL] Failed:', err instanceof Error ? err.message : err);
     return false;
   }
 }

@@ -129,7 +129,7 @@ export async function POST() {
 }
 
 /**
- * GET /api/db/migrate — Check migration status
+ * GET /api/db/migrate — Diagnostic: check D1 availability and binding status
  */
 export async function GET() {
   const session = await auth();
@@ -137,9 +137,37 @@ export async function GET() {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  return Response.json({
-    status: 'ok',
+  // Diagnostic: try to access D1 and report what we find
+  const diag: Record<string, unknown> = {
     tables: ['sessions', 'messages', 'files', 'pipeline_runs', 'pipeline_stages', 'patterns', 'domain_kb', 'settings', 'attachments'],
-    message: 'POST to this endpoint to apply migrations',
-  });
+  };
+
+  try {
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    const env = ctx.env as Record<string, unknown>;
+    diag.cfContextAvailable = true;
+    diag.envKeys = Object.keys(env);
+    diag.hasDB = !!env.DB;
+    diag.hasAI = !!env.AI;
+    diag.dbType = env.DB ? typeof env.DB : 'undefined';
+
+    if (env.DB) {
+      // Try a simple query to test D1
+      try {
+        const d1Raw = env.DB as { prepare: (sql: string) => { first: () => Promise<unknown> } };
+        const result = await d1Raw.prepare('SELECT 1 as test').first();
+        diag.d1QueryTest = result;
+        diag.d1Working = true;
+      } catch (queryErr) {
+        diag.d1Working = false;
+        diag.d1QueryError = queryErr instanceof Error ? queryErr.message : String(queryErr);
+      }
+    }
+  } catch (err) {
+    diag.cfContextAvailable = false;
+    diag.cfContextError = err instanceof Error ? err.message : String(err);
+  }
+
+  return Response.json(diag);
 }
