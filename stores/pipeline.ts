@@ -50,7 +50,7 @@ const BACKEND_PATTERNS: [RegExp, string][] = [
   [/\b(fastapi|flask|django)\b/i, 'Python + $1'],
   [/\b(express|node\.?js|koa|hono|nest\.?js)\b/i, 'Node.js'],
   [/\b(python)\b/i, 'Python + FastAPI'],
-  [/\b(go|golang)\b/i, 'Go'],
+  [/\b(golang|go\s*(?:backend|server|api|service|lang))\b/i, 'Go'],
   [/\b(rust|actix|axum)\b/i, 'Rust'],
 ];
 
@@ -260,11 +260,24 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
 
   completeRun: (runId, status) => {
     set((state) => ({
-      runs: state.runs.map((run) =>
-        run.id === runId
-          ? { ...run, status, currentStage: null, completedAt: Date.now() }
-          : run
-      ),
+      runs: state.runs.map((run) => {
+        if (run.id !== runId) return run;
+        const completedAt = Date.now();
+        return {
+          ...run,
+          status,
+          currentStage: null,
+          completedAt,
+          totalDurationMs: completedAt - run.createdAt,
+          stages: run.stages.map((s) =>
+            s.status === 'running'
+              ? { ...s, status: (status === 'cancelled' ? 'skipped' : 'failed') as StageStatus, completedAt }
+              : s.status === 'pending'
+              ? { ...s, status: 'skipped' as StageStatus }
+              : s
+          ),
+        };
+      }),
     }));
   },
 
