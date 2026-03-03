@@ -411,7 +411,7 @@ export function GitPanel() {
               {branches.map((b) => (
                 <button
                   key={b.name}
-                  onClick={() => { setSelectedBranch(b.name); setShowBranches(false); loadCommits(); }}
+                  onClick={() => { setSelectedBranch(b.name); setShowBranches(false); }}
                   className={`flex w-full items-center gap-2 px-3 py-1 text-left font-ui text-xs transition-colors hover:bg-pablo-hover ${b.name === selectedBranch ? 'text-pablo-gold bg-pablo-gold/5' : 'text-pablo-text-dim'}`}
                 >
                   <GitBranch size={10} />
