@@ -32,7 +32,7 @@ async function getPyodide(): Promise<PyodideInterface> {
   // Load Pyodide from CDN
   const { loadPyodide } = await import('pyodide');
   pyodideInstance = await (loadPyodide as (opts: { indexURL: string }) => Promise<PyodideInterface>)({
-    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.28.0/full/',
+    indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.29.3/full/',
   });
 
   return pyodideInstance as PyodideInterface;
