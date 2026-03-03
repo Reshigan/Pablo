@@ -1,14 +1,16 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useChatStore } from '@/stores/chat';
 import { useToastStore } from '@/stores/toast';
 import { useEditorStore } from '@/stores/editor';
+import { useAgentStore } from '@/stores/agent';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
+import type { AgentEvent } from '@/lib/agents/agentEngine';
 
 interface PipelineProgress {
   active: boolean;
@@ -63,6 +65,7 @@ export function ChatPanel() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
+  const [agentMode, setAgentMode] = useState(false);
   const [pipeline, setPipeline] = useState<PipelineProgress>({
     active: false,
     currentStep: '',
@@ -73,14 +76,182 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
+  const { startRun, processEvent, completeRun, failRun, isRunning: agentRunning } = useAgentStore();
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  /**
+   * Send message through the Agent Engine (plan -> execute -> verify -> fix)
+   */
+  const sendAgentMessage = useCallback(
+    async (content: string) => {
+      if (!content.trim() || isStreaming || agentRunning) return;
+
+      addMessage({ role: 'user', content: content.trim() });
+      const assistantId = addMessage({ role: 'assistant', content: '', isStreaming: true });
+      setStreaming(true);
+      setError(null);
+
+      const runId = startRun(content.trim());
+
+      try {
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        // Get open files from editor for context
+        const editorState = useEditorStore.getState();
+        const openFiles = editorState.tabs.map((t) => ({
+          path: t.path || t.name,
+          content: t.content || '',
+          language: t.language || 'plaintext',
+        }));
+
+        const conversationHistory = useChatStore.getState().messages
+          .filter((m) => m.id !== assistantId)
+          .slice(-10)
+          .map((m) => ({ role: m.role, content: m.content }));
+
+        const response = await fetch('/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: content.trim(),
+            openFiles,
+            conversationHistory,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error(`Agent API error: ${response.status}`);
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let streamContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') break;
+
+            try {
+              const event = JSON.parse(data) as AgentEvent;
+              processEvent(runId, event);
+
+              // Build assistant message from agent events
+              switch (event.type) {
+                case 'plan_created':
+                  streamContent += `## Agent Plan\n\n${event.plan.steps.map((s, i) => `${i + 1}. **${s.type}**: ${s.description}`).join('\n')}\n\n`;
+                  break;
+                case 'step_start':
+                  streamContent += `### Step ${event.index + 1}: ${event.step.description}\n`;
+                  break;
+                case 'step_complete':
+                  streamContent += `  Done\n\n`;
+                  break;
+                case 'step_failed':
+                  streamContent += `  Failed: ${event.error}\n\n`;
+                  break;
+                case 'thinking':
+                  streamContent += `> ${event.content}\n`;
+                  break;
+                case 'file_written':
+                  streamContent += `### ${event.path}\n\`\`\`${event.language}\n${event.content}\n\`\`\`\n\n`;
+                  break;
+                case 'verification_result':
+                  streamContent += `## Verification: ${event.passed ? 'PASSED' : 'NEEDS FIXES'}\n`;
+                  if (event.issues.length > 0) {
+                    streamContent += event.issues.map((i) => `- ${i}`).join('\n') + '\n';
+                  }
+                  streamContent += '\n';
+                  break;
+                case 'fix_attempt':
+                  streamContent += `## Auto-Fix (attempt ${event.attempt}/${event.maxAttempts})\n\n`;
+                  break;
+                case 'done':
+                  streamContent += `\n---\n\n**${event.summary}**\n`;
+                  break;
+                case 'error':
+                  streamContent += `\n**Error:** ${event.message}\n`;
+                  break;
+              }
+
+              appendToMessage(assistantId, '');
+              // Update the full content at once
+              updateMessage(assistantId, { content: streamContent });
+            } catch {
+              // Skip unparseable events
+            }
+          }
+        }
+
+        updateMessage(assistantId, { isStreaming: false });
+        completeRun(runId);
+
+        // Parse generated files from agent output and open as diffs
+        const finalContent = useChatStore.getState().messages.find((m) => m.id === assistantId)?.content ?? '';
+        const parsedFiles = parseGeneratedFiles(finalContent);
+        if (parsedFiles.length > 0) {
+          const edStore = useEditorStore.getState();
+          for (const file of parsedFiles) {
+            const fileId = generateId('agent');
+            const existingTab = edStore.tabs.find((t) => t.path === file.filename);
+            edStore.addDiff({
+              fileId,
+              filename: file.filename,
+              language: file.language,
+              oldContent: existingTab?.content ?? '',
+              newContent: file.content,
+            });
+          }
+          useToastStore.getState().addToast({
+            type: 'success',
+            title: 'Agent Complete',
+            message: `${parsedFiles.length} file(s) ready for review in Diff tab`,
+            duration: 5000,
+          });
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          updateMessage(assistantId, {
+            isStreaming: false,
+            content: (useChatStore.getState().messages.find((m) => m.id === assistantId)?.content ?? '') + '\n\n*[Agent stopped]*',
+          });
+        } else {
+          const errorMsg = err instanceof Error ? err.message : 'Agent failed';
+          setError(errorMsg);
+          updateMessage(assistantId, { isStreaming: false, content: `Error: ${errorMsg}` });
+          failRun(runId, errorMsg);
+        }
+      } finally {
+        setStreaming(false);
+        abortRef.current = null;
+      }
+    },
+    [isStreaming, agentRunning, addMessage, appendToMessage, updateMessage, setStreaming, setError, startRun, processEvent, completeRun, failRun]
+  );
+
   const sendMessage = useCallback(
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
+
+      // If agent mode is on, route through agent engine
+      if (agentMode) {
+        return sendAgentMessage(content);
+      }
 
       // Reset pipeline state from any previous multi-turn run
       setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
@@ -253,12 +424,14 @@ export function ChatPanel() {
     [
       messages,
       isStreaming,
+      agentMode,
       addMessage,
       appendToMessage,
       updateMessage,
       setStreaming,
       setError,
       addTokens,
+      sendAgentMessage,
     ]
   );
 
@@ -469,9 +642,24 @@ export function ChatPanel() {
               )}
             </div>
           </div>
-          <span className="font-ui text-[10px] text-pablo-text-muted">
-            Enter to send, Shift+Enter for new line
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="font-ui text-[10px] text-pablo-text-muted">
+              Enter to send, Shift+Enter for new line
+            </span>
+            <button
+              type="button"
+              onClick={() => setAgentMode(!agentMode)}
+              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
+                agentMode
+                  ? 'bg-pablo-gold/20 text-pablo-gold border border-pablo-gold/30'
+                  : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+              }`}
+              title={agentMode ? 'Agent Mode ON: plan → execute → verify → fix' : 'Enable Agent Mode for complex tasks'}
+            >
+              <Cpu size={10} />
+              {agentMode ? 'Agent ON' : 'Agent'}
+            </button>
+          </div>
         </form>
       </div>
     </div>
