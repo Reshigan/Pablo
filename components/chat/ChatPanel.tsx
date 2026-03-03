@@ -182,10 +182,11 @@ export function ChatPanel() {
                       const commitFiles = actionPayload.files as Array<{ path: string; content: string }> | undefined;
                       const commitMsg = (actionPayload.message as string) || 'Auto-commit from Pablo';
                       if (commitFiles && commitFiles.length > 0) {
+                        const commitRepo = (actionPayload.repo as string) || '';
                         const commitResp = await fetch('/api/deploy', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ files: commitFiles, project_name: commitMsg }),
+                          body: JSON.stringify({ files: commitFiles, project_name: commitMsg, repo: commitRepo }),
                         });
                         streamContent += commitResp.ok
                           ? `  Committed ${commitFiles.length} files\n\n`
@@ -196,14 +197,15 @@ export function ChatPanel() {
                       const prBody = (actionPayload.body as string) || '';
                       const head = (actionPayload.head as string) || '';
                       const base = (actionPayload.base as string) || 'main';
+                      const prRepo = (actionPayload.repo as string) || '';
                       const prResp = await fetch('/api/github/pull-request', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ title: prTitle, body: prBody, head, base }),
+                        body: JSON.stringify({ title: prTitle, body: prBody, head, base, repo: prRepo }),
                       });
                       if (prResp.ok) {
-                        const prData = (await prResp.json()) as { html_url?: string; number?: number };
-                        streamContent += `  PR #${prData.number} created: ${prData.html_url}\n\n`;
+                        const prData = (await prResp.json()) as { url?: string; number?: number };
+                        streamContent += `  PR #${prData.number} created: ${prData.url}\n\n`;
                       } else {
                         streamContent += `  PR creation failed: ${prResp.status}\n\n`;
                       }
