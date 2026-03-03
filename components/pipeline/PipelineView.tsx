@@ -25,7 +25,9 @@ import { useState, useCallback, useRef } from 'react';
 import {
   usePipelineStore,
   PIPELINE_STAGES,
-  detectTechStack,
+  extractExplicitStack,
+  parseTechStackFromPlan,
+  resolveTechStack,
   type PipelineStage,
   type StageStatus,
   type PipelineRun,
@@ -241,58 +243,95 @@ function truncateOutput(text: string, maxChars: number): string {
   return text.slice(0, half) + '\n\n... (truncated) ...\n\n' + text.slice(-half);
 }
 
-/** Build a focused prompt for each pipeline stage, with tech stack enforcement */
+/** Build a focused prompt for each pipeline stage.
+ *  - Plan stage: asks LLM to recommend the optimal tech stack
+ *  - All other stages: receive the resolved tech stack as a mandatory constraint
+ */
 function buildStagePrompt(
   featureDescription: string,
   stage: { id: PipelineStage; label: string; description: string },
   previousOutputs: string[],
   techStack?: TechStackHint,
+  explicitHints?: Partial<TechStackHint>,
 ): string {
   const trimmedPrevious = previousOutputs.map(o => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
 
-  // Tech stack context line — injected into EVERY stage so the model never drifts
-  const stackLine = techStack
-    ? `\nTech Stack (MANDATORY — use ONLY these technologies):\n  Frontend: ${techStack.frontend}\n  Backend: ${techStack.backend}\n  Database: ${techStack.database}\n  Do NOT use any other framework, language, or library unless the user explicitly asks for it.\n`
-    : '';
+  // For Plan stage: ask LLM to recommend a stack
+  // For all other stages: inject the resolved stack as mandatory
+  let stackBlock = '';
+  if (stage.id === 'plan') {
+    const userConstraints = explicitHints && Object.keys(explicitHints).length > 0
+      ? `\nThe user has explicitly requested these technologies (you MUST use them):\n${Object.entries(explicitHints).map(([k, v]) => `  - ${k}: ${v}`).join('\n')}\nFill in anything they didn't specify with your best recommendation.\n`
+      : '\nThe user did not specify a tech stack. Recommend the best one for this project.\n';
 
-  // Stage-specific instructions — now tech-stack-aware
+    stackBlock = `
+## Tech Stack Recommendation (REQUIRED in your output)
+
+${userConstraints}
+Evaluate the project requirements and recommend the optimal tech stack. Consider ALL of these options:
+
+**Frontend:** React, Vue, Svelte, Angular, SolidJS, HTMX, plain HTML — pick what fits the complexity.
+**Backend:** Cloudflare Workers + Hono, Node.js + Express, Node.js + NestJS, Python + FastAPI, Python + Django, Go, Rust + Axum, Java + Spring Boot, .NET — pick what fits the scale and deployment target.
+**Database:** Cloudflare D1 (SQLite, edge), PostgreSQL (via Neon/Supabase/self-hosted), MySQL (PlanetScale), MongoDB, SQLite, DynamoDB, Firebase, Turso (libSQL), Redis — pick what fits the data model.
+**ORM:** Drizzle, Prisma, TypeORM, SQLAlchemy, Django ORM, Mongoose — pick what matches the backend.
+**Storage:** Cloudflare R2, AWS S3, Google Cloud Storage, MinIO, Azure Blob — only if the project needs file/object storage.
+**Infrastructure:** Cloudflare Workers, Cloudflare Pages, Vercel, Netlify, AWS Lambda, Docker, Fly.io, Railway, Render — pick what fits the backend choice.
+
+Your output MUST include this exact structure (the pipeline parses it):
+
+## Recommended Tech Stack
+- Frontend: [your choice + reasoning in parentheses]
+- Backend: [your choice + reasoning]
+- Database: [your choice + reasoning]
+- Storage: [your choice, or "none" if not needed]
+- Infrastructure: [your choice + reasoning]
+`;
+  } else if (techStack && techStack.fullLabel) {
+    stackBlock = `
+## Tech Stack (MANDATORY — use ONLY these technologies)
+- Frontend: ${techStack.frontend}
+- Backend: ${techStack.backend}
+- Database: ${techStack.database}
+- Storage: ${techStack.storage}
+- Infrastructure: ${techStack.infra}
+
+Do NOT use any other framework, language, or library. Do NOT switch languages. Every file you output must use the stack above.
+`;
+  }
+
+  // Stage-specific instructions
   const stageInstructions: Record<PipelineStage, string> = {
     plan: `Create a concise implementation plan for the requested feature.
-- List ALL files to create with their full paths and purpose.
-- Specify the exact tech stack to use: ${techStack?.fullLabel || 'detect from user request'}.
-- For each file, note the framework/library it uses.
-- Include key architecture decisions (state management, routing, API structure).
-- Do NOT write code yet — only the plan.`,
+1. Recommend the optimal tech stack (see instructions above).
+2. List ALL files to create with their full paths and purpose.
+3. For each file, note which framework/library from the stack it uses.
+4. Include key architecture decisions (state management, routing, API structure, auth approach).
+5. Do NOT write code yet — only the plan.`,
 
-    db: `Generate the database schema and models.
-${techStack?.backend.includes('Node') || techStack?.backend.includes('TypeScript')
-  ? '- Use Prisma schema OR Drizzle ORM OR TypeORM (match the tech stack).\n- Output .prisma schema files or TypeScript model files.'
-  : techStack?.backend.includes('Python')
-    ? '- Use SQLAlchemy declarative models with proper __tablename__.\n- Include all relationships, indexes, and constraints.'
-    : '- Use the ORM/schema tool appropriate for the specified backend.'}
-- ALL models MUST have: id (primary key), createdAt, updatedAt, isActive/is_active.
+    db: `Generate the database schema and models using the tech stack's database and ORM.
+- Match the ORM to the stack (e.g. Drizzle for D1/SQLite, Prisma for PostgreSQL, SQLAlchemy for Python, Mongoose for MongoDB).
+- ALL models MUST have: id (primary key), createdAt/created_at, updatedAt/updated_at, isActive/is_active.
+- Include all relationships, indexes, and constraints.
 - Include migration files if applicable.
-- Output complete, runnable code.`,
+- For Cloudflare D1: output Drizzle schema + SQL migration files.
+- For PostgreSQL: output Prisma schema or Drizzle schema.
+- For MongoDB: output Mongoose models or schema definitions.
+- Output complete, runnable code files.`,
 
-    api: `Generate the API routes and business logic.
-${techStack?.backend.includes('Node')
-  ? '- Use Express.js, Hono, or Next.js API routes (match the plan).\n- Use TypeScript with proper types for all request/response objects.\n- Use zod or similar for input validation.'
-  : techStack?.backend.includes('Python')
-    ? '- Use FastAPI with Pydantic models for validation.\n- Include proper error handling with HTTPException.'
-    : '- Use the API framework specified in the plan.'}
-- Include authentication endpoints (register, login, refresh token).
-- All endpoints must have error handling and input validation.
-- Include CORS configuration.
-- Output complete, runnable code.`,
+    api: `Generate the API routes and business logic using the tech stack's backend framework.
+- For Cloudflare Workers + Hono: use Hono router with typed routes, D1 bindings, R2 bindings if needed.
+- For Node.js + Express: use Express router with TypeScript, middleware chain.
+- For Python + FastAPI: use FastAPI router with Pydantic models.
+- For any backend: include authentication endpoints (register, login, refresh token), input validation, error handling, CORS config.
+- Output complete, runnable code files.`,
 
-    ui: `Generate the frontend UI components and pages.
-${techStack?.frontend.includes('React')
-  ? '- Use React functional components with hooks (useState, useEffect, etc.).\n- Use TypeScript with proper prop types and interfaces.\n- Use ' + (techStack.frontend.includes('Tailwind') ? 'Tailwind CSS' : 'CSS modules') + ' for styling.\n- Include proper loading states, error states, and empty states.\n- Wire ALL buttons, forms, and links to real handlers — NO placeholder onClick, NO TODO comments.\n- Use fetch() or axios to call the API endpoints from the previous stage.\n- Include responsive design (mobile, tablet, desktop).'
-  : techStack?.frontend.includes('Vue')
-    ? '- Use Vue 3 Composition API with <script setup>.\n- Use TypeScript.\n- Include proper state management.'
-    : '- Use the frontend framework specified in the plan.'}
-- Output complete, runnable component files.
-- Every component must be a complete, working file — not a snippet.`,
+    ui: `Generate the frontend UI components and pages using the tech stack's frontend framework.
+- Wire ALL buttons, forms, and links to real handlers — NO placeholder onClick, NO TODO comments.
+- Include proper loading states, error states, and empty states for every view.
+- Use fetch() or an HTTP client to call the API endpoints from the previous stage.
+- Include responsive design (mobile, tablet, desktop).
+- Every component must be a complete, working file.
+- Output complete, runnable code files.`,
 
     ux_validation: `Perform a thorough UI/UX validation of ALL generated code from previous stages.
 Check and report on:
@@ -301,40 +340,37 @@ Check and report on:
 3. **Accessibility**: aria-labels, keyboard navigation, focus management.
 4. **Responsive design**: Mobile/tablet/desktop layouts.
 5. **Error handling**: Every API call must have try/catch with user-visible error feedback.
-6. **Data flow**: Props, context, and store subscriptions must be correctly typed.
+6. **Cross-stage consistency**: API endpoints match what UI calls, DB schema matches models, imports resolve.
 For each FAIL, provide the exact code fix as a complete corrected file.`,
 
-    tests: `Generate unit and integration tests.
-${techStack?.backend.includes('Node')
-  ? '- Use Vitest or Jest for testing.\n- Use TypeScript.\n- Test API endpoints with supertest or similar.'
-  : techStack?.backend.includes('Python')
-    ? '- Use pytest with pytest-asyncio for async tests.\n- Test API endpoints with httpx AsyncClient.'
-    : '- Use the testing framework appropriate for the stack.'}
+    tests: `Generate unit and integration tests using the test framework appropriate for the stack.
+- Node.js/TypeScript: Vitest or Jest + supertest for API tests.
+- Python: pytest + pytest-asyncio + httpx AsyncClient for API tests.
+- Go: Go testing package + httptest.
 - Test happy paths, error cases, and edge cases.
 - Output complete, runnable test files.`,
 
-    execute: `Generate all remaining configuration and setup files:
-${techStack?.backend.includes('Node')
-  ? '- package.json with all dependencies\n- tsconfig.json\n- .env.example\n- Dockerfile (Node.js)\n- README.md with setup instructions\n- Seed data script'
-  : techStack?.backend.includes('Python')
-    ? '- requirements.txt with all dependencies\n- .env.example\n- Dockerfile (Python)\n- README.md with setup instructions\n- Seed data script'
-    : '- All dependency files\n- .env.example\n- Dockerfile\n- README.md\n- Seed data script'}
+    execute: `Generate all remaining configuration and setup files for the chosen infrastructure.
+- For Cloudflare Workers: wrangler.toml, D1 migrations, R2 bucket config, package.json, tsconfig.json.
+- For Vercel/Netlify: vercel.json or netlify.toml, package.json, tsconfig.json.
+- For Docker: Dockerfile, docker-compose.yml, .dockerignore.
+- For all: .env.example, README.md with setup + deploy instructions, seed data script.
 - Output complete files.`,
 
     review: `Review ALL previous stage outputs for:
-- Bugs and logic errors
-- Missing features from the original request
-- Security issues (hardcoded secrets, missing auth, SQL injection)
-- Code quality (naming, structure, duplication)
-- Cross-stage consistency (API endpoints match what UI calls, DB schema matches models)
+- Bugs, logic errors, and missing features from the original request.
+- Security issues (hardcoded secrets, missing auth checks, injection vulnerabilities).
+- Cross-stage consistency (API endpoints match UI calls, DB schema matches models, imports resolve).
+- Tech stack compliance (all code uses the chosen stack, no accidental language switches).
+- Code quality (naming, structure, duplication).
 List each issue with severity (critical/warning/info) and a specific fix.`,
   };
 
   const parts = [
     `Feature: ${featureDescription}`,
-    stackLine,
+    stackBlock,
     `\nYour task (${stage.label}): ${stageInstructions[stage.id]}`,
-    '\nOutput format: For any code, respond with markdown code blocks that include filenames (e.g. ```tsx src/components/Dashboard.tsx).',
+    '\nOutput format: For any code, respond with markdown code blocks that include filenames with full paths (e.g. ```tsx src/components/Dashboard.tsx).',
   ];
 
   if (trimmedPrevious.length > 0) {
@@ -350,8 +386,9 @@ async function runStageWithChat(
   previousOutputs: string[],
   abortSignal: AbortSignal,
   techStack?: TechStackHint,
+  explicitHints?: Partial<TechStackHint>,
 ): Promise<{ output: string; tokens: number }> {
-  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs, techStack);
+  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs, techStack, explicitHints);
 
   // Create a per-stage abort that fires on timeout OR user cancel
   const stageAbort = new AbortController();
@@ -439,12 +476,13 @@ async function runStageWithRetry(
   previousOutputs: string[],
   abortSignal: AbortSignal,
   techStack?: TechStackHint,
+  explicitHints?: Partial<TechStackHint>,
 ): Promise<{ output: string; tokens: number }> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_STAGE_RETRIES; attempt++) {
     if (abortSignal.aborted) throw new Error('Aborted');
     try {
-      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal, techStack);
+      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal, techStack, explicitHints);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (abortSignal.aborted) throw lastError;
@@ -668,12 +706,13 @@ export function PipelineView() {
     setFeatureInput('');
     setIsBuilding(true);
 
-    // Detect tech stack from the feature description
-    const techStack = detectTechStack(description);
+    // Extract what the user explicitly requested (no defaults applied)
+    const explicitHints = extractExplicitStack(description);
 
     const controller = new AbortController();
     abortRef.current = controller;
     const previousOutputs: string[] = [];
+    let resolvedStack: TechStackHint | undefined;
 
     try {
       for (let i = 0; i < PIPELINE_STAGES.length; i++) {
@@ -685,7 +724,11 @@ export function PipelineView() {
 
         try {
           const startTime = Date.now();
-          const result = await runStageWithRetry(description, stage, previousOutputs, controller.signal, techStack);
+          const result = await runStageWithRetry(
+            description, stage, previousOutputs, controller.signal,
+            resolvedStack,    // undefined for Plan, resolved for stages 2-8
+            explicitHints,    // user's explicit mentions (Plan stage uses these)
+          );
           const durationMs = Date.now() - startTime;
 
           updateStage(runId, stage.id, {
@@ -703,6 +746,14 @@ export function PipelineView() {
           useMetricsStore.getState().recordPipelineStage(stage.id);
 
           previousOutputs.push(`## ${stage.label}\n${result.output}`);
+
+          // After Plan stage: parse the recommended tech stack from LLM output
+          // and lock it in for all subsequent stages
+          if (stage.id === 'plan') {
+            const llmStack = parseTechStackFromPlan(result.output);
+            resolvedStack = resolveTechStack(explicitHints, llmStack);
+            usePipelineStore.getState().setTechStack(runId, resolvedStack);
+          }
         } catch (stageError) {
           if (controller.signal.aborted) break;
           const errorMsg = stageError instanceof Error ? stageError.message : 'Stage failed';
@@ -715,6 +766,14 @@ export function PipelineView() {
             completedAt: Date.now(),
           });
           useMetricsStore.getState().recordRequest(false);
+
+          // If Plan stage failed, still resolve stack from explicit hints so stages 2-8
+          // get the user's explicit tech choices instead of running unconstrained
+          if (stage.id === 'plan' && !resolvedStack) {
+            resolvedStack = resolveTechStack(explicitHints, null);
+            usePipelineStore.getState().setTechStack(runId, resolvedStack);
+          }
+
           // Continue to next stage instead of killing the entire pipeline
           previousOutputs.push(`## ${stage.label}\n(failed: ${isTimeout ? 'timeout' : 'error'})`);
           continue;
