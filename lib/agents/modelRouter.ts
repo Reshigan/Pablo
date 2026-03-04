@@ -207,6 +207,40 @@ export interface EnvConfig {
 /** Timeout for non-streaming API calls (ms). Ollama Cloud 480B can take a while. */
 const NON_STREAMING_TIMEOUT_MS = 600_000; // 10 min
 
+/**
+ * callModelTracked — calls the model AND logs to D1 agent_runs.
+ * Use this from specialist agents for automatic cost/run tracking.
+ */
+export async function callModelTracked(
+  request: LLMRequest,
+  env: EnvConfig,
+  meta: { sessionId: string; orchestrationId: string; agentName: string; phase: string },
+): Promise<LLMResponse> {
+  const result = await callModel(request, env);
+
+  // Log agent run to D1 (non-blocking)
+  try {
+    const { d1CreateAgentRun } = await import('@/lib/db/d1-agent-runs');
+    void d1CreateAgentRun({
+      sessionId: meta.sessionId,
+      orchestrationId: meta.orchestrationId,
+      agentName: meta.agentName,
+      phase: meta.phase,
+      status: 'complete',
+      inputSummary: request.userMessage.slice(0, 500),
+      outputSummary: result.content.slice(0, 500),
+      filesGenerated: 0,
+      tokensUsed: result.tokens_used,
+      durationMs: result.duration_ms,
+      issues: '',
+    }).catch(() => { /* non-blocking */ });
+  } catch {
+    // Cost tracking failure should never block the response
+  }
+
+  return result;
+}
+
 export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LLMResponse> {
   const startTime = Date.now();
   const controller = new AbortController();

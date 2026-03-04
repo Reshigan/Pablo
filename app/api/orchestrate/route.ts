@@ -1,18 +1,23 @@
 /**
- * POST /api/orchestrate — Multi-Agent Orchestration SSE endpoint
+ * POST /api/orchestrate — V10 Multi-Agent Orchestration SSE endpoint
  *
- * Accepts a user message, decomposes into parallel tasks,
- * spawns worker agents, and streams events back via SSE.
+ * Runs the 6-phase pipeline (Understand → Design → Build → Quality → Ship → Verify)
+ * with 12 specialist agents and streams events back via SSE.
  *
  * Request body:
- *   { message: string, existingFiles?: Record<string, string>, source?: string }
+ *   { message: string, existingFiles?: Record<string, string>, sessionId?: string,
+ *     autoApprove?: boolean, phases?: string[], source?: string }
  *
  * Response: Server-Sent Events stream
  */
 
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { runOrchestrator, type OrchestratorEvent } from '@/lib/agents/orchestrator';
+import {
+  runOrchestration,
+  type OrchestratorEvent,
+  type OrchestrationPhase,
+} from '@/lib/agents/orchestrator';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
 
 async function getEnvConfig(): Promise<EnvConfig> {
@@ -32,6 +37,8 @@ async function getEnvConfig(): Promise<EnvConfig> {
   }
 }
 
+const ALL_PHASES: OrchestrationPhase[] = ['understand', 'design', 'build', 'quality', 'ship', 'verify'];
+
 export async function POST(request: NextRequest) {
   try {
     const session = await auth();
@@ -42,6 +49,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as {
       message: string;
       existingFiles?: Record<string, string>;
+      sessionId?: string;
+      autoApprove?: boolean;
+      phases?: string[];
       source?: string;
     };
 
@@ -54,13 +64,19 @@ export async function POST(request: NextRequest) {
       Object.entries(body.existingFiles || {})
     );
 
+    const phases = (body.phases || ALL_PHASES).filter(
+      (p): p is OrchestrationPhase => ALL_PHASES.includes(p as OrchestrationPhase)
+    );
+
     // Create SSE stream
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         const sendEvent = (event: OrchestratorEvent) => {
           try {
-            const data = JSON.stringify(event);
+            // Serialize — Maps are not JSON-serializable, so convert to plain objects
+            const serializable = { ...event } as Record<string, unknown>;
+            const data = JSON.stringify(serializable);
             controller.enqueue(encoder.encode(`data: ${data}\n\n`));
           } catch {
             // Stream closed
@@ -68,15 +84,19 @@ export async function POST(request: NextRequest) {
         };
 
         try {
-          const result = await runOrchestrator(
+          await runOrchestration(
             body.message,
-            existingFiles,
+            { existingFiles, repoFullName: undefined, branch: undefined },
             env,
+            {
+              autoApprove: body.autoApprove ?? true,
+              maxTotalTokens: 500_000,
+              phases,
+              sessionId: body.sessionId || `sse-${Date.now()}`,
+            },
             sendEvent,
           );
-
-          // runOrchestrator already emits 'done' event via sendEvent callback
-          // No need to send another one here
+          // runOrchestration already emits 'done' event via sendEvent callback
         } catch (error) {
           sendEvent({
             type: 'error',
