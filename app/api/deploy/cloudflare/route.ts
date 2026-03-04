@@ -2,7 +2,7 @@
  * Cloudflare Pages Direct Upload — Deploy generated code to Cloudflare Pages
  *
  * POST /api/deploy/cloudflare
- * Body: { files: [{ path, content }], project_name, account_id?, api_key? }
+ * Body: { files: [{ path, content }], project_name? }
  *
  * Flow:
  * 1. Create Cloudflare Pages project (if not exists)
@@ -100,7 +100,8 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
   // Transform ES module syntax to browser-compatible globals:
   // - Strip import/export statements (React etc. are loaded via CDN UMD)
   // - Convert TypeScript type annotations to JS (Babel standalone handles this)
-  // - Escape backticks and ${} to prevent template literal injection
+  // NOTE: We use string concatenation (not template literals) to inject code/CSS
+  // into the HTML, so backticks and ${} in generated code are preserved as-is.
   const componentCode = codeFiles
     .map(f => {
       let code = f.content;
@@ -115,76 +116,81 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
       code = code.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '');
       // Strip TypeScript-only constructs that Babel standalone doesn't handle
       code = code.replace(/^\s*(?:interface|type)\s+\w+[^{]*\{[^}]*\}\s*$/gm, '');
-      // Escape backticks and template expressions to prevent injection
-      code = code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
-      return `// --- ${f.path} ---\n${code}`;
+      return '// --- ' + f.path + ' ---\n' + code;
     })
     .join('\n\n');
 
-  const html = `<!DOCTYPE html>
-<html lang="en" class="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${projectName}</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },
-            surface: { DEFAULT: '#1e1e2e', lighter: '#2a2a3e', border: '#3a3a4e' },
-          }
-        }
-      }
-    }
-  </script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js" crossorigin></script>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-    ${cssContent}
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel" data-type="module">
-    const { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } = React;
-    const { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } = Recharts || {};
+  // Sanitize project name for HTML (no special chars that could break tags)
+  const safeProjectName = projectName.replace(/[<>"'&]/g, '');
 
-    // ============================================================
-    // Generated Code from Pablo IDE Pipeline
-    // ============================================================
+  // Build HTML via string concatenation to avoid template literal injection.
+  // Generated code and CSS are injected raw so backticks/${} remain valid JS/CSS.
+  const htmlBefore = '<!DOCTYPE html>\n'
+    + '<html lang="en" class="dark">\n'
+    + '<head>\n'
+    + '  <meta charset="UTF-8">\n'
+    + '  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+    + '  <title>' + safeProjectName + '</title>\n'
+    + '  <script src="https://cdn.tailwindcss.com"><\/script>\n'
+    + '  <script>\n'
+    + '    tailwind.config = {\n'
+    + '      darkMode: \'class\',\n'
+    + '      theme: {\n'
+    + '        extend: {\n'
+    + '          colors: {\n'
+    + "            primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' },\n"
+    + "            surface: { DEFAULT: '#1e1e2e', lighter: '#2a2a3e', border: '#3a3a4e' },\n"
+    + '          }\n'
+    + '        }\n'
+    + '      }\n'
+    + '    }\n'
+    + '  <\/script>\n'
+    + '  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin><\/script>\n'
+    + '  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin><\/script>\n'
+    + '  <script src="https://unpkg.com/@babel/standalone/babel.min.js"><\/script>\n'
+    + '  <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js" crossorigin><\/script>\n'
+    + '  <style>\n'
+    + '    * { margin: 0; padding: 0; box-sizing: border-box; }\n'
+    + "    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }\n"
+    + cssContent + '\n'
+    + '  </style>\n'
+    + '</head>\n'
+    + '<body>\n'
+    + '  <div id="root"></div>\n'
+    + '  <script type="text/babel" data-type="module">\n'
+    + '    const { useState, useEffect, useCallback, useMemo, useRef, createContext, useContext } = React;\n'
+    + '    const { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area } = Recharts || {};\n'
+    + '\n'
+    + '    // ============================================================\n'
+    + '    // Generated Code from Pablo IDE Pipeline\n'
+    + '    // ============================================================\n'
+    + '\n';
 
-    ${componentCode}
+  const htmlAfter = '\n'
+    + '\n'
+    + '    // ============================================================\n'
+    + '    // Mount App\n'
+    + '    // ============================================================\n'
+    + '    const rootEl = document.getElementById(\'root\');\n'
+    + '    if (rootEl) {\n'
+    + '      const root = ReactDOM.createRoot(rootEl);\n'
+    + '      if (typeof App !== \'undefined\') {\n'
+    + '        root.render(React.createElement(App));\n'
+    + '      } else if (typeof Dashboard !== \'undefined\') {\n'
+    + '        root.render(React.createElement(Dashboard));\n'
+    + '      } else if (typeof Main !== \'undefined\') {\n'
+    + '        root.render(React.createElement(Main));\n'
+    + '      } else {\n'
+    + "        root.render(React.createElement('div', {\n"
+    + "          style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }\n"
+    + "        }, 'No App component found. Check the generated code.'));\n"
+    + '      }\n'
+    + '    }\n'
+    + '  <\/script>\n'
+    + '</body>\n'
+    + '</html>';
 
-    // ============================================================
-    // Mount App
-    // ============================================================
-    const rootEl = document.getElementById('root');
-    if (rootEl) {
-      const root = ReactDOM.createRoot(rootEl);
-      // Try to find the main App component
-      if (typeof App !== 'undefined') {
-        root.render(React.createElement(App));
-      } else if (typeof Dashboard !== 'undefined') {
-        root.render(React.createElement(Dashboard));
-      } else if (typeof Main !== 'undefined') {
-        root.render(React.createElement(Main));
-      } else {
-        root.render(React.createElement('div', {
-          style: { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: '#94a3b8' }
-        }, 'No App component found. Check the generated code.'));
-      }
-    }
-  </script>
-</body>
-</html>`;
+  const html = htmlBefore + componentCode + htmlAfter;
 
   bundledFiles.push({ path: 'index.html', content: html });
 
@@ -204,9 +210,6 @@ export async function POST(request: NextRequest) {
   const body = (await request.json()) as {
     files: DeployFile[];
     project_name?: string;
-    account_id?: string;
-    api_key?: string;
-    email?: string;
   };
 
   const { files } = body;
@@ -214,11 +217,11 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'No files to deploy' }, { status: 400 });
   }
 
-  // Get Cloudflare credentials
+  // Use server-side credentials only — never accept credentials from request body
   const env = await getCloudflareEnv();
-  const accountId = body.account_id || env.accountId;
-  const apiKey = body.api_key || env.apiKey;
-  const email = body.email || env.email;
+  const accountId = env.accountId;
+  const apiKey = env.apiKey;
+  const email = env.email;
 
   if (!accountId || !apiKey || !email) {
     return Response.json({
