@@ -1076,6 +1076,7 @@ export function ChatPanel() {
                   const intent = manualMode === 'auto' ? detectIntentFromInput(lastUserMsg.content) : manualMode;
                   if (intent === 'evaluate') handleEvaluate(lastUserMsg.content);
                   else if (intent === 'fix') handleFix(lastUserMsg.content);
+                  else if (shouldOrchestrate(lastUserMsg.content)) sendOrchestratedMessage(lastUserMsg.content);
                   else if (intent === 'build') sendAgentMessage(lastUserMsg.content);
                   else sendMessage(lastUserMsg.content);
                 }
