@@ -9,6 +9,7 @@ import { useBackgroundTaskStore } from '@/stores/backgroundTasks';
 export function StatusBar() {
   const { selectedRepo, selectedBranch } = useRepoStore();
   const { tabs, activeTabId } = useEditorStore();
+  const runningTasks = useBackgroundTaskStore((s) => s.tasks.filter(t => t.status === 'running'));
   const { totalTokens } = useChatStore();
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -26,11 +27,11 @@ export function StatusBar() {
       {/* Left section */}
       <div className="flex items-center gap-3">
         {/* Background tasks indicator (Feature 14) */}
-        {useBackgroundTaskStore.getState().getRunningTasks().length > 0 && (
+        {runningTasks.length > 0 && (
           <div className="flex items-center gap-1.5">
             <Loader2 size={10} className="animate-spin text-pablo-gold" />
             <span className="text-pablo-gold">
-              {useBackgroundTaskStore.getState().getRunningTasks().length} task(s)
+              {runningTasks.length} task(s)
             </span>
           </div>
         )}

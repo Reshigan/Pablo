@@ -47,7 +47,7 @@ import {
 import { useAgentStore, type AgentPhase, type AgentRunState } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
-import { useToastStore } from '@/stores/toast';
+import { useToastStore, toast } from '@/stores/toast';
 import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
@@ -490,8 +490,7 @@ List each issue with severity (critical/warning/info) and a specific fix.`,
   // Feature 11: Inject .pablo project rules if present
   let pabloRulesBlock = '';
   try {
-    const { useEditorStore: edStore } = require('@/stores/editor') as typeof import('@/stores/editor');
-    const pabloTab = edStore.getState().tabs.find(t => t.path === '.pablo' || t.path.endsWith('/.pablo'));
+    const pabloTab = useEditorStore.getState().tabs.find(t => t.path === '.pablo' || t.path.endsWith('/.pablo'));
     if (pabloTab?.content) {
       pabloRulesBlock = `\n## Project Rules (.pablo)\nThe following project-specific rules MUST be followed:\n${pabloTab.content}\n`;
     }
@@ -850,12 +849,12 @@ export function PipelineView() {
   const handleZipDownload = useCallback(() => {
     const tabs = useEditorStore.getState().tabs;
     if (tabs.length === 0) {
-      useToastStore.getState().addToast({ type: 'info', title: 'No files', message: 'No files to download', duration: 3000 });
+      toast('No files', 'No files to download');
       return;
     }
     const files = tabs.filter(t => t.content).map(t => ({ path: t.path, content: t.content }));
     downloadProjectZip(files, 'pablo-project').catch(() => {
-      useToastStore.getState().addToast({ type: 'error', title: 'Download failed', message: 'Could not create ZIP', duration: 3000 });
+      toast('Download failed', 'Could not create ZIP');
     });
   }, []);
 
