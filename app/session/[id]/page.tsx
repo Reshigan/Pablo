@@ -114,15 +114,17 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         toggleTerminal();
       }
       // Issue 15: Cmd+Shift+P for command palette (instead of Cmd+K)
-      if (isMeta && e.shiftKey && e.key === 'p') {
+      if (isMeta && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         toggleCommandPalette();
+        return;
       }
       // Issue 14: Cmd+P for Preview toggle
-      if (isMeta && !e.shiftKey && e.key === 'p') {
+      if (isMeta && !e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         const current = useUIStore.getState().activeWorkspaceTab;
         setActiveWorkspaceTab(current === 'preview' ? 'editor' : 'preview');
+        return;
       }
       // Issue 14: Cmd+D for Diff tab
       if (isMeta && e.key === 'd') {
