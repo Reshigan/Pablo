@@ -23,6 +23,10 @@ export function getDB() {
  */
 export async function getD1(): Promise<ReturnType<typeof import('drizzle-orm/d1').drizzle> | null> {
   try {
+    // Self-healing: ensure all tables/columns exist before first query
+    const { ensureSchema } = await import('./selfHeal');
+    await ensureSchema();
+
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     const ctx = await getCloudflareContext({ async: true });
     const env = ctx.env as Record<string, unknown>;

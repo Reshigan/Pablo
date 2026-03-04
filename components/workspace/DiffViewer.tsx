@@ -1,6 +1,6 @@
 'use client';
 
-import { GitCommit, ChevronDown, ChevronRight, Plus, Minus, Check, X, CheckCheck } from 'lucide-react';
+import { GitCommit, ChevronDown, ChevronRight, Plus, Minus, Check, X, CheckCheck, XCircle } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import { useEditorStore, type DiffHunk } from '@/stores/editor';
 import { useUIStore } from '@/stores/ui';
@@ -214,6 +214,13 @@ export function DiffViewer() {
     useUIStore.getState().setAutoStartPreview(true);
   }, [acceptDiff]);
 
+  const handleRejectAll = useCallback(() => {
+    const diffs = useEditorStore.getState().pendingDiffs;
+    for (const d of diffs) {
+      if (d.status === 'pending') rejectDiff(d.fileId);
+    }
+  }, [rejectDiff]);
+
   if (pendingDiffs.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-pablo-bg text-center">
@@ -244,13 +251,22 @@ export function DiffViewer() {
         )}
         <div className="ml-auto flex items-center gap-2">
           {pendingCount > 0 && (
-            <button
-              onClick={handleAcceptAll}
-              className="flex h-6 items-center gap-1 rounded bg-pablo-green/10 px-2 font-ui text-[10px] font-medium text-pablo-green transition-colors hover:bg-pablo-green/20"
-            >
-              <CheckCheck size={12} />
-              Accept All
-            </button>
+            <>
+              <button
+                onClick={handleAcceptAll}
+                className="flex h-6 items-center gap-1 rounded bg-pablo-green/10 px-2 font-ui text-[10px] font-medium text-pablo-green transition-colors hover:bg-pablo-green/20"
+              >
+                <CheckCheck size={12} />
+                Accept All
+              </button>
+              <button
+                onClick={handleRejectAll}
+                className="flex h-6 items-center gap-1 rounded bg-pablo-red/10 px-2 font-ui text-[10px] font-medium text-pablo-red transition-colors hover:bg-pablo-red/20"
+              >
+                <XCircle size={12} />
+                Reject All
+              </button>
+            </>
           )}
           {pendingCount === 0 && (
             <button

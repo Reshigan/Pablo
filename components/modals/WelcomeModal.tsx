@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, GitBranch, Rocket, Keyboard, ArrowRight } from 'lucide-react';
+import { X, GitBranch, Rocket, Keyboard, ArrowRight, MessageSquare, Zap } from 'lucide-react';
 import { useUIStore } from '@/stores/ui';
 
 const ONBOARDED_KEY = 'pablo-onboarded';
@@ -97,6 +97,24 @@ export function WelcomeModal() {
           </button>
         </div>
 
+        {/* Quick tips */}
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <div className="flex items-start gap-2 rounded-lg border border-pablo-border bg-pablo-bg p-2.5">
+            <MessageSquare size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
+            <div>
+              <p className="font-ui text-[11px] font-medium text-pablo-text-dim">Chat Modes</p>
+              <p className="font-ui text-[10px] text-pablo-text-muted">Auto, Chat, Build, Evaluate, Fix — pick your mode above the input</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 rounded-lg border border-pablo-border bg-pablo-bg p-2.5">
+            <Zap size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
+            <div>
+              <p className="font-ui text-[11px] font-medium text-pablo-text-dim">AI Pipeline</p>
+              <p className="font-ui text-[10px] text-pablo-text-muted">Describe any app and Pablo builds it through an 8-stage AI pipeline</p>
+            </div>
+          </div>
+        </div>
+
         {/* Keyboard shortcuts */}
         <div className="mb-4 rounded-lg border border-pablo-border bg-pablo-bg p-3">
           <div className="mb-2 flex items-center gap-1.5">
@@ -125,9 +143,9 @@ export function WelcomeModal() {
         {/* Skip CTA */}
         <button
           onClick={dismiss}
-          className="w-full rounded-lg bg-pablo-hover py-2 font-ui text-xs text-pablo-text-muted transition-colors hover:bg-pablo-active hover:text-pablo-text-dim"
+          className="w-full rounded-lg bg-pablo-gold py-2 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim"
         >
-          Skip for now
+          Get Started
         </button>
       </div>
     </div>

@@ -66,6 +66,9 @@ export function TerminalPanel() {
     term.writeln('\x1b[38;2;212;168;67m║\x1b[0m  \x1b[1;38;2;212;168;67mPablo Terminal\x1b[0m                           \x1b[38;2;212;168;67m║\x1b[0m');
     term.writeln('\x1b[38;2;212;168;67m╚══════════════════════════════════════════╝\x1b[0m');
     term.writeln('');
+    term.writeln('\x1b[38;2;245;158;11mNotice:\x1b[0m \x1b[38;2;148;163;184mThis terminal is a limited command runner.\x1b[0m');
+    term.writeln('\x1b[38;2;100;116;139m  Commands run in WebContainer when available; otherwise only built-in commands work.\x1b[0m');
+    term.writeln('');
     term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
 
     // Built-in commands for local terminal
@@ -79,7 +82,7 @@ export function TerminalPanel() {
         '  \x1b[38;2;96;165;250mstatus\x1b[0m     Show session status',
         '  \x1b[38;2;96;165;250mecho\x1b[0m       Echo text back',
         '',
-        '\x1b[38;2;100;116;139m  Tip: Full shell access requires a Docker sandbox connection.\x1b[0m',
+        '\x1b[38;2;100;116;139m  Tip: Start a WebContainer runtime for full interactive shell behavior.\x1b[0m',
       ].join('\r\n'),
       version: () => '\x1b[38;2;212;168;67mPablo IDE\x1b[0m v5.0 — AI-Powered Development Environment',
       models: () => [
@@ -92,7 +95,7 @@ export function TerminalPanel() {
         '\x1b[1;38;2;212;168;67mSession Status:\x1b[0m',
         `  Runtime:  \x1b[38;2;212;168;67m${Math.floor((Date.now() - performance.timeOrigin) / 60000)}m\x1b[0m`,
         '  Backend:  \x1b[38;2;34;197;94mOllama Cloud\x1b[0m',
-        '  Terminal: \x1b[38;2;100;116;139mLocal (no sandbox)\x1b[0m',
+        '  Terminal: \x1b[38;2;100;116;139mLimited (WebContainer/remote when available)\x1b[0m',
       ].join('\r\n'),
     };
 

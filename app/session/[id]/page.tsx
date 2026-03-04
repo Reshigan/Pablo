@@ -1,7 +1,7 @@
 'use client';
 
 import { TopBar } from '@/components/layout/TopBar';
-import { ContextBar } from '@/components/layout/ContextBar';
+// UX-14: ContextBar removed — repo/branch info merged into StatusBar
 import { Sidebar } from '@/components/layout/Sidebar';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { PanelResizer } from '@/components/layout/PanelResizer';
@@ -12,7 +12,7 @@ import { SettingsModal } from '@/components/modals/SettingsModal';
 import { WelcomeModal } from '@/components/modals/WelcomeModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
-import { useUIStore } from '@/stores/ui';
+import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 import { useSessionStore } from '@/stores/session';
 import { useChatStore } from '@/stores/chat';
 import { usePipelineStore } from '@/stores/pipeline';
@@ -41,6 +41,22 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     setChatWidth,
     setActiveWorkspaceTab,
   } = useUIStore();
+
+  // UX-07: Auto-collapse sidebar/chat on narrow viewports
+  useEffect(() => {
+    function handleResize() {
+      const w = window.innerWidth;
+      if (w < 768) {
+        // Mobile: collapse both panels
+        const state = useUIStore.getState();
+        if (state.sidebarOpen) state.toggleSidebar();
+        if (state.chatOpen) state.toggleChat();
+      }
+    }
+    handleResize(); // Check on mount
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const {
     currentSessionId,
@@ -140,6 +156,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         e.preventDefault();
         saveSession().catch(() => { /* non-blocking */ });
       }
+      // UX-16: Cmd+1..9 to switch workspace tabs by index
+      if (isMeta && !e.shiftKey && e.key >= '1' && e.key <= '9') {
+        e.preventDefault();
+        const tabOrder: WorkspaceTab[] = ['editor', 'preview', 'terminal', 'diff', 'pipeline', 'db-designer', 'api-tester', 'dependencies', 'deploy-logs'];
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < tabOrder.length) {
+          setActiveWorkspaceTab(tabOrder[idx]);
+        }
+      }
     },
     [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette, saveSession, setActiveWorkspaceTab]
     // toggleTerminal now switches workspace tab to 'terminal' instead of toggling a bottom panel
@@ -167,8 +192,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       {/* Top Bar */}
       <TopBar agentStatus="idle" />
 
-      {/* Context Bar — shows repo/branch/files/pipeline at a glance */}
-      <ContextBar />
+      {/* UX-14: ContextBar removed — repo/branch info now in StatusBar */}
 
       {/* Main Area: Sidebar + Workspace + Chat */}
       <div className="flex min-h-0 flex-1">
