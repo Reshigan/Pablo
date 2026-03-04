@@ -169,6 +169,18 @@ export function LivePreview() {
 
   // Start WebContainer preview
   const startWebContainer = useCallback(async () => {
+    // WebContainers require HTTPS — warn on HTTP
+    if (typeof window !== 'undefined' && window.location.protocol === 'http:') {
+      toast(
+        'HTTPS Required',
+        'WebContainers require HTTPS. Use `next dev --experimental-https` for local dev, or deploy to Cloudflare.'
+      );
+      setRuntimeStatus('error');
+      setTerminalLog('WebContainers require a secure context (HTTPS).\n\nOptions:\n  1. Run `next dev --experimental-https` for local dev\n  2. Deploy to Cloudflare Pages (production)\n');
+      setShowTerminal(true);
+      return;
+    }
+
     setTerminalLog('');
     setServerUrl('');
     setShowTerminal(true);

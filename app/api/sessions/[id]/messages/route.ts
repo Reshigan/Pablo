@@ -12,9 +12,14 @@ export async function GET(
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { id } = await params;
-  const messages = await d1GetMessagesBySession(id);
-  return Response.json(messages);
+  try {
+    const { id } = await params;
+    const messages = await d1GetMessagesBySession(id);
+    return Response.json(messages);
+  } catch (err) {
+    console.error('[GET /api/sessions/:id/messages]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function POST(
@@ -26,28 +31,33 @@ export async function POST(
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const { id } = await params;
-  const body = (await request.json()) as {
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    model?: string;
-    tokens?: number;
-    durationMs?: number;
-  };
+  try {
+    const { id } = await params;
+    const body = (await request.json()) as {
+      role: 'user' | 'assistant' | 'system';
+      content: string;
+      model?: string;
+      tokens?: number;
+      durationMs?: number;
+    };
 
-  const found = await d1GetSession(id);
-  if (!found) {
-    return Response.json({ error: 'Session not found' }, { status: 404 });
+    const found = await d1GetSession(id);
+    if (!found) {
+      return Response.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    const message = await d1CreateMessage({
+      sessionId: id,
+      role: body.role,
+      content: body.content,
+      model: body.model ?? null,
+      tokens: body.tokens ?? null,
+      durationMs: body.durationMs ?? null,
+    });
+
+    return Response.json(message, { status: 201 });
+  } catch (err) {
+    console.error('[POST /api/sessions/:id/messages]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const message = await d1CreateMessage({
-    sessionId: id,
-    role: body.role,
-    content: body.content,
-    model: body.model ?? null,
-    tokens: body.tokens ?? null,
-    durationMs: body.durationMs ?? null,
-  });
-
-  return Response.json(message, { status: 201 });
 }

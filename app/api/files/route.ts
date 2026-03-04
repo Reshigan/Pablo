@@ -13,13 +13,18 @@ export async function GET(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const sessionId = request.nextUrl.searchParams.get('sessionId');
-  if (!sessionId) {
-    return Response.json({ error: 'sessionId is required' }, { status: 400 });
-  }
+  try {
+    const sessionId = request.nextUrl.searchParams.get('sessionId');
+    if (!sessionId) {
+      return Response.json({ error: 'sessionId is required' }, { status: 400 });
+    }
 
-  const files = await d1GetFilesBySession(sessionId);
-  return Response.json(files);
+    const files = await d1GetFilesBySession(sessionId);
+    return Response.json(files);
+  } catch (err) {
+    console.error('[GET /api/files]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -28,43 +33,48 @@ export async function POST(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const body = (await request.json()) as {
-    sessionId: string;
-    path: string;
-    name: string;
-    content?: string;
-    language?: string;
-    isDirectory?: boolean;
-    parentPath?: string;
-  };
+  try {
+    const body = (await request.json()) as {
+      sessionId: string;
+      path: string;
+      name: string;
+      content?: string;
+      language?: string;
+      isDirectory?: boolean;
+      parentPath?: string;
+    };
 
-  if (!body.sessionId || !body.path || !body.name) {
-    return Response.json(
-      { error: 'sessionId, path, and name are required' },
-      { status: 400 }
-    );
-  }
+    if (!body.sessionId || !body.path || !body.name) {
+      return Response.json(
+        { error: 'sessionId, path, and name are required' },
+        { status: 400 }
+      );
+    }
 
-  const existing = await d1GetFileByPath(body.sessionId, body.path);
-  if (existing) {
-    const updated = await d1UpdateFile(existing.id, {
-      content: body.content ?? existing.content,
-      language: body.language ?? existing.language ?? undefined,
+    const existing = await d1GetFileByPath(body.sessionId, body.path);
+    if (existing) {
+      const updated = await d1UpdateFile(existing.id, {
+        content: body.content ?? existing.content,
+        language: body.language ?? existing.language ?? undefined,
+      });
+      return Response.json(updated);
+    }
+
+    const file = await d1CreateFile({
+      sessionId: body.sessionId,
+      path: body.path,
+      name: body.name,
+      content: body.content ?? '',
+      language: body.language ?? 'plaintext',
+      isDirectory: body.isDirectory ?? false,
+      parentPath: body.parentPath ?? null,
     });
-    return Response.json(updated);
+
+    return Response.json(file, { status: 201 });
+  } catch (err) {
+    console.error('[POST /api/files]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const file = await d1CreateFile({
-    sessionId: body.sessionId,
-    path: body.path,
-    name: body.name,
-    content: body.content ?? '',
-    language: body.language ?? 'plaintext',
-    isDirectory: body.isDirectory ?? false,
-    parentPath: body.parentPath ?? null,
-  });
-
-  return Response.json(file, { status: 201 });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -73,28 +83,33 @@ export async function PATCH(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const body = (await request.json()) as {
-    id?: string;
-    sessionId?: string;
-    path?: string;
-    content: string;
-  };
+  try {
+    const body = (await request.json()) as {
+      id?: string;
+      sessionId?: string;
+      path?: string;
+      content: string;
+    };
 
-  let fileId = body.id;
-  if (!fileId && body.sessionId && body.path) {
-    const found = await d1GetFileByPath(body.sessionId, body.path);
-    if (found) fileId = found.id;
+    let fileId = body.id;
+    if (!fileId && body.sessionId && body.path) {
+      const found = await d1GetFileByPath(body.sessionId, body.path);
+      if (found) fileId = found.id;
+    }
+
+    if (!fileId) {
+      return Response.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    const updated = await d1UpdateFile(fileId, { content: body.content });
+
+    if (!updated) {
+      return Response.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    return Response.json(updated);
+  } catch (err) {
+    console.error('[PATCH /api/files]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  if (!fileId) {
-    return Response.json({ error: 'File not found' }, { status: 404 });
-  }
-
-  const updated = await d1UpdateFile(fileId, { content: body.content });
-
-  if (!updated) {
-    return Response.json({ error: 'File not found' }, { status: 404 });
-  }
-
-  return Response.json(updated);
 }

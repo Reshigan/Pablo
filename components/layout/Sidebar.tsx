@@ -16,6 +16,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
+import { useEditorStore } from '@/stores/editor';
 import { FileExplorer } from '@/components/sidebar/FileExplorer';
 import { SearchPanel } from '@/components/sidebar/SearchPanel';
 import { GitPanel } from '@/components/sidebar/GitPanel';
@@ -53,7 +54,7 @@ const tabs: SidebarTabConfig[] = [
   { id: 'mcp', icon: Plug, label: 'MCP Servers', group: 'project' },
 ];
 
-function SidebarTabIcon({ tab, isActive, onClick }: { tab: SidebarTabConfig; isActive: boolean; onClick: () => void }) {
+function SidebarTabIcon({ tab, isActive, onClick, badge }: { tab: SidebarTabConfig; isActive: boolean; onClick: () => void; badge?: number }) {
   const TabIcon = tab.icon;
   return (
     <button
@@ -68,6 +69,11 @@ function SidebarTabIcon({ tab, isActive, onClick }: { tab: SidebarTabConfig; isA
         <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-pablo-gold" />
       )}
       <TabIcon size={20} />
+      {badge != null && badge > 0 && (
+        <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pablo-gold px-0.5 font-ui text-[9px] font-bold text-pablo-bg">
+          {badge > 99 ? '99+' : badge}
+        </span>
+      )}
     </button>
   );
 }
@@ -88,6 +94,7 @@ const panelComponents: Record<SidebarTab, React.ComponentType> = {
 
 export function Sidebar() {
   const { sidebarOpen, sidebarTab, setSidebarTab, sidebarWidth } = useUIStore();
+  const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
   return (
@@ -109,6 +116,7 @@ export function Sidebar() {
               tab={tab}
               isActive={sidebarTab === tab.id}
               onClick={() => setSidebarTab(tab.id)}
+              badge={tab.id === 'git' ? dirtyCount : undefined}
             />
           </div>
         ))}

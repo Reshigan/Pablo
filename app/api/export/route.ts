@@ -9,31 +9,36 @@ export async function GET(request: NextRequest) {
     return new Response('Unauthorized', { status: 401 });
   }
 
-  const sessionId = request.nextUrl.searchParams.get('sessionId');
-  if (!sessionId) {
-    return Response.json({ error: 'sessionId is required' }, { status: 400 });
+  try {
+    const sessionId = request.nextUrl.searchParams.get('sessionId');
+    if (!sessionId) {
+      return Response.json({ error: 'sessionId is required' }, { status: 400 });
+    }
+
+    const dbSession = await d1GetSession(sessionId);
+    if (!dbSession) {
+      return Response.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    const files = await d1GetFilesBySession(sessionId);
+
+    return Response.json({
+      session: {
+        id: dbSession.id,
+        title: dbSession.title,
+      },
+      files: files
+        .filter(f => !f.isDirectory)
+        .map(f => ({
+          path: f.path,
+          name: f.name,
+          content: f.content,
+          language: f.language,
+        })),
+      exportedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[GET /api/export]', err);
+    return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
-
-  const dbSession = await d1GetSession(sessionId);
-  if (!dbSession) {
-    return Response.json({ error: 'Session not found' }, { status: 404 });
-  }
-
-  const files = await d1GetFilesBySession(sessionId);
-
-  return Response.json({
-    session: {
-      id: dbSession.id,
-      title: dbSession.title,
-    },
-    files: files
-      .filter(f => !f.isDirectory)
-      .map(f => ({
-        path: f.path,
-        name: f.name,
-        content: f.content,
-        language: f.language,
-      })),
-    exportedAt: new Date().toISOString(),
-  });
 }
