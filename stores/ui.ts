@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
-export type SidebarTab = 'sessions' | 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp';
-export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline';
+export type SidebarTab = 'sessions' | 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp' | 'activity' | 'history' | 'checkpoints' | 'secrets';
+export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline' | 'dependencies' | 'deploy-logs' | 'bugs';
 
 /**
  * Safe storage adapter — works in SSR, Workers, and browsers

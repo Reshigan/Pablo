@@ -283,12 +283,48 @@ export function SearchPanel() {
         </div>
       </div>
 
-      {/* Results count */}
+      {/* Results count + Replace All */}
       {results.length > 0 && (
-        <div className="border-t border-pablo-border px-3 py-1">
+        <div className="flex items-center justify-between border-t border-pablo-border px-3 py-1">
           <span className="font-ui text-[10px] text-pablo-text-muted">
             {results.length} results in {Object.keys(grouped).length} files
           </span>
+          {showReplace && replaceText !== undefined && (
+            <button
+              onClick={() => {
+                const editorStore = useEditorStore.getState();
+                let replacedCount = 0;
+                for (const tab of editorStore.tabs) {
+                  if (!tab.content) continue;
+                  let newContent = tab.content;
+                  if (useRegex) {
+                    try {
+                      const re = new RegExp(query, caseSensitive ? 'g' : 'gi');
+                      const before = newContent;
+                      newContent = newContent.replace(re, replaceText);
+                      if (before !== newContent) replacedCount++;
+                    } catch { /* invalid regex */ }
+                  } else {
+                    const flags = caseSensitive ? 'g' : 'gi';
+                    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const re = new RegExp(escaped, flags);
+                    const before = newContent;
+                    newContent = newContent.replace(re, replaceText);
+                    if (before !== newContent) replacedCount++;
+                  }
+                  if (newContent !== tab.content) {
+                    editorStore.updateContent(tab.id, newContent);
+                  }
+                }
+                toast('Replace All', `Replaced in ${replacedCount} file(s)`);
+                handleSearch();
+              }}
+              className="flex items-center gap-1 rounded bg-pablo-gold/10 px-2 py-0.5 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+            >
+              <Replace size={10} />
+              Replace All
+            </button>
+          )}
         </div>
       )}
 

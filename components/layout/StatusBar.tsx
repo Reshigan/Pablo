@@ -1,8 +1,10 @@
 'use client';
 
+import { Loader2 } from 'lucide-react';
 import { useRepoStore } from '@/stores/repo';
 import { useEditorStore } from '@/stores/editor';
 import { useChatStore } from '@/stores/chat';
+import { useBackgroundTaskStore } from '@/stores/backgroundTasks';
 
 export function StatusBar() {
   const { selectedRepo, selectedBranch } = useRepoStore();
@@ -23,6 +25,16 @@ export function StatusBar() {
     >
       {/* Left section */}
       <div className="flex items-center gap-3">
+        {/* Background tasks indicator (Feature 14) */}
+        {useBackgroundTaskStore.getState().getRunningTasks().length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Loader2 size={10} className="animate-spin text-pablo-gold" />
+            <span className="text-pablo-gold">
+              {useBackgroundTaskStore.getState().getRunningTasks().length} task(s)
+            </span>
+          </div>
+        )}
+
         {/* AI status */}
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-full bg-pablo-green" />
