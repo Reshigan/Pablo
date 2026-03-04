@@ -20,13 +20,15 @@ async function parseStreamedResponse(response: Response): Promise<string> {
   const decoder = new TextDecoder();
   let result = '';
 
+  let buffer = '';
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
 
-    const chunk = decoder.decode(value, { stream: true });
+    buffer += decoder.decode(value, { stream: true });
     // Handle SSE format: lines starting with "data: "
-    const lines = chunk.split('\n');
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
     for (const line of lines) {
       if (line.startsWith('data: ')) {
         const data = line.slice(6);
@@ -36,12 +38,8 @@ async function parseStreamedResponse(response: Response): Promise<string> {
           const content = parsed.content ?? parsed.choices?.[0]?.delta?.content;
           if (content) result += content;
         } catch {
-          // Not JSON — could be raw text from non-SSE streaming
-          result += data;
+          // Skip unparseable JSON chunks
         }
-      } else if (line.trim() && !line.startsWith(':')) {
-        // Non-SSE streaming (raw text chunks)
-        result += line;
       }
     }
   }

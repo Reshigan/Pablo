@@ -65,7 +65,7 @@ export function MentionDropdown({ query, onSelect, position }: MentionDropdownPr
 
   return (
     <div
-      className="absolute z-50 max-h-60 w-72 overflow-y-auto rounded-lg border border-pablo-border bg-pablo-bg shadow-xl"
+      className="fixed z-50 max-h-60 w-72 overflow-y-auto rounded-lg border border-pablo-border bg-pablo-bg shadow-xl"
       style={{ top: position.top, left: position.left }}
     >
       {filtered.map((item) => {

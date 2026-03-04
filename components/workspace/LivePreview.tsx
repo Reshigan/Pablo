@@ -237,28 +237,88 @@ export function LivePreview() {
         .filter(t => t.content)
         .map(t => ({ path: t.path, content: t.content, language: t.language }));
 
-      await runAutoFixLoop(currentOutput, files, {}, {
-        maxIterations: 3,
-        autoApply: false,
-        onProgress: (msg) => appendLog(`[Auto-Fix] ${msg}\n`),
-        onFixApplied: (filename, newContent) => {
-          const existingTab = editorStore.tabs.find(t => t.path === filename);
+      // Route fix through /api/chat (server-side) instead of calling external LLM directly
+      const { parseError } = await import('@/lib/agents/autoFixLoop');
+      const error = parseError(currentOutput);
+      if (!error) {
+        appendLog('[Auto-Fix] No parseable error found\n');
+        return;
+      }
+
+      const targetFile = error.file
+        ? files.find(f => f.path.endsWith(error.file!) || f.path === error.file)
+        : files[0];
+
+      if (!targetFile) {
+        appendLog('[Auto-Fix] Could not identify file with error\n');
+        return;
+      }
+
+      appendLog(`[Auto-Fix] Detected ${error.type} error in ${targetFile.path}: ${error.message}\n`);
+
+      for (let i = 0; i < 3; i++) {
+        appendLog(`[Auto-Fix] Iteration ${i + 1}/3...\n`);
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: [{
+              role: 'user',
+              content: `Fix this ${error.type} error in the code. Return ONLY the complete fixed file, no markdown fences, no explanation.\n\nERROR: ${error.message}\n\nFILE: ${targetFile.path}\n\nCODE:\n${targetFile.content}`,
+            }],
+            mode: 'pipeline-stage',
+            model: 'qwen3-coder:480b',
+            max_tokens: 8192,
+          }),
+        });
+
+        if (!response.ok) {
+          appendLog(`[Auto-Fix] API error: ${response.status}\n`);
+          break;
+        }
+
+        // Parse streamed response with cross-chunk buffer
+        const reader = response.body?.getReader();
+        if (!reader) break;
+        const decoder = new TextDecoder();
+        let fixedCode = '';
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              const data = line.slice(6);
+              if (data === '[DONE]') continue;
+              try {
+                const parsed = JSON.parse(data) as { content?: string };
+                if (parsed.content) fixedCode += parsed.content;
+              } catch { /* skip */ }
+            }
+          }
+        }
+
+        const cleaned = fixedCode.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
+        if (cleaned && cleaned !== targetFile.content) {
+          const existingTab = editorStore.tabs.find(t => t.path === targetFile.path);
           editorStore.addDiff({
             fileId: `autofix-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            filename,
+            filename: targetFile.path,
             language: existingTab?.language || 'typescript',
-            oldContent: existingTab?.content || '',
-            newContent,
+            oldContent: targetFile.content,
+            newContent: cleaned,
           });
-          appendLog(`[Auto-Fix] Created diff for ${filename} — review in Diff tab\n`);
-        },
-        onComplete: (success, iterations) => {
-          appendLog(`[Auto-Fix] ${success ? 'Completed' : 'Failed'} after ${iterations} iteration(s)\n`);
-          if (success) {
-            toast('Auto-Fix', 'Fixes ready for review in Diff tab');
-          }
-        },
-      });
+          targetFile.content = cleaned;
+          appendLog(`[Auto-Fix] Created diff for ${targetFile.path} — review in Diff tab\n`);
+          toast('Auto-Fix', 'Fix ready for review in Diff tab');
+          break;
+        } else {
+          appendLog('[Auto-Fix] No changes produced, retrying...\n');
+        }
+      }
     } catch (err) {
       appendLog(`[Auto-Fix] Error: ${err instanceof Error ? err.message : err}\n`);
     } finally {
