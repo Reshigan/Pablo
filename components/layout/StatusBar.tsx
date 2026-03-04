@@ -1,6 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
+import { useMemo } from 'react';
 import { useRepoStore } from '@/stores/repo';
 import { useEditorStore } from '@/stores/editor';
 import { useChatStore } from '@/stores/chat';
@@ -10,12 +11,14 @@ import { usePipelineStore } from '@/stores/pipeline';
 export function StatusBar() {
   const { selectedRepo, selectedBranch } = useRepoStore();
   const { tabs, activeTabId } = useEditorStore();
-  const runningTasks = useBackgroundTaskStore((s) => s.tasks.filter(t => t.status === 'running'));
+  const tasks = useBackgroundTaskStore((s) => s.tasks);
+  const runningTaskCount = useMemo(() => tasks.filter(t => t.status === 'running').length, [tasks]);
   const { totalTokens } = useChatStore();
   const currentModel = useChatStore(s => s.currentModel) || 'deepseek-v3.2';
-  const activeRun = usePipelineStore(s => s.runs.find(r => r.status === 'running'));
-  const activeStage = activeRun?.stages.find((s: { status: string }) => s.status === 'running');
-  const completedStages = activeRun?.stages.filter((s: { status: string }) => s.status === 'completed').length ?? 0;
+  const runs = usePipelineStore(s => s.runs);
+  const activeRun = useMemo(() => runs.find(r => r.status === 'running'), [runs]);
+  const activeStage = useMemo(() => activeRun?.stages.find((s: { status: string }) => s.status === 'running'), [activeRun]);
+  const completedStages = useMemo(() => activeRun?.stages.filter((s: { status: string }) => s.status === 'completed').length ?? 0, [activeRun]);
   const totalStages = activeRun?.stages.length ?? 0;
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -33,11 +36,11 @@ export function StatusBar() {
       {/* Left section */}
       <div className="flex items-center gap-3">
         {/* Background tasks indicator (Feature 14) */}
-        {runningTasks.length > 0 && (
+        {runningTaskCount > 0 && (
           <div className="flex items-center gap-1.5">
             <Loader2 size={10} className="animate-spin text-pablo-gold" />
             <span className="text-pablo-gold">
-              {runningTasks.length} task(s)
+              {runningTaskCount} task(s)
             </span>
           </div>
         )}

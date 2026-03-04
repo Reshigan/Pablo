@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import { Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug } from 'lucide-react';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
@@ -24,8 +25,10 @@ const workspaceTabs: TabConfig[] = [
 ];
 
 function TabBadge({ tabId }: { tabId: WorkspaceTab }) {
-  const pendingDiffCount = useEditorStore(s => s.pendingDiffs.filter(d => d.status === 'pending').length);
-  const activePipelineRun = usePipelineStore(s => s.runs.find(r => r.status === 'running'));
+  const pendingDiffs = useEditorStore(s => s.pendingDiffs);
+  const pendingDiffCount = useMemo(() => pendingDiffs.filter(d => d.status === 'pending').length, [pendingDiffs]);
+  const runs = usePipelineStore(s => s.runs);
+  const activePipelineRun = useMemo(() => runs.find(r => r.status === 'running'), [runs]);
 
   if (tabId === 'diff' && pendingDiffCount > 0) {
     return (
