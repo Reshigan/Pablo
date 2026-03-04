@@ -487,6 +487,25 @@ For each FAIL, provide the exact code fix as a complete corrected file.`,
 - Tech stack compliance (all code uses the chosen stack, no accidental language switches).
 - Code quality (naming, structure, duplication).
 List each issue with severity (critical/warning/info) and a specific fix.`,
+
+    analyze: `Analyze the existing codebase to understand the current architecture, dependencies, and patterns.
+- Identify relevant files and modules that relate to the requested change.
+- Map the dependency graph for affected components.
+- Note any existing patterns, conventions, or constraints.
+- Summarize what needs to change and where.`,
+
+    fix: `Apply targeted fixes to the identified issues.
+- Use diff-based edits (minimal changes) rather than full file replacement.
+- Preserve existing code style and conventions.
+- Fix only what is broken — do not refactor unrelated code.
+- Output the corrected files with clear before/after context.`,
+
+    implement: `Implement the requested feature or change incrementally.
+- Build on the existing codebase — do not rewrite working code.
+- Follow existing patterns for routing, state management, and styling.
+- Wire all new UI to real handlers and API calls.
+- Include proper error handling and loading states.
+- Output complete, runnable code files.`,
   };
 
   // Feature 11: Inject .pablo project rules if present

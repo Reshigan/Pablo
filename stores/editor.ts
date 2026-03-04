@@ -29,6 +29,7 @@ interface EditorState {
   setActiveTab: (id: string) => void;
   updateContent: (id: string, content: string) => void;
   markClean: (id: string) => void;
+  closeAllTabs: () => void;
   saveFile: (id: string) => Promise<void>;
   saveAllDirty: () => Promise<void>;
   addDiff: (diff: Omit<DiffHunk, 'status'>) => void;
@@ -106,6 +107,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   setActiveTab: (id) => set({ activeTabId: id }),
+
+  closeAllTabs: () => set({ tabs: [], activeTabId: null }),
 
   updateContent: (id, content) =>
     set((state) => ({

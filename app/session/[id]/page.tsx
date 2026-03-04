@@ -1,6 +1,7 @@
 'use client';
 
 import { TopBar } from '@/components/layout/TopBar';
+import { ContextBar } from '@/components/layout/ContextBar';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { StatusBar } from '@/components/layout/StatusBar';
 import { PanelResizer } from '@/components/layout/PanelResizer';
@@ -159,6 +160,9 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
       {/* Top Bar */}
       <TopBar agentStatus="idle" />
+
+      {/* Context Bar — shows repo/branch/files/pipeline at a glance */}
+      <ContextBar />
 
       {/* Main Area: Sidebar + Workspace + Chat */}
       <div className="flex min-h-0 flex-1">

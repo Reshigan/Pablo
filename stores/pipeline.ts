@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
-export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review';
+export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review' | 'analyze' | 'fix' | 'implement';
+
+export type PipelineMode = 'greenfield' | 'bug-fix' | 'add-feature' | 'refactor';
 export type StageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';
 
 export interface StageResult {
@@ -212,13 +214,49 @@ export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: s
   { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'deepseek-v3.2' },
 ];
 
+// ─── Incremental Pipeline Stages ────────────────────────────────────────────
+
+export const INCREMENTAL_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
+  { id: 'analyze', label: 'Analyze', description: 'Analyze codebase and find relevant files', model: 'deepseek-v3.2' },
+  { id: 'fix', label: 'Fix', description: 'Generate targeted fixes for identified issues', model: 'qwen3-coder:480b' },
+  { id: 'implement', label: 'Implement', description: 'Implement new code changes', model: 'qwen3-coder:480b' },
+];
+
+/**
+ * Select pipeline stages based on the mode.
+ * - greenfield: full 8-stage pipeline
+ * - bug-fix: analyze → fix → review (3 stages)
+ * - add-feature: analyze → plan → implement → tests → review (5 stages)
+ * - refactor: analyze → plan → implement → review (4 stages)
+ */
+export function selectStages(mode: PipelineMode): PipelineStage[] {
+  switch (mode) {
+    case 'greenfield':
+      return ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'];
+    case 'bug-fix':
+      return ['analyze', 'fix', 'review'];
+    case 'add-feature':
+      return ['analyze', 'plan', 'implement', 'tests', 'review'];
+    case 'refactor':
+      return ['analyze', 'plan', 'implement', 'review'];
+  }
+}
+
+/**
+ * Get stage metadata for a given stage ID.
+ */
+export function getStageMetadata(stageId: PipelineStage): { label: string; description: string; model: string } {
+  const all = [...PIPELINE_STAGES, ...INCREMENTAL_STAGES];
+  return all.find((s) => s.id === stageId) ?? { label: stageId, description: '', model: 'deepseek-v3.2' };
+}
+
 // ─── Store ───────────────────────────────────────────────────────────────────
 
 interface PipelineState {
   runs: PipelineRun[];
   activeRunId: string | null;
 
-  startRun: (featureDescription: string) => string;
+  startRun: (featureDescription: string, mode?: PipelineMode) => string;
   updateStage: (runId: string, stage: PipelineStage, updates: Partial<StageResult>) => void;
   setTechStack: (runId: string, techStack: TechStackHint) => void;
   advanceStage: (runId: string) => void;
@@ -233,11 +271,12 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   runs: [],
   activeRunId: null,
 
-  startRun: (featureDescription: string) => {
+  startRun: (featureDescription: string, mode: PipelineMode = 'greenfield') => {
     runCounter += 1;
     const id = `run-${Date.now()}-${runCounter}`;
-    const stages: StageResult[] = PIPELINE_STAGES.map((s) => ({
-      stage: s.id,
+    const selectedStageIds = selectStages(mode);
+    const stages: StageResult[] = selectedStageIds.map((stageId) => ({
+      stage: stageId,
       status: 'pending' as StageStatus,
       output: '',
     }));
@@ -248,7 +287,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
       id,
       featureDescription,
       status: 'running',
-      currentStage: 'plan',
+      currentStage: selectedStageIds[0],
       stages,
       totalTokens: 0,
       totalDurationMs: 0,
@@ -292,10 +331,11 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set((state) => ({
       runs: state.runs.map((run) => {
         if (run.id !== runId) return run;
-        const currentIdx = PIPELINE_STAGES.findIndex((s) => s.id === run.currentStage);
-        if (currentIdx < 0 || currentIdx >= PIPELINE_STAGES.length - 1) return run;
-        const nextStage = PIPELINE_STAGES[currentIdx + 1];
-        return { ...run, currentStage: nextStage.id };
+        const stageIds = run.stages.map((s) => s.stage);
+        const currentIdx = stageIds.indexOf(run.currentStage as PipelineStage);
+        if (currentIdx < 0 || currentIdx >= stageIds.length - 1) return run;
+        const nextStage = stageIds[currentIdx + 1];
+        return { ...run, currentStage: nextStage };
       }),
     }));
   },

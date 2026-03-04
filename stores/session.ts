@@ -59,6 +59,10 @@ interface SessionState {
   updateSessionMeta: (id: string, updates: Partial<Pick<AppSession, 'title' | 'repoFullName' | 'repoBranch' | 'status'>>) => Promise<void>;
   /** Set the current session ID without loading */
   setCurrentSessionId: (id: string | null) => void;
+  /** Find existing session for a repo */
+  findSessionByRepo: (repoFullName: string) => AppSession | undefined;
+  /** Auto-title a session based on repo name */
+  autoTitleFromRepo: (repoFullName: string) => void;
   /** Clear error */
   clearError: () => void;
 }
@@ -321,6 +325,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ currentSessionId: id });
     if (id) startAutoSave();
     else stopAutoSave();
+  },
+
+  findSessionByRepo: (repoFullName: string) => {
+    return get().sessions.find((s) => s.repoFullName === repoFullName && s.status === 'active');
+  },
+
+  autoTitleFromRepo: (repoFullName: string) => {
+    const { currentSessionId } = get();
+    if (!currentSessionId) return;
+    // Extract repo name from full_name (e.g. "owner/repo" -> "repo")
+    const repoName = repoFullName.split('/').pop() ?? repoFullName;
+    const title = `${repoName} session`;
+    get().updateSessionMeta(currentSessionId, { title, repoFullName }).catch(() => { /* non-blocking */ });
   },
 
   clearError: () => set({ error: null }),
