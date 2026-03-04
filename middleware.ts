@@ -5,8 +5,11 @@ import { NextResponse } from 'next/server';
  * Middleware: protect /session/* pages AND /api/* routes (except /api/auth/*).
  * Pages get the default NextAuth redirect-to-login behaviour.
  * API routes get a 401 JSON response so fetch callers don't receive HTML.
+ *
+ * NOTE: OpenNext Cloudflare adapter requires the middleware to be exported
+ * as a named `middleware` export (not just `export default`).
  */
-export default auth((req) => {
+export const middleware = auth((req) => {
   if (!req.auth) {
     // For API routes, return 401 JSON instead of redirecting
     if (req.nextUrl.pathname.startsWith('/api/')) {
@@ -19,6 +22,8 @@ export default auth((req) => {
   }
   return NextResponse.next();
 });
+
+export default middleware;
 
 export const config = {
   matcher: [
