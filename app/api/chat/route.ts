@@ -83,7 +83,7 @@ interface ChatRequestBody {
  * Get environment config from Cloudflare Worker context or process.env
  */
 /** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://ollama.com';
+const OLLAMA_CLOUD_URL = 'https://api.ollama.com/v1';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -117,22 +117,33 @@ async function tryExternalAPIStreaming(
 
   if (!apiUrl) return null;
 
+  // IMPORTANT: Must have API key for cloud endpoints
+  if (apiUrl.includes('ollama.com') && !apiKey) {
+    console.warn('[tryExternalAPI] No OLLAMA_API_KEY set for Ollama Cloud — skipping');
+    return null;
+  }
+
   const reqHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) {
     reqHeaders['Authorization'] = `Bearer ${apiKey}`;
   }
 
   const isOpenAICompatible =
-    apiUrl.includes('/v1') || apiUrl.includes('openai');
+    apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('api.ollama.com');
+
+  // Add 15-second timeout to prevent Worker timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     const apiResponse = isOpenAICompatible
-      ? await fetch(`${apiUrl}/chat/completions`, {
+      ? await fetch(`${apiUrl.replace(/\/$/, '')}/chat/completions`, {
           method: 'POST',
           headers: reqHeaders,
           body: JSON.stringify({ model, messages, stream: true, temperature, max_tokens }),
+          signal: controller.signal,
         })
-      : await fetch(`${apiUrl}/api/chat`, {
+      : await fetch(`${apiUrl.replace(/\/$/, '')}/api/chat`, {
           method: 'POST',
           headers: reqHeaders,
           body: JSON.stringify({
@@ -141,9 +152,13 @@ async function tryExternalAPIStreaming(
             stream: true,
             options: { temperature, top_p: 0.9, num_predict: max_tokens },
           }),
+          signal: controller.signal,
         });
 
-    if (!apiResponse.ok) return null;
+    if (!apiResponse.ok) {
+      console.warn(`[tryExternalAPI] ${model} returned ${apiResponse.status}`);
+      return null;
+    }
 
     const reader = apiResponse.body?.getReader();
     if (!reader) return null;
@@ -253,6 +268,8 @@ async function tryExternalAPIStreaming(
     });
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
@@ -427,10 +444,30 @@ Rules:
     if (response) return response;
   }
 
-  return new Response(
-    JSON.stringify({ error: 'No AI backend available. Configure OLLAMA_URL and OLLAMA_API_KEY.' }),
-    { status: 503, headers: { 'Content-Type': 'application/json' } },
-  );
+  return buildSSEError('No AI backend available. Please configure OLLAMA_URL and OLLAMA_API_KEY in your Cloudflare Worker settings.');
+}
+
+/**
+ * Build an SSE-formatted error response (client expects SSE, not JSON)
+ */
+function buildSSEError(message: string): Response {
+  const encoder = new TextEncoder();
+  const errorStream = new ReadableStream({
+    start(controller) {
+      const errorData = JSON.stringify({
+        content: message,
+        done: true,
+        error: 'no_backend',
+      });
+      controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+      controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      controller.close();
+    },
+  });
+
+  return new Response(errorStream, {
+    headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
+  });
 }
 
 /**
@@ -501,11 +538,8 @@ async function handleSmartChat(
   );
   if (fallbackExternalResponse) return fallbackExternalResponse;
 
-  // No AI backend available — return error instead of mock
-  return new Response(
-    JSON.stringify({ error: 'No AI backend available. Configure OLLAMA_URL and OLLAMA_API_KEY.' }),
-    { status: 503, headers: { 'Content-Type': 'application/json' } },
-  );
+  // No AI backend available — return error as SSE so client can handle it
+  return buildSSEError('No AI backend available. Please configure OLLAMA_URL and OLLAMA_API_KEY in your Cloudflare Worker settings.');
 }
 
 /**
@@ -519,48 +553,58 @@ async function handleSmartChat(
  * 5. Post-generation validation (12 checks across 4 categories)
  */
 export async function POST(request: NextRequest) {
-  const session = await auth();
-  if (!session) {
-    return new Response('Unauthorized', { status: 401 });
-  }
-
-  const body = (await request.json()) as ChatRequestBody;
-  const { messages, mode } = body;
-
-  // Get env config (handles both Worker and local dev)
-  const env = await getEnvConfig();
-
-  // Get the last user message
-  const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-
-  // Persist user message to DB if sessionId is provided
-  const sessionId = body.sessionId;
-  if (sessionId && lastUserMessage) {
-    try {
-      // Ensure session exists in D1
-      let dbSession = await d1GetSession(sessionId);
-      if (!dbSession) {
-        dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
-      }
-      await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
-    } catch {
-      // Non-blocking: don't fail the chat if DB write fails
+  try {
+    const session = await auth();
+    if (!session) {
+      return new Response('Unauthorized', { status: 401 });
     }
+
+    const body = (await request.json()) as ChatRequestBody;
+    const { messages, mode } = body;
+
+    // Get env config (handles both Worker and local dev)
+    const env = await getEnvConfig();
+
+    // Get the last user message
+    const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
+
+    // Persist user message to DB if sessionId is provided
+    const sessionId = body.sessionId;
+    if (sessionId && lastUserMessage) {
+      try {
+        // Ensure session exists in D1
+        let dbSession = await d1GetSession(sessionId);
+        if (!dbSession) {
+          dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
+        }
+        await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
+      } catch {
+        // Non-blocking: don't fail the chat if DB write fails
+      }
+    }
+
+    // Determine mode: explicit override, or auto-detect
+    const effectiveMode = mode || (shouldDecompose(lastUserMessage) ? 'multi-turn' : 'chat');
+
+    if (effectiveMode === 'pipeline-stage') {
+      return handlePipelineStage(messages, env, body.model);
+    }
+
+    if (effectiveMode === 'multi-turn') {
+      return handleMultiTurnGeneration(lastUserMessage, env, sessionId);
+    }
+
+    // Standard chat with smart routing + domain KB
+    return handleSmartChat(messages, lastUserMessage, env, sessionId);
+  } catch (error) {
+    // Top-level safety net — NEVER let the route crash silently
+    const errorMsg = error instanceof Error ? error.message : 'Unknown server error';
+    console.error('[/api/chat] Unhandled error:', errorMsg);
+    return new Response(
+      JSON.stringify({ error: errorMsg }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    );
   }
-
-  // Determine mode: explicit override, or auto-detect
-  const effectiveMode = mode || (shouldDecompose(lastUserMessage) ? 'multi-turn' : 'chat');
-
-  if (effectiveMode === 'pipeline-stage') {
-    return handlePipelineStage(messages, env, body.model);
-  }
-
-  if (effectiveMode === 'multi-turn') {
-    return handleMultiTurnGeneration(lastUserMessage, env, sessionId);
-  }
-
-  // Standard chat with smart routing + domain KB
-  return handleSmartChat(messages, lastUserMessage, env, sessionId);
 }
 
 /**

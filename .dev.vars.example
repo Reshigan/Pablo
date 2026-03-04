@@ -1,0 +1,19 @@
+# Local development environment variables
+#
+# For OpenNext + Wrangler local dev, copy this file to `.dev.vars` and fill values.
+# DO NOT commit `.dev.vars` (it is gitignored).
+
+# Option A: Local Ollama
+# OLLAMA_URL=http://localhost:11434
+# OLLAMA_API_KEY=
+
+# Option B: Ollama Cloud (OpenAI-compatible)
+OLLAMA_URL=https://api.ollama.com/v1
+OLLAMA_API_KEY=replace-with-your-ollama-api-key
+
+# GitHub OAuth (required for login)
+GITHUB_CLIENT_ID=replace-with-your-github-client-id
+GITHUB_CLIENT_SECRET=replace-with-your-github-client-secret
+
+# NextAuth
+AUTH_SECRET=replace-with-a-random-secret
