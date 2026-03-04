@@ -426,7 +426,7 @@ export function GitPanel() {
                     // Load files from the new branch
                     if (selectedRepo) {
                       try {
-                        const res = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${b.name}&path=`);
+                        const res = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${encodeURIComponent(b.name)}&path=`);
                         if (res.ok) {
                           const tree = (await res.json()) as Array<{ type: string; path: string; name: string }>;
                           const editorStore = useEditorStore.getState();
@@ -435,11 +435,11 @@ export function GitPanel() {
                           for (const item of tree) {
                             if (item.type === 'file') {
                               try {
-                                const fileRes = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${b.name}&path=${encodeURIComponent(item.path)}`);
+                                const fileRes = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${encodeURIComponent(b.name)}&path=${encodeURIComponent(item.path)}`);
                                 if (fileRes.ok) {
                                   const fileData = (await fileRes.json()) as { content?: string; encoding?: string; name: string };
                                   if (fileData.content && fileData.encoding === 'base64') {
-                                    const decoded = atob(fileData.content);
+                                    const decoded = (() => { const clean = fileData.content.replace(/\n/g, ''); const bytes = Uint8Array.from(atob(clean), c => c.charCodeAt(0)); return new TextDecoder().decode(bytes); })();
                                     editorStore.openFile({
                                       id: `branch-${Date.now()}-${item.path}`,
                                       path: item.path,
