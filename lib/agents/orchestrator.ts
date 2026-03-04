@@ -140,6 +140,21 @@ export async function runOrchestration(
 
   // Bridge specialist agent events to orchestrator events
   const agentEventBridge: AgentEventCallback = (event) => {
+    // Pass through file_written events so the store can track filesChanged
+    // Transform from BaseAgent shape { type, agent, content (path), data (file obj) }
+    // to AgentEvent shape { type, path, content (file content), language }
+    if (event.type === 'file_written') {
+      const fileData = event.data as { path: string; content: string; language: string } | undefined;
+      if (fileData) {
+        onEvent?.({
+          type: 'file_written',
+          path: fileData.path,
+          content: fileData.content,
+          language: fileData.language,
+        } as OrchestratorEvent);
+      }
+      return;
+    }
     onEvent?.({
       type: 'thinking',
       content: `[${event.agent}] ${event.content}`,
