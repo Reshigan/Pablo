@@ -194,6 +194,8 @@ export interface LLMResponse {
   model: string;
   provider: ModelProvider;
   tokens_used: number;
+  tokens_in: number;
+  tokens_out: number;
   duration_ms: number;
 }
 
@@ -210,7 +212,25 @@ export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LL
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NON_STREAMING_TIMEOUT_MS);
   try {
-    return await callOllamaCloud(request, startTime, env, controller.signal);
+    const result = await callOllamaCloud(request, startTime, env, controller.signal);
+
+    // Cost tracking: log directly to D1 (works server-side, no relative URL needed)
+    try {
+      const { d1LogLLMCall, estimateCost } = await import('@/lib/db/d1-costs');
+      const cost = estimateCost(result.model, result.tokens_in, result.tokens_out);
+      void d1LogLLMCall({
+        model: result.model,
+        tokensIn: result.tokens_in,
+        tokensOut: result.tokens_out,
+        durationMs: result.duration_ms,
+        costUsd: cost,
+        source: request.model.description || 'model-router',
+      }).catch(() => { /* non-blocking */ });
+    } catch {
+      // Cost tracking failure should never block the response
+    }
+
+    return result;
   } finally {
     clearTimeout(timer);
   }
@@ -218,6 +238,7 @@ export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LL
 
 interface OllamaCloudResult {
   message?: { content?: string };
+  prompt_eval_count?: number;
   eval_count?: number;
 }
 
@@ -252,15 +273,19 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
 
     interface OpenAIResult {
       choices?: Array<{ message?: { content?: string } }>;
-      usage?: { total_tokens?: number };
+      usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
     }
 
     const data = await response.json() as OpenAIResult;
+    const promptTokens = data.usage?.prompt_tokens || 0;
+    const completionTokens = data.usage?.completion_tokens || 0;
     return {
       content: data.choices?.[0]?.message?.content || '',
       model: request.model.model,
       provider: 'ollama_cloud',
-      tokens_used: data.usage?.total_tokens || 0,
+      tokens_used: data.usage?.total_tokens || (promptTokens + completionTokens),
+      tokens_in: promptTokens,
+      tokens_out: completionTokens,
       duration_ms: Date.now() - startTime,
     };
   }
@@ -284,11 +309,15 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
   });
 
   const data = await response.json() as OllamaCloudResult;
+  const promptTokens = data.prompt_eval_count || 0;
+  const evalTokens = data.eval_count || 0;
   return {
     content: data.message?.content || '',
     model: request.model.model,
     provider: 'ollama_cloud',
-    tokens_used: data.eval_count || 0,
+    tokens_used: promptTokens + evalTokens,
+    tokens_in: promptTokens,
+    tokens_out: evalTokens,
     duration_ms: Date.now() - startTime,
   };
 }

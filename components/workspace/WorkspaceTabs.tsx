@@ -4,7 +4,7 @@ import { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Code2, GitCompareArrows, Globe, Terminal,
   Database, TestTube2, Play, Package, Rocket, Bug,
-  MoreHorizontal,
+  MoreHorizontal, Target, DollarSign,
 } from 'lucide-react';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
@@ -32,6 +32,8 @@ const OVERFLOW_TABS: TabConfig[] = [
   { id: 'dependencies', label: 'Packages', icon: Package },
   { id: 'deploy-logs', label: 'Deploys', icon: Rocket },
   { id: 'bugs', label: 'Problems', icon: Bug },
+  { id: 'mission-control', label: 'Workers', icon: Target },
+  { id: 'costs', label: 'Costs', icon: DollarSign },
 ];
 
 function TabBadge({ tabId }: { tabId: WorkspaceTab }) {

@@ -1,7 +1,19 @@
 import { create } from 'zustand';
 import type { AgentPlan, AgentStep, AgentEvent } from '@/lib/agents/agentEngine';
+import type { OrchestratorEvent } from '@/lib/agents/orchestrator';
 
 export type AgentPhase = 'idle' | 'planning' | 'executing' | 'verifying' | 'fixing' | 'done' | 'failed';
+export type OrchestrationPhase = 'idle' | 'planning' | 'executing' | 'merging' | 'verifying' | 'done' | 'failed';
+
+export interface WorkerStatus {
+  id: string;
+  title: string;
+  type: string;
+  status: 'idle' | 'planning' | 'executing' | 'merging' | 'verifying' | 'done' | 'failed';
+  assignedFiles: string[];
+  tokensUsed: number;
+  durationMs?: number;
+}
 
 export interface AgentFile {
   path: string;
@@ -31,10 +43,23 @@ export interface AgentRunState {
   completedAt: number | null;
 }
 
+export interface OrchestrationState {
+  phase: OrchestrationPhase;
+  workers: WorkerStatus[];
+  totalTokens: number;
+  filesChanged: number;
+  startedAt: number | null;
+  completedAt: number | null;
+  summary: string;
+}
+
 interface AgentState {
   runs: AgentRunState[];
   activeRunId: string | null;
   isRunning: boolean;
+
+  // Orchestration state
+  orchestration: OrchestrationState;
 
   // Actions
   startRun: (message: string) => string;
@@ -44,14 +69,29 @@ interface AgentState {
   setActiveRun: (runId: string | null) => void;
   getActiveRun: () => AgentRunState | undefined;
   clearRuns: () => void;
+
+  // Orchestration actions
+  processOrchestratorEvent: (event: OrchestratorEvent) => void;
+  resetOrchestration: () => void;
 }
 
 let runCounter = 0;
+
+const INITIAL_ORCHESTRATION: OrchestrationState = {
+  phase: 'idle',
+  workers: [],
+  totalTokens: 0,
+  filesChanged: 0,
+  startedAt: null,
+  completedAt: null,
+  summary: '',
+};
 
 export const useAgentStore = create<AgentState>((set, get) => ({
   runs: [],
   activeRunId: null,
   isRunning: false,
+  orchestration: { ...INITIAL_ORCHESTRATION },
 
   startRun: (message: string) => {
     runCounter += 1;
@@ -227,4 +267,99 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   },
 
   clearRuns: () => set({ runs: [], activeRunId: null, isRunning: false }),
+
+  processOrchestratorEvent: (event: OrchestratorEvent) => {
+    set((state) => {
+      const orch = { ...state.orchestration };
+      // Cast to access dynamic properties on orchestrator events
+      const ev = event as OrchestratorEvent & Record<string, unknown>;
+
+      switch (ev.type) {
+        case 'thinking':
+          // Use thinking events to track orchestration phases
+          if (typeof ev.content === 'string') {
+            if (ev.content.includes('creating parallel execution plan')) {
+              orch.phase = 'planning';
+              if (!orch.startedAt) orch.startedAt = Date.now();
+            } else if (ev.content.includes('Executing parallel group')) {
+              orch.phase = 'executing';
+            } else if (ev.content.includes('Merging results')) {
+              orch.phase = 'merging';
+            }
+          }
+          break;
+
+        case 'plan_created': {
+          orch.phase = 'executing';
+          // Extract worker list from plan steps
+          const plan = ev.plan as { steps?: Array<{ id: string; description: string }> };
+          if (plan?.steps) {
+            orch.workers = plan.steps.map((s) => ({
+              id: s.id,
+              title: s.description,
+              type: 'generate',
+              status: 'idle' as const,
+              assignedFiles: [],
+              tokensUsed: 0,
+            }));
+          }
+          break;
+        }
+
+        case 'step_start': {
+          const step = ev.step as { id?: string; description?: string };
+          if (step?.id) {
+            orch.workers = orch.workers.map((w) =>
+              w.id === step.id ? { ...w, status: 'executing' as const } : w
+            );
+          }
+          break;
+        }
+
+        case 'step_complete': {
+          const stepDone = ev.step as { id?: string };
+          if (stepDone?.id) {
+            orch.workers = orch.workers.map((w) =>
+              w.id === stepDone.id ? { ...w, status: 'done' as const } : w
+            );
+          }
+          break;
+        }
+
+        case 'step_failed': {
+          const stepFailed = ev.step as { id?: string };
+          if (stepFailed?.id) {
+            orch.workers = orch.workers.map((w) =>
+              w.id === stepFailed.id ? { ...w, status: 'failed' as const } : w
+            );
+          }
+          break;
+        }
+
+        case 'file_written':
+          orch.filesChanged += 1;
+          break;
+
+        case 'done':
+          orch.phase = 'done';
+          orch.completedAt = Date.now();
+          if (typeof ev.summary === 'string') {
+            orch.summary = ev.summary;
+          }
+          break;
+
+        case 'error':
+          orch.phase = 'failed';
+          orch.completedAt = Date.now();
+          if (typeof ev.message === 'string') {
+            orch.summary = ev.message;
+          }
+          break;
+      }
+
+      return { orchestration: orch };
+    });
+  },
+
+  resetOrchestration: () => set({ orchestration: { ...INITIAL_ORCHESTRATION } }),
 }));
