@@ -1,8 +1,9 @@
 'use client';
 
 import { GitCommit, ChevronDown, ChevronRight, Plus, Minus, Check, X, CheckCheck } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useEditorStore, type DiffHunk } from '@/stores/editor';
+import { useUIStore } from '@/stores/ui';
 
 interface DiffLine {
   type: 'added' | 'removed' | 'unchanged' | 'header';
@@ -192,6 +193,27 @@ export function DiffViewer() {
   const rejectDiff = useEditorStore((s) => s.rejectDiff);
   const clearDiffs = useEditorStore((s) => s.clearDiffs);
 
+  // Issue 2 + 9: Auto-navigate to preview when all diffs accepted
+  const handleAccept = useCallback((fileId: string) => {
+    acceptDiff(fileId);
+    // Check if all remaining diffs are now accepted
+    const remaining = useEditorStore.getState().pendingDiffs;
+    const stillPending = remaining.filter(d => d.status === 'pending');
+    if (stillPending.length === 0 && remaining.length > 0) {
+      useUIStore.getState().setActiveWorkspaceTab('preview');
+      useUIStore.getState().setAutoStartPreview(true);
+    }
+  }, [acceptDiff]);
+
+  const handleAcceptAll = useCallback(() => {
+    const diffs = useEditorStore.getState().pendingDiffs;
+    for (const d of diffs) {
+      if (d.status === 'pending') acceptDiff(d.fileId);
+    }
+    useUIStore.getState().setActiveWorkspaceTab('preview');
+    useUIStore.getState().setAutoStartPreview(true);
+  }, [acceptDiff]);
+
   if (pendingDiffs.length === 0) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-pablo-bg text-center">
@@ -223,11 +245,7 @@ export function DiffViewer() {
         <div className="ml-auto flex items-center gap-2">
           {pendingCount > 0 && (
             <button
-              onClick={() => {
-                for (const d of pendingDiffs) {
-                  if (d.status === 'pending') acceptDiff(d.fileId);
-                }
-              }}
+              onClick={handleAcceptAll}
               className="flex h-6 items-center gap-1 rounded bg-pablo-green/10 px-2 font-ui text-[10px] font-medium text-pablo-green transition-colors hover:bg-pablo-green/20"
             >
               <CheckCheck size={12} />
@@ -251,7 +269,7 @@ export function DiffViewer() {
           <DiffFileSection
             key={diff.fileId}
             diff={diff}
-            onAccept={() => acceptDiff(diff.fileId)}
+            onAccept={() => handleAccept(diff.fileId)}
             onReject={() => rejectDiff(diff.fileId)}
           />
         ))}

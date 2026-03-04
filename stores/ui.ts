@@ -62,6 +62,9 @@ interface UIState {
   // Settings
   settingsOpen: boolean;
 
+  // Auto-preview trigger
+  autoStartPreview: boolean;
+
   // Actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
@@ -73,6 +76,7 @@ interface UIState {
   setActiveWorkspaceTab: (tab: WorkspaceTab) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
+  setAutoStartPreview: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -100,6 +104,9 @@ export const useUIStore = create<UIState>()(
       // Settings
       settingsOpen: false,
 
+      // Auto-preview
+      autoStartPreview: false,
+
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -111,6 +118,7 @@ export const useUIStore = create<UIState>()(
       setActiveWorkspaceTab: (tab) => set({ activeWorkspaceTab: tab }),
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
       toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
+      setAutoStartPreview: (v) => set({ autoStartPreview: v }),
     }),
     {
       name: 'pablo-ui-settings',

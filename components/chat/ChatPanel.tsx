@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -65,7 +65,8 @@ export function ChatPanel() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
-  const [agentMode, setAgentMode] = useState(false);
+  const [chatMode, setChatMode] = useState<'chat' | 'agent' | 'build'>('chat');
+  const agentMode = chatMode === 'agent';
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pipeline, setPipeline] = useState<PipelineProgress>({
@@ -560,6 +561,43 @@ export function ChatPanel() {
         </div>
       </div>
 
+      {/* Issue 12: Mode selector (Chat / Agent / Build) */}
+      <div className="flex items-center gap-1 border-b border-pablo-border px-3 py-1">
+        <button
+          onClick={() => setChatMode('chat')}
+          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
+            chatMode === 'chat'
+              ? 'bg-pablo-gold/20 text-pablo-gold'
+              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+          }`}
+        >
+          <MessageSquare size={10} />
+          Chat
+        </button>
+        <button
+          onClick={() => setChatMode('agent')}
+          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
+            chatMode === 'agent'
+              ? 'bg-pablo-gold/20 text-pablo-gold'
+              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+          }`}
+        >
+          <Cpu size={10} />
+          Agent
+        </button>
+        <button
+          onClick={() => setChatMode('build')}
+          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
+            chatMode === 'build'
+              ? 'bg-pablo-gold/20 text-pablo-gold'
+              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+          }`}
+        >
+          <Rocket size={10} />
+          Build
+        </button>
+      </div>
+
       {/* Error banner */}
       {error && (
         <div className="shrink-0 border-b border-pablo-red/20 bg-pablo-red/10 px-3 py-1.5">
@@ -765,19 +803,9 @@ export function ChatPanel() {
             <span className="font-ui text-[10px] text-pablo-text-muted">
               Enter to send, Shift+Enter for new line
             </span>
-            <button
-              type="button"
-              onClick={() => setAgentMode(!agentMode)}
-              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
-                agentMode
-                  ? 'bg-pablo-gold/20 text-pablo-gold border border-pablo-gold/30'
-                  : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
-              }`}
-              title={agentMode ? 'Agent Mode ON: plan → execute → verify → fix' : 'Enable Agent Mode for complex tasks'}
-            >
-              <Cpu size={10} />
-              {agentMode ? 'Agent ON' : 'Agent'}
-            </button>
+            <span className="font-ui text-[10px] text-pablo-text-muted">
+              Mode: {chatMode === 'chat' ? 'Chat' : chatMode === 'agent' ? 'Agent' : 'Build'}
+            </span>
           </div>
         </form>
       </div>

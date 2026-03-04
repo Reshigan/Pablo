@@ -1,6 +1,5 @@
 'use client';
 
-import { Code2 } from 'lucide-react';
 import { WorkspaceTabs } from './WorkspaceTabs';
 import { FileTabs } from './FileTabs';
 import { CodeEditor } from './CodeEditor';
@@ -19,20 +18,15 @@ function EditorPanel() {
   const { tabs, activeTabId } = useEditorStore();
   const hasOpenFile = tabs.length > 0 && activeTabId !== null;
 
+  if (!hasOpenFile) {
+    // Issue 1: Show PipelineView as default when no files are open
+    return <PipelineView />;
+  }
+
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
       <FileTabs />
-      {hasOpenFile ? (
-        <CodeEditor />
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 bg-pablo-bg text-center">
-          <Code2 size={48} className="text-pablo-text-muted" />
-          <p className="font-ui text-sm text-pablo-text-dim">No file open</p>
-          <p className="font-ui text-xs text-pablo-text-muted">
-            Open a file from the sidebar or ask Pablo to generate code
-          </p>
-        </div>
-      )}
+      <CodeEditor />
     </div>
   );
 }

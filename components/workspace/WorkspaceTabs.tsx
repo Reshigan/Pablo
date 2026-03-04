@@ -1,7 +1,9 @@
 'use client';
 
-import { X, Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug } from 'lucide-react';
+import { Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug } from 'lucide-react';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
+import { useEditorStore } from '@/stores/editor';
+import { usePipelineStore } from '@/stores/pipeline';
 
 interface TabConfig {
   id: WorkspaceTab;
@@ -20,6 +22,25 @@ const workspaceTabs: TabConfig[] = [
   { id: 'deploy-logs', label: 'Deploys', icon: Rocket },
   { id: 'bugs', label: 'Problems', icon: Bug },
 ];
+
+function TabBadge({ tabId }: { tabId: WorkspaceTab }) {
+  const pendingDiffCount = useEditorStore(s => s.pendingDiffs.filter(d => d.status === 'pending').length);
+  const activePipelineRun = usePipelineStore(s => s.runs.find(r => r.status === 'running'));
+
+  if (tabId === 'diff' && pendingDiffCount > 0) {
+    return (
+      <span className="ml-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pablo-gold px-1 font-ui text-[9px] font-bold text-pablo-bg">
+        {pendingDiffCount}
+      </span>
+    );
+  }
+  if (tabId === 'pipeline' && activePipelineRun) {
+    return (
+      <span className="ml-1 h-2 w-2 rounded-full bg-pablo-green animate-pulse" />
+    );
+  }
+  return null;
+}
 
 export function WorkspaceTabs() {
   const { activeWorkspaceTab, setActiveWorkspaceTab } = useUIStore();
@@ -42,12 +63,7 @@ export function WorkspaceTabs() {
           >
             <TabIcon size={14} className={isActive ? 'text-pablo-gold' : ''} />
             <span>{tab.label}</span>
-            {isActive && (
-              <X
-                size={12}
-                className="ml-1 text-pablo-text-muted opacity-0 transition-opacity duration-100 group-hover:opacity-100 hover:text-pablo-text"
-              />
-            )}
+            <TabBadge tabId={tab.id} />
           </button>
         );
       })}
