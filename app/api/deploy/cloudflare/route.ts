@@ -120,6 +120,11 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
     })
     .join('\n\n');
 
+  // Escape </script> in generated code to prevent premature tag closure
+  const safeComponentCode = componentCode.replace(/<\/(script)/gi, '<\\/$1');
+  // Escape </style> in CSS to prevent premature tag closure
+  const safeCss = cssContent.replace(/<\/(style)/gi, '<\\/$1');
+
   // Sanitize project name for HTML (no special chars that could break tags)
   const safeProjectName = projectName.replace(/[<>"'&]/g, '');
 
@@ -152,7 +157,7 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
     + '  <style>\n'
     + '    * { margin: 0; padding: 0; box-sizing: border-box; }\n'
     + "    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }\n"
-    + cssContent + '\n'
+    + safeCss + '\n'
     + '  </style>\n'
     + '</head>\n'
     + '<body>\n'
@@ -190,7 +195,7 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
     + '</body>\n'
     + '</html>';
 
-  const html = htmlBefore + componentCode + htmlAfter;
+  const html = htmlBefore + safeComponentCode + htmlAfter;
 
   bundledFiles.push({ path: 'index.html', content: html });
 

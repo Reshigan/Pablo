@@ -268,7 +268,11 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
                     throw new Error(data.error ?? 'Deploy failed');
                   }
 
-                  setDeployUrl(data.production_url ?? data.deployment_url ?? null);
+                  const url = data.production_url ?? data.deployment_url ?? null;
+                  if (!url) {
+                    throw new Error('Deploy succeeded but no URL was returned');
+                  }
+                  setDeployUrl(url);
                   setDeployState('deployed');
                 } catch (err) {
                   setDeployError(err instanceof Error ? err.message : 'Deploy failed');
