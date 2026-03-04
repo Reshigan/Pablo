@@ -1,11 +1,12 @@
 'use client';
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import Editor, { type OnMount, type Monaco } from '@monaco-editor/react';
 
 type IStandaloneThemeData = Parameters<Monaco['editor']['defineTheme']>[1];
 type IStandaloneCodeEditor = Parameters<OnMount>[0];
 import { useEditorStore } from '@/stores/editor';
+import { registerInlineCompletion } from '@/lib/editor/inlineCompletionProvider';
 
 // Pablo dark theme for Monaco
 const PABLO_THEME: IStandaloneThemeData = {
@@ -60,8 +61,17 @@ const PABLO_THEME: IStandaloneThemeData = {
 
 export function CodeEditor() {
   const editorRef = useRef<IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
   const { tabs, activeTabId, updateContent } = useEditorStore();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+
+  // Cmd+K Inline Edit state (Feature 5)
+  const [inlineEditVisible, setInlineEditVisible] = useState(false);
+  const [inlineEditPos, setInlineEditPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [inlineEditInput, setInlineEditInput] = useState('');
+  const [inlineEditLoading, setInlineEditLoading] = useState(false);
+  const inlineEditInputRef = useRef<HTMLInputElement>(null);
+  const autocompleteRegistered = useRef(false);
 
   const handleEditorMount: OnMount = useCallback(
     (editorInstance: IStandaloneCodeEditor, monaco: Monaco) => {
@@ -70,6 +80,8 @@ export function CodeEditor() {
       // Register Pablo theme
       monaco.editor.defineTheme('pablo-dark', PABLO_THEME);
       monaco.editor.setTheme('pablo-dark');
+
+      monacoRef.current = monaco;
 
       // Cmd+S / Ctrl+S: save file via store (persists to DB + marks clean)
       editorInstance.addCommand(
@@ -82,6 +94,35 @@ export function CodeEditor() {
           }
         }
       );
+
+      // Feature 5: Cmd+K / Ctrl+K — Inline AI Edit
+      editorInstance.addCommand(
+        monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyK,
+        () => {
+          const selection = editorInstance.getSelection();
+          if (!selection || selection.isEmpty()) return;
+
+          // Position popover near the selection
+          const coords = editorInstance.getScrolledVisiblePosition(selection.getStartPosition());
+          if (coords) {
+            const editorDom = editorInstance.getDomNode();
+            const rect = editorDom?.getBoundingClientRect();
+            setInlineEditPos({
+              top: coords.top + (rect?.top ?? 0) + coords.height + 4,
+              left: coords.left + (rect?.left ?? 0),
+            });
+          }
+          setInlineEditVisible(true);
+          setInlineEditInput('');
+          setTimeout(() => inlineEditInputRef.current?.focus(), 50);
+        }
+      );
+
+      // Feature 7: Register inline AI autocomplete provider
+      if (!autocompleteRegistered.current) {
+        registerInlineCompletion(monaco);
+        autocompleteRegistered.current = true;
+      }
 
       // Editor settings
       editorInstance.updateOptions({
@@ -107,6 +148,7 @@ export function CodeEditor() {
         formatOnPaste: true,
         formatOnType: true,
         automaticLayout: true,
+        inlineSuggest: { enabled: true }, // Feature 7: Enable inline suggestions
       });
     },
     []
@@ -121,12 +163,130 @@ export function CodeEditor() {
     [activeTabId, updateContent]
   );
 
+  // Feature 5: Handle inline edit submission
+  const handleInlineEditSubmit = useCallback(async () => {
+    if (!inlineEditInput.trim() || !editorRef.current || inlineEditLoading) return;
+    const editor = editorRef.current;
+    const selection = editor.getSelection();
+    if (!selection) return;
+
+    const selectedText = editor.getModel()?.getValueInRange(selection) || '';
+    if (!selectedText) return;
+
+    setInlineEditLoading(true);
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{
+            role: 'user',
+            content: `Edit this code as instructed. Return ONLY the replacement code, no markdown fences, no explanation.
+
+INSTRUCTION: ${inlineEditInput}
+
+CODE TO EDIT:
+${selectedText}`,
+          }],
+          mode: 'pipeline-stage',
+          model: 'qwen3-coder:480b',
+          max_tokens: 4096,
+        }),
+      });
+
+      if (!response.ok) throw new Error('API error');
+
+      // Parse streamed response with cross-chunk buffer
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader');
+      const decoder = new TextDecoder();
+      let result = '';
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') continue;
+            try {
+              const parsed = JSON.parse(data) as { content?: string; choices?: Array<{ delta?: { content?: string } }> };
+              const content = parsed.content ?? parsed.choices?.[0]?.delta?.content;
+              if (content) result += content;
+            } catch {
+              // Skip unparseable JSON chunks
+            }
+          }
+        }
+      }
+
+      // Clean up markdown fences if present
+      const cleaned = result.replace(/^```\w*\n?/, '').replace(/\n?```$/, '').trim();
+
+      if (cleaned) {
+        // Apply the edit
+        editor.executeEdits('inline-edit', [{
+          range: selection,
+          text: cleaned,
+          forceMoveMarkers: true,
+        }]);
+      }
+    } catch {
+      // Non-blocking — just close the popover
+    } finally {
+      setInlineEditLoading(false);
+      setInlineEditVisible(false);
+    }
+  }, [inlineEditInput, inlineEditLoading]);
+
   if (!activeTab) {
     return null;
   }
 
   return (
-    <div className="flex-1 overflow-hidden">
+    <div className="flex-1 overflow-hidden relative">
+      {/* Feature 5: Cmd+K Inline Edit Popover */}
+      {inlineEditVisible && (
+        <div
+          className="fixed z-50 flex items-center gap-1.5 rounded-lg border border-pablo-gold/40 bg-pablo-panel px-2 py-1 shadow-xl"
+          style={{ top: inlineEditPos.top, left: inlineEditPos.left, minWidth: 280 }}
+        >
+          <input
+            ref={inlineEditInputRef}
+            type="text"
+            value={inlineEditInput}
+            onChange={(e) => setInlineEditInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); handleInlineEditSubmit(); }
+              if (e.key === 'Escape') setInlineEditVisible(false);
+            }}
+            placeholder="Describe the edit (e.g. add error handling)..."
+            className="flex-1 bg-transparent font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted"
+            disabled={inlineEditLoading}
+          />
+          {inlineEditLoading ? (
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-pablo-gold border-t-transparent" />
+          ) : (
+            <button
+              onClick={handleInlineEditSubmit}
+              className="rounded bg-pablo-gold/20 px-2 py-0.5 font-ui text-[10px] text-pablo-gold hover:bg-pablo-gold/30"
+            >
+              Apply
+            </button>
+          )}
+          <button
+            onClick={() => setInlineEditVisible(false)}
+            className="font-ui text-[10px] text-pablo-text-muted hover:text-pablo-text"
+          >
+            Esc
+          </button>
+        </div>
+      )}
+
       <Editor
         height="100%"
         language={activeTab.language}

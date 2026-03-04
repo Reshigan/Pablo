@@ -23,8 +23,10 @@ import {
   Rocket,
   ExternalLink,
   AlertCircle,
+  ImageIcon,
 } from 'lucide-react';
 import { useState, useCallback, useRef } from 'react';
+import { MentionDropdown, resolveMentions, type MentionItem } from '@/components/pipeline/MentionDropdown';
 import {
   usePipelineStore,
   PIPELINE_STAGES,
@@ -482,6 +484,15 @@ List each issue with severity (critical/warning/info) and a specific fix.`,
     '\nOutput format: For any code, respond with markdown code blocks that include filenames with full paths (e.g. ```tsx src/components/Dashboard.tsx).',
   ];
 
+  // Feature 6: Add vision instructions when images are attached
+  if (featureDescription.includes('[Image attached as base64 data')) {
+    if (stage.id === 'plan') {
+      parts.push('\n## Image-to-Code Instructions\nAn image/screenshot has been attached. Analyze the visual layout, colors, typography, spacing, and component structure. Your plan should describe what you see and map each visual element to UI components.');
+    } else if (stage.id === 'ui') {
+      parts.push('\n## Image-to-Code Instructions\nRecreate the attached image/screenshot as faithfully as possible. Match colors, spacing, layout, typography, and component hierarchy. Use the tech stack specified above.');
+    }
+  }
+
   if (trimmedPrevious.length > 0) {
     parts.push(`\nContext from previous stages:\n${trimmedPrevious.join('\n---\n')}`);
   }
@@ -810,6 +821,12 @@ export function PipelineView() {
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Feature 8: @-Mentions state
+  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [selectedMentions, setSelectedMentions] = useState<string[]>([]);
+  const [mentionDropdownPos, setMentionDropdownPos] = useState({ top: 0, left: 0 });
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
@@ -817,10 +834,24 @@ export function PipelineView() {
     // Include attached documents in the feature description
     if (attachments.length > 0) {
       const attachmentText = attachments
-        .map((att) => `\n\n--- Attached: ${att.name} ---\n${att.content}`)
+        .map((att) => {
+          // Feature 6: Image attachments get vision instructions
+          if (att.type.startsWith('image/')) {
+            return `\n\n--- Attached Image: ${att.name} ---\n[Image attached as base64 data — analyze and recreate this UI]\ndata:${att.type};base64,${att.content}`;
+          }
+          return `\n\n--- Attached: ${att.name} ---\n${att.content}`;
+        })
         .join('');
       description += attachmentText;
       setAttachments([]);
+    }
+    // Feature 8: Include @-mention context
+    if (selectedMentions.length > 0) {
+      const mentionContext = resolveMentions(selectedMentions);
+      if (mentionContext) {
+        description += `\n\n--- Referenced Context ---\n${mentionContext}`;
+      }
+      setSelectedMentions([]);
     }
     const runId = startRun(description);
     setFeatureInput('');
@@ -1004,7 +1035,7 @@ export function PipelineView() {
       setIsBuilding(false);
       abortRef.current = null;
     }
-  }, [featureInput, isBuilding, attachments, startRun, updateStage, advanceStage, completeRun]);
+  }, [featureInput, isBuilding, attachments, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1020,18 +1051,82 @@ export function PipelineView() {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
-      };
-      reader.readAsText(file);
+      // Feature 6: Handle image files differently (read as base64)
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          // Extract base64 portion after the data:image/...;base64, prefix
+          const base64 = dataUrl.split(',')[1] || dataUrl;
+          setAttachments((prev) => [...prev, { name: file.name, content: base64, type: file.type }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
+        };
+        reader.readAsText(file);
+      }
     });
     e.target.value = '';
   }, []);
 
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Feature 8: Track cursor position for accurate mention replacement
+  const mentionCursorRef = useRef<number>(0);
+  const mentionQueryRef = useRef<string>('');
+
+  // Feature 8: Handle @-mention input detection
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setFeatureInput(value);
+
+    // Detect @ trigger
+    const cursorPos = e.target.selectionStart || 0;
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const atMatch = textBeforeCursor.match(/@(\S*)$/);
+
+    if (atMatch) {
+      mentionCursorRef.current = cursorPos;
+      mentionQueryRef.current = atMatch[1];
+      setMentionQuery(atMatch[1]);
+      setShowMentionDropdown(true);
+      // Position dropdown near textarea
+      const rect = e.target.getBoundingClientRect();
+      setMentionDropdownPos({ top: rect.bottom + 4, left: rect.left + 12 });
+    } else {
+      setShowMentionDropdown(false);
+    }
+  }, []);
+
+  // Feature 8: Handle mention selection
+  const handleMentionSelect = useCallback((item: MentionItem) => {
+    setSelectedMentions(prev => [...prev, item.value]);
+    // Replace only the @query portion, preserving text before and after
+    const cursorPos = mentionCursorRef.current;
+    const queryLen = mentionQueryRef.current.length;
+    setFeatureInput(prev => {
+      const atStart = cursorPos - queryLen - 1; // -1 for the @ sign
+      if (atStart >= 0 && prev[atStart] === '@') {
+        return prev.slice(0, atStart) + item.label + ' ' + prev.slice(cursorPos);
+      }
+      // Fallback: find closest @ before cursor
+      const atIdx = prev.lastIndexOf('@', cursorPos - 1);
+      if (atIdx >= 0) {
+        return prev.slice(0, atIdx) + item.label + ' ' + prev.slice(cursorPos);
+      }
+      return prev;
+    });
+    setShowMentionDropdown(false);
+  }, []);
+
+  const removeMention = useCallback((index: number) => {
+    setSelectedMentions(prev => prev.filter((_, i) => i !== index));
   }, []);
 
   return (
@@ -1050,19 +1145,28 @@ export function PipelineView() {
       <div className="shrink-0 border-b border-pablo-border p-3">
         <div className="flex items-end gap-2">
           <textarea
+            ref={textareaRef}
             value={featureInput}
-            onChange={(e) => setFeatureInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            placeholder="Describe a feature to build (e.g., 'Add user authentication with JWT')..."
+            placeholder="Describe a feature to build... (use @ to reference files/context)"
             className="min-h-[48px] max-h-24 flex-1 resize-none rounded-lg border border-pablo-border bg-pablo-input px-3 py-2 font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
             rows={2}
           />
+          {/* Feature 8: @-Mentions Dropdown */}
+          {showMentionDropdown && (
+            <MentionDropdown
+              query={mentionQuery}
+              onSelect={handleMentionSelect}
+              position={mentionDropdownPos}
+            />
+          )}
           <div className="flex flex-col gap-1">
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx"
+              accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,.svg,.bmp"
               onChange={handleFileAttach}
               className="hidden"
             />
@@ -1095,15 +1199,38 @@ export function PipelineView() {
             {attachments.map((att, i) => (
               <span
                 key={`${att.name}-${i}`}
-                className="flex items-center gap-1 rounded-md bg-pablo-gold/10 px-2 py-0.5 font-ui text-[10px] text-pablo-gold"
+                className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] ${
+                  att.type.startsWith('image/') ? 'bg-purple-500/10 text-purple-400' : 'bg-pablo-gold/10 text-pablo-gold'
+                }`}
               >
-                <FileText size={10} />
+                {att.type.startsWith('image/') ? <ImageIcon size={10} /> : <FileText size={10} />}
                 {att.name}
                 <button
                   type="button"
                   onClick={() => removeAttachment(i)}
                   className="ml-0.5 rounded-full hover:bg-pablo-gold/20"
                   aria-label={`Remove ${att.name}`}
+                >
+                  <X size={10} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        {/* Feature 8: Selected @-mention pills */}
+        {selectedMentions.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-1">
+            {selectedMentions.map((mention, i) => (
+              <span
+                key={`mention-${mention}-${i}`}
+                className="flex items-center gap-1 rounded-md bg-pablo-blue/10 px-2 py-0.5 font-ui text-[10px] text-pablo-blue"
+              >
+                @{mention}
+                <button
+                  type="button"
+                  onClick={() => removeMention(i)}
+                  className="ml-0.5 rounded-full hover:bg-pablo-blue/20"
+                  aria-label={`Remove @${mention}`}
                 >
                   <X size={10} />
                 </button>
