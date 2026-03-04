@@ -3,15 +3,16 @@ import type { AgentPlan, AgentStep, AgentEvent } from '@/lib/agents/agentEngine'
 import type { OrchestratorEvent } from '@/lib/agents/orchestrator';
 
 export type AgentPhase = 'idle' | 'planning' | 'executing' | 'verifying' | 'fixing' | 'done' | 'failed';
-export type OrchestrationPhase = 'idle' | 'planning' | 'executing' | 'merging' | 'verifying' | 'done' | 'failed';
+export type OrchestrationPhase = 'idle' | 'understand' | 'design' | 'build' | 'quality' | 'ship' | 'verify' | 'done' | 'failed';
 
-export interface WorkerStatus {
-  id: string;
-  title: string;
-  type: string;
-  status: 'idle' | 'planning' | 'executing' | 'merging' | 'verifying' | 'done' | 'failed';
-  assignedFiles: string[];
+export interface AgentStatus {
+  name: string;
+  role: string;
+  phase: OrchestrationPhase;
+  status: 'idle' | 'running' | 'done' | 'failed';
+  filesCount: number;
   tokensUsed: number;
+  issues: string[];
   durationMs?: number;
 }
 
@@ -45,12 +46,15 @@ export interface AgentRunState {
 
 export interface OrchestrationState {
   phase: OrchestrationPhase;
-  workers: WorkerStatus[];
+  agents: AgentStatus[];
   totalTokens: number;
   filesChanged: number;
   startedAt: number | null;
   completedAt: number | null;
   summary: string;
+  pendingCheckpoint: string | null;
+  clarifyingQuestions: string[];
+  securityVeto: string[];
 }
 
 interface AgentState {
@@ -79,12 +83,15 @@ let runCounter = 0;
 
 const INITIAL_ORCHESTRATION: OrchestrationState = {
   phase: 'idle',
-  workers: [],
+  agents: [],
   totalTokens: 0,
   filesChanged: 0,
   startedAt: null,
   completedAt: null,
   summary: '',
+  pendingCheckpoint: null,
+  clarifyingQuestions: [],
+  securityVeto: [],
 };
 
 export const useAgentStore = create<AgentState>((set, get) => ({
@@ -271,73 +278,81 @@ export const useAgentStore = create<AgentState>((set, get) => ({
   processOrchestratorEvent: (event: OrchestratorEvent) => {
     set((state) => {
       const orch = { ...state.orchestration };
-      // Cast to access dynamic properties on orchestrator events
       const ev = event as OrchestratorEvent & Record<string, unknown>;
 
       switch (ev.type) {
-        case 'thinking':
-          // Use thinking events to track orchestration phases
-          if (typeof ev.content === 'string') {
-            if (ev.content.includes('creating parallel execution plan')) {
-              orch.phase = 'planning';
-              if (!orch.startedAt) orch.startedAt = Date.now();
-            } else if (ev.content.includes('Executing parallel group')) {
-              orch.phase = 'executing';
-            } else if (ev.content.includes('Merging results')) {
-              orch.phase = 'merging';
+        case 'phase_start': {
+          const phase = ev.phase as OrchestrationPhase;
+          orch.phase = phase;
+          if (!orch.startedAt) orch.startedAt = Date.now();
+          // Add agents for this phase
+          const agentNames = ev.agents as string[] || [];
+          for (const name of agentNames) {
+            if (!orch.agents.find(a => a.name === name)) {
+              orch.agents = [...orch.agents, {
+                name, role: name.replace('Agent', ''), phase,
+                status: 'idle', filesCount: 0, tokensUsed: 0, issues: [],
+              }];
             }
           }
           break;
+        }
 
-        case 'plan_created': {
-          orch.phase = 'executing';
-          // Extract worker list from plan steps
-          const plan = ev.plan as { steps?: Array<{ id: string; description: string }> };
-          if (plan?.steps) {
-            orch.workers = plan.steps.map((s) => ({
-              id: s.id,
-              title: s.description,
-              type: 'generate',
-              status: 'idle' as const,
-              assignedFiles: [],
-              tokensUsed: 0,
-            }));
+        case 'phase_complete': {
+          orch.totalTokens = (ev.tokensUsed as number) || orch.totalTokens;
+          break;
+        }
+
+        case 'agent_start': {
+          const agentName = ev.agent as string;
+          const role = ev.role as string;
+          orch.agents = orch.agents.map(a =>
+            a.name === agentName ? { ...a, status: 'running' as const, role } : a
+          );
+          // If agent not yet in list, add it
+          if (!orch.agents.find(a => a.name === agentName)) {
+            orch.agents = [...orch.agents, {
+              name: agentName, role, phase: orch.phase,
+              status: 'running', filesCount: 0, tokensUsed: 0, issues: [],
+            }];
           }
           break;
         }
 
-        case 'step_start': {
-          const step = ev.step as { id?: string; description?: string };
-          if (step?.id) {
-            orch.workers = orch.workers.map((w) =>
-              w.id === step.id ? { ...w, status: 'executing' as const } : w
-            );
-          }
+        case 'agent_complete': {
+          const name = ev.agent as string;
+          orch.agents = orch.agents.map(a =>
+            a.name === name ? {
+              ...a, status: 'done' as const,
+              filesCount: (ev.filesCount as number) || 0,
+              tokensUsed: (ev.tokensUsed as number) || 0,
+              issues: (ev.issues as string[]) || [],
+            } : a
+          );
           break;
         }
 
-        case 'step_complete': {
-          const stepDone = ev.step as { id?: string };
-          if (stepDone?.id) {
-            orch.workers = orch.workers.map((w) =>
-              w.id === stepDone.id ? { ...w, status: 'done' as const } : w
-            );
-          }
+        case 'checkpoint': {
+          orch.pendingCheckpoint = ev.name as string;
           break;
         }
 
-        case 'step_failed': {
-          const stepFailed = ev.step as { id?: string };
-          if (stepFailed?.id) {
-            orch.workers = orch.workers.map((w) =>
-              w.id === stepFailed.id ? { ...w, status: 'failed' as const } : w
-            );
-          }
+        case 'security_veto': {
+          orch.securityVeto = (ev.issues as string[]) || [];
+          break;
+        }
+
+        case 'cost_gate': {
+          orch.summary = `Cost gate: ${ev.totalTokens} tokens exceeds budget of ${ev.budget}`;
           break;
         }
 
         case 'file_written':
           orch.filesChanged += 1;
+          break;
+
+        case 'thinking':
+          // General thinking events — no phase change needed
           break;
 
         case 'done':
