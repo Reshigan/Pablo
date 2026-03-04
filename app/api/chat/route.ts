@@ -575,10 +575,12 @@ export async function POST(request: NextRequest) {
     let sessionId = body.sessionId;
     if (sessionId && lastUserMessage) {
       try {
-        // Ensure session exists in D1
+        // Ensure session exists in D1 and belongs to this user (SEC-03)
+        const currentUserId = session.user?.email || session.user?.name || null;
         let dbSession = await d1GetSession(sessionId);
-        if (!dbSession) {
-          dbSession = await d1CreateSession({ userId: session.user?.email || session.user?.name || null, title: lastUserMessage.slice(0, 80) });
+        if (!dbSession || dbSession.userId !== currentUserId) {
+          // Session doesn't exist or belongs to another user — create a new one
+          dbSession = await d1CreateSession({ userId: currentUserId, title: lastUserMessage.slice(0, 80) });
           sessionId = dbSession.id;
         }
         await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });

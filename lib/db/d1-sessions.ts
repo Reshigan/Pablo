@@ -71,14 +71,10 @@ export async function d1CreateSession(data: {
 /**
  * List all sessions from D1, sorted by updatedAt descending.
  */
-export async function d1ListSessions(userId?: string): Promise<D1Session[]> {
+export async function d1ListSessions(userId: string): Promise<D1Session[]> {
   const d1 = await getD1();
   if (d1) {
-    if (userId) {
-      const rows = await d1.select().from(sessions).where(eq(sessions.userId, userId)).orderBy(desc(sessions.updatedAt));
-      return rows as unknown as D1Session[];
-    }
-    const rows = await d1.select().from(sessions).orderBy(desc(sessions.updatedAt));
+    const rows = await d1.select().from(sessions).where(eq(sessions.userId, userId)).orderBy(desc(sessions.updatedAt));
     return rows as unknown as D1Session[];
   }
   return [];

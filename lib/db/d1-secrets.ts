@@ -18,8 +18,11 @@ function getEncryptionKey(): string {
 async function deriveKey(password: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  // SEC-02: derive salt from AUTH_SECRET so each deployment uses a unique salt
+  const saltSource = await crypto.subtle.digest('SHA-256', enc.encode(password));
+  const salt = new Uint8Array(saltSource).slice(0, 16);
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: enc.encode('pablo-secrets-v1'), iterations: 100_000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations: 100_000, hash: 'SHA-256' },
     keyMaterial,
     { name: 'AES-GCM', length: 256 },
     false,
