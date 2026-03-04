@@ -304,21 +304,8 @@ export function ChatPanel() {
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
-      // Attachments are already handled by handleSubmit before calling sendMessage
+      // Attachments and routing are already handled by handleSubmit before calling sendMessage
       const fullContent = content.trim();
-
-      // If agent mode is on, route through agent engine (with attachments included)
-      // Auto-detect intent for routing
-      const intent = detectIntentFromInput(fullContent);
-
-      // Check if this is a complex multi-domain task that should use orchestration
-      if (shouldOrchestrate(fullContent)) {
-        return sendOrchestratedMessage(fullContent);
-      }
-
-      if (intent === 'build') {
-        return sendAgentMessage(fullContent);
-      }
 
       // Reset pipeline state from any previous multi-turn run
       setPipeline({ active: false, currentStep: '', status: '', validationScore: null });
@@ -561,17 +548,14 @@ export function ChatPanel() {
       setAttachments([]);
     }
 
-    // Priority: check for multi-agent orchestration first (complex multi-domain tasks)
-    if (shouldOrchestrate(msg)) {
-      sendOrchestratedMessage(msg);
-      return;
-    }
-
-    // Auto-route based on detected intent
+    // Route by detected intent first, then check for orchestration on build/chat
     if (intent === 'evaluate') {
       handleEvaluate(msg);
     } else if (intent === 'fix') {
       handleFix(msg);
+    } else if (shouldOrchestrate(msg)) {
+      // Complex multi-domain tasks (3+ requirement indicators) use multi-agent orchestration
+      sendOrchestratedMessage(msg);
     } else if (intent === 'build') {
       // Build intent uses agent mode for full pipeline
       sendAgentMessage(msg);

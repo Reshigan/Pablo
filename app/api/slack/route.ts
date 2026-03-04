@@ -123,7 +123,42 @@ async function handleSlackTask(
       return;
     }
 
-    await postSlackMessage(channel, 'Task complete! Check the repo for changes.', threadTs);
+    // Consume SSE stream and wait for 'done' or 'error' event
+    const reader = response.body?.getReader();
+    if (!reader) {
+      await postSlackMessage(channel, 'Task started but could not read stream.', threadTs);
+      return;
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let summary = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6)) as { type: string; summary?: string; message?: string };
+          if (event.type === 'done') {
+            summary = event.summary || 'Task complete!';
+          } else if (event.type === 'error') {
+            await postSlackMessage(channel, `Task failed: ${event.message || 'Unknown error'}`, threadTs);
+            return;
+          }
+        } catch {
+          // Skip malformed SSE lines
+        }
+      }
+    }
+
+    await postSlackMessage(channel, summary || 'Task complete! Check the repo for changes.', threadTs);
   } catch (error) {
     await postSlackMessage(
       channel,
