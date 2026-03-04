@@ -12,7 +12,9 @@ export async function GET() {
   }
 
   try {
-    const sessions = await d1ListSessions();
+    // SEC-03: scope sessions to authenticated user
+    const userId = session.user?.email || session.user?.name || undefined;
+    const sessions = await d1ListSessions(userId);
     return Response.json(sessions);
   } catch (err) {
     console.error('Failed to list sessions:', err);
@@ -36,7 +38,10 @@ export async function POST(request: NextRequest) {
       repoBranch?: string;
     };
 
+    // SEC-03: scope new session to authenticated user
+    const userId = session.user?.email || session.user?.name || null;
     const newSession = await d1CreateSession({
+      userId,
       title: body.title ?? 'Untitled Session',
       repoUrl: body.repoUrl ?? null,
       repoBranch: body.repoBranch ?? 'main',

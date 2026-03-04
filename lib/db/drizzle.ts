@@ -28,7 +28,10 @@ export async function getD1(): Promise<ReturnType<typeof import('drizzle-orm/d1'
     const env = ctx.env as Record<string, unknown>;
     const d1 = env.DB;
     if (!d1) {
-      console.error('[getD1] DB binding not found. Available bindings:', Object.keys(env).join(', '));
+      const msg = `[getD1] DB binding not found. Available bindings: ${Object.keys(env).join(', ')}`;
+      console.error(msg);
+      // REL-02: throw in production instead of silent fallback
+      if (env.ENVIRONMENT === 'production') throw new Error(msg);
       return null;
     }
 

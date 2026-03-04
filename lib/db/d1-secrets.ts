@@ -1,5 +1,6 @@
 /**
  * D1-backed secrets CRUD operations.
+ * SEC-02: secrets are encrypted at rest using AES-256-GCM.
  * Falls back gracefully if D1 is unavailable (local dev).
  */
 
@@ -7,6 +8,46 @@ import { getD1 } from './drizzle';
 import { secrets } from './schema';
 import { eq, and } from 'drizzle-orm';
 import { generateId } from './queries';
+
+// ─── SEC-02: AES-256-GCM encryption helpers ──────────────────────────────────
+
+function getEncryptionKey(): string {
+  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-only-key-not-for-production';
+}
+
+async function deriveKey(password: string): Promise<CryptoKey> {
+  const enc = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: enc.encode('pablo-secrets-v1'), iterations: 100_000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  );
+}
+
+async function encryptValue(plaintext: string): Promise<string> {
+  const key = await deriveKey(getEncryptionKey());
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plaintext));
+  // Store as base64: iv:ciphertext
+  const ivB64 = btoa(String.fromCharCode(...iv));
+  const ctB64 = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+  return `enc:${ivB64}:${ctB64}`;
+}
+
+async function decryptValue(stored: string): Promise<string> {
+  // If not encrypted (legacy), return as-is
+  if (!stored.startsWith('enc:')) return stored;
+  const [, ivB64, ctB64] = stored.split(':');
+  const key = await deriveKey(getEncryptionKey());
+  const iv = Uint8Array.from(atob(ivB64), c => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(ctB64), c => c.charCodeAt(0));
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext);
+  return new TextDecoder().decode(plaintext);
+}
 
 export interface D1Secret {
   id: string;
@@ -27,7 +68,11 @@ export async function d1ListSecrets(sessionId: string): Promise<D1Secret[]> {
       .select()
       .from(secrets)
       .where(eq(secrets.sessionId, sessionId));
-    return rows as unknown as D1Secret[];
+    // SEC-02: decrypt values before returning
+    const decrypted = await Promise.all(
+      (rows as unknown as D1Secret[]).map(async (r) => ({ ...r, value: await decryptValue(r.value) })),
+    );
+    return decrypted;
   }
   return [];
 }
@@ -52,10 +97,11 @@ export async function d1UpsertSecret(
       .where(and(eq(secrets.sessionId, sessionId), eq(secrets.key, key)));
 
     if (existing.length > 0) {
-      // Update existing
+      // Update existing — SEC-02: encrypt before storing
+      const encValue = await encryptValue(value);
       await d1
         .update(secrets)
-        .set({ value, updatedAt: now })
+        .set({ value: encValue, updatedAt: now })
         .where(eq(secrets.id, existing[0].id));
 
       const updated = await d1
@@ -65,13 +111,14 @@ export async function d1UpsertSecret(
       return updated[0] as unknown as D1Secret;
     }
 
-    // Create new
+    // Create new — SEC-02: encrypt before storing
     const id = generateId('sec');
+    const encValue = await encryptValue(value);
     await d1.insert(secrets).values({
       id,
       sessionId,
       key,
-      value,
+      value: encValue,
       createdAt: now,
       updatedAt: now,
     });

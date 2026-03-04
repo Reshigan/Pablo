@@ -204,8 +204,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     // Phase 4: Learn-on-Accept — capture pattern from accepted diff
+    // REL-03: use dynamic import() instead of require()
     try {
-      const { useLearningStore } = require('@/stores/learning') as typeof import('@/stores/learning');
+      const { useLearningStore } = await import('@/stores/learning');
       const learningStore = useLearningStore.getState();
       const ext = diff.filename.split('.').pop()?.toLowerCase() || '';
       const langTag = ext === 'ts' || ext === 'tsx' ? 'typescript'

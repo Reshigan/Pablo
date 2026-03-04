@@ -6,12 +6,12 @@
 
 import type { CodebaseGraph } from '@/lib/indexer/codebaseIndexer';
 
-function getDB(): D1Database | null {
+// REL-03: replaced synchronous require() with async import() for Workers ES module compat
+async function getDB(): Promise<D1Database | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getCloudflareContext } = require('@opennextjs/cloudflare');
-    const ctx = getCloudflareContext({ async: false });
-    return (ctx?.env as Record<string, unknown>)?.DB as D1Database || null;
+    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
+    const ctx = await getCloudflareContext({ async: true });
+    return ((ctx.env as Record<string, unknown>).DB as D1Database) || null;
   } catch {
     return null;
   }

@@ -846,9 +846,8 @@ export function ChatPanel() {
 
         const { evaluateRepo } = await import('@/lib/agents/repoEvaluator');
 
-        // Get env config from /api/chat endpoint
-        const envRes = await fetch('/api/env');
-        const env = envRes.ok ? await envRes.json() : {};
+        // Get env config from server-side chat endpoint (no client env needed)
+        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = {};
 
         const result = await evaluateRepo(
           files,
@@ -911,8 +910,7 @@ export function ChatPanel() {
 
         updateMessage(assistantId, { content: `Running ${mode} pipeline on ${files.length} files...` });
 
-        const envRes = await fetch('/api/env');
-        const env = envRes.ok ? await envRes.json() : {};
+        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = {};
 
         const result = await runIncrementalPipeline(
           content.trim(),

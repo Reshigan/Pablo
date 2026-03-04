@@ -7,8 +7,15 @@ import GitHub from 'next-auth/providers/github';
  * (vars + secrets) are only populated inside a request context, so the eager
  * `NextAuth({ … })` pattern would see empty env vars and fail.
  */
-export const { handlers, signIn, signOut, auth } = NextAuth(() => ({
+export const { handlers, signIn, signOut, auth } = NextAuth(() => {
+  // SEC-06: enforce NEXTAUTH_SECRET / AUTH_SECRET in production
+  const secret = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret && process.env.ENVIRONMENT === 'production') {
+    throw new Error('AUTH_SECRET (or NEXTAUTH_SECRET) must be set in production');
+  }
+  return {
   trustHost: true,
+  secret,
   providers: [
     GitHub({
       clientId: process.env.GITHUB_CLIENT_ID,
@@ -37,4 +44,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth(() => ({
       };
     },
   },
-}));
+};
+});

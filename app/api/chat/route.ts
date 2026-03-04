@@ -86,7 +86,7 @@ interface ChatRequestBody {
  * Get environment config from Cloudflare Worker context or process.env
  */
 /** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://api.ollama.com/v1';
+const OLLAMA_CLOUD_URL = 'https://api.ollama.ai/v1';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -121,7 +121,7 @@ async function tryExternalAPIStreaming(
   if (!apiUrl) return null;
 
   // IMPORTANT: Must have API key for cloud endpoints
-  if (apiUrl.includes('ollama.com') && !apiKey) {
+  if ((apiUrl.includes('ollama.com') || apiUrl.includes('ollama.ai')) && !apiKey) {
     console.warn('[tryExternalAPI] No OLLAMA_API_KEY set for Ollama Cloud — skipping');
     return null;
   }
@@ -132,11 +132,11 @@ async function tryExternalAPIStreaming(
   }
 
   const isOpenAICompatible =
-    apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('api.ollama.com');
+    apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('api.ollama.ai') || apiUrl.includes('api.ollama.com');
 
-  // Add 15-second timeout to prevent Worker timeout
+  // Add 120-second timeout for large model responses (480B models need time)
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), 120_000);
 
   try {
     const apiResponse = isOpenAICompatible
@@ -565,12 +565,8 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as ChatRequestBody;
     const { messages, mode } = body;
 
-    // Get env config — client-side Settings override takes priority if provided
-    // Security: if client provides a custom URL, only use their API key (not server's)
-    const baseEnv = await getEnvConfig();
-    const env: EnvConfig = body.ollamaUrl
-      ? { OLLAMA_URL: body.ollamaUrl, OLLAMA_API_KEY: body.ollamaApiKey || '' }
-      : { OLLAMA_URL: baseEnv.OLLAMA_URL, OLLAMA_API_KEY: body.ollamaApiKey || baseEnv.OLLAMA_API_KEY };
+    // SEC-05: never let the client override the API key or URL — always use server env
+    const env = await getEnvConfig();
 
     // Get the last user message
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';

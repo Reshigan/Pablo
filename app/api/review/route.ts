@@ -15,12 +15,12 @@ async function getEnvConfig(): Promise<EnvConfig> {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://ollama.com',
+      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://api.ollama.ai/v1',
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || '',
     };
   } catch {
     return {
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com',
+      OLLAMA_URL: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY || '',
     };
   }

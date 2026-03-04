@@ -18,6 +18,7 @@ import { sql } from 'drizzle-orm';
 
 export const sessions = sqliteTable('sessions', {
   id: text('id').primaryKey(),
+  userId: text('user_id'), // SEC-03: multi-tenancy — every session is scoped to a user
   title: text('title').notNull().default('Untitled Session'),
   repoUrl: text('repo_url'),
   repoBranch: text('repo_branch').default('main'),
