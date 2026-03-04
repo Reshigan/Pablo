@@ -554,10 +554,19 @@ export function ChatPanel() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    const msg = input;
+    let msg = input.trim();
     const intent = detectIntentFromInput(msg);
     setInput('');
     setDetectedIntent('chat');
+
+    // Include attachments in message content for all routing paths
+    if (attachments.length > 0) {
+      const attachmentText = attachments
+        .map((att) => `\n\n--- Attached: ${att.name} ---\n${att.content}`)
+        .join('');
+      msg += attachmentText;
+      setAttachments([]);
+    }
 
     // Priority: check for multi-agent orchestration first (complex multi-domain tasks)
     if (shouldOrchestrate(msg)) {

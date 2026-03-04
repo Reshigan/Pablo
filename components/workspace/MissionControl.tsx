@@ -8,25 +8,7 @@
  *   - Individual worker cards with title, status, files, duration
  */
 
-import { useState, useEffect, useCallback } from 'react';
-
-interface WorkerStatus {
-  id: string;
-  title: string;
-  type: string;
-  status: 'pending' | 'running' | 'complete' | 'failed';
-  files: string[];
-  durationMs?: number;
-}
-
-interface OrchestrationState {
-  phase: 'idle' | 'planning' | 'executing' | 'merging' | 'verifying' | 'done' | 'failed';
-  workers: WorkerStatus[];
-  totalFiles: number;
-  totalTokens: number;
-  totalDurationMs: number;
-  summary?: string;
-}
+import { useAgentStore } from '@/stores/agent';
 
 const PHASE_LABELS: Record<string, string> = {
   idle: 'Idle',
@@ -56,24 +38,29 @@ const STATUS_ICONS: Record<string, string> = {
 };
 
 export function MissionControl() {
-  const [state, setState] = useState<OrchestrationState>({
-    phase: 'idle',
-    workers: [],
-    totalFiles: 0,
-    totalTokens: 0,
-    totalDurationMs: 0,
-  });
+  const orchestration = useAgentStore(s => s.orchestration);
 
-  const handleEvent = useCallback((event: MessageEvent) => {
-    if (event.data?.type === 'orchestration:update') {
-      setState(event.data.state as OrchestrationState);
-    }
-  }, []);
-
-  useEffect(() => {
-    window.addEventListener('message', handleEvent);
-    return () => window.removeEventListener('message', handleEvent);
-  }, [handleEvent]);
+  // Map store state to component display shape
+  const state = {
+    phase: orchestration.phase,
+    workers: orchestration.workers.map(w => ({
+      id: w.id,
+      title: w.title,
+      type: w.type,
+      status: w.status === 'executing' ? 'running' as const
+        : w.status === 'done' ? 'complete' as const
+        : w.status === 'failed' ? 'failed' as const
+        : 'pending' as const,
+      files: w.assignedFiles,
+      durationMs: w.durationMs,
+    })),
+    totalFiles: orchestration.filesChanged,
+    totalTokens: orchestration.totalTokens,
+    totalDurationMs: orchestration.startedAt
+      ? (orchestration.completedAt || Date.now()) - orchestration.startedAt
+      : 0,
+    summary: orchestration.summary,
+  };
 
   if (state.phase === 'idle' && state.workers.length === 0) {
     return (
