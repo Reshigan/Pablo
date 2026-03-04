@@ -20,7 +20,7 @@
   ],
   "vars": {
     "ENVIRONMENT": "production",
-    "OLLAMA_URL": "https://ollama.com",
+    "OLLAMA_URL": "https://api.ollama.com/v1",
     "NEXTAUTH_URL": "https://pablo.vantax.co.za"
   }
 }
