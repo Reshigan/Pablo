@@ -101,7 +101,7 @@ export async function loadRepoFiles(
 
   // Step 1: Get the full tree recursively
   const treeRes = await fetch(
-    `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`,
+    `https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
