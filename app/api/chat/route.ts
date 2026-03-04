@@ -578,7 +578,7 @@ export async function POST(request: NextRequest) {
         // Ensure session exists in D1
         let dbSession = await d1GetSession(sessionId);
         if (!dbSession) {
-          dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
+          dbSession = await d1CreateSession({ userId: session.user?.email || session.user?.name || null, title: lastUserMessage.slice(0, 80) });
           sessionId = dbSession.id;
         }
         await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
