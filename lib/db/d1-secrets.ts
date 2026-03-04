@@ -104,11 +104,8 @@ export async function d1UpsertSecret(
         .set({ value: encValue, updatedAt: now })
         .where(eq(secrets.id, existing[0].id));
 
-      const updated = await d1
-        .select()
-        .from(secrets)
-        .where(eq(secrets.id, existing[0].id));
-      return updated[0] as unknown as D1Secret;
+      // Return plaintext value (not the encrypted DB row)
+      return { ...(existing[0] as unknown as D1Secret), value, updatedAt: now };
     }
 
     // Create new — SEC-02: encrypt before storing

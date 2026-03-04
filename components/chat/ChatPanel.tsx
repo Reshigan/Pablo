@@ -846,12 +846,13 @@ export function ChatPanel() {
 
         const { evaluateRepo } = await import('@/lib/agents/repoEvaluator');
 
-        // Get env config from server-side chat endpoint (no client env needed)
-        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = {};
+        // Fetch LLM config from scoped server endpoint (SEC-05 safe)
+        const envRes = await fetch('/api/env-config');
+        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = envRes.ok ? await envRes.json() : {};
 
         const result = await evaluateRepo(
           files,
-          env as { OLLAMA_URL?: string; OLLAMA_API_KEY?: string },
+          env,
           (msg) => updateMessage(assistantId, { content: msg }),
         );
 
@@ -910,13 +911,15 @@ export function ChatPanel() {
 
         updateMessage(assistantId, { content: `Running ${mode} pipeline on ${files.length} files...` });
 
-        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = {};
+        // Fetch LLM config from scoped server endpoint (SEC-05 safe)
+        const envRes = await fetch('/api/env-config');
+        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = envRes.ok ? await envRes.json() : {};
 
         const result = await runIncrementalPipeline(
           content.trim(),
           mode,
           files,
-          env as { OLLAMA_URL?: string; OLLAMA_API_KEY?: string },
+          env,
           (progress) => {
             updateMessage(assistantId, {
               content: `[${progress.stage}] ${progress.message} (${progress.progress}%)`,

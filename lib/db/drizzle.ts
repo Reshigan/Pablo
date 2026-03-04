@@ -39,6 +39,10 @@ export async function getD1(): Promise<ReturnType<typeof import('drizzle-orm/d1'
     const schema = await import('./schema');
     return drizzle(d1 as unknown as Parameters<typeof drizzle>[0], { schema });
   } catch (err) {
+    // REL-02: re-throw DB-binding errors in production (don't swallow them)
+    if (err instanceof Error && err.message.includes('DB binding not found')) {
+      throw err;
+    }
     console.error('[getD1] Failed to get D1:', err instanceof Error ? err.message : err);
     return null;
   }

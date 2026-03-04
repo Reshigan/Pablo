@@ -13,7 +13,11 @@ export async function GET() {
 
   try {
     // SEC-03: scope sessions to authenticated user
-    const userId = session.user?.email || session.user?.name || undefined;
+    const userId = session.user?.email || session.user?.name;
+    if (!userId) {
+      console.error('SEC-03: authenticated user has no email or name — cannot scope sessions');
+      return Response.json([], { status: 200 });
+    }
     const sessions = await d1ListSessions(userId);
     return Response.json(sessions);
   } catch (err) {
