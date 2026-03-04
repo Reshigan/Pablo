@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket, Search, Wrench, Mic } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket, Search, Wrench, Mic, RotateCw } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -61,6 +61,7 @@ export function ChatPanel() {
     isStreaming,
     error,
     addMessage,
+    removeMessage,
     appendToMessage,
     updateMessage,
     setStreaming,
@@ -71,6 +72,7 @@ export function ChatPanel() {
 
   const [input, setInput] = useState('');
   const [detectedIntent, setDetectedIntent] = useState<'chat' | 'build' | 'evaluate' | 'fix'>('chat');
+  const [manualMode, setManualMode] = useState<'auto' | 'chat' | 'build' | 'evaluate' | 'fix'>('auto');
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -551,7 +553,8 @@ export function ChatPanel() {
     if (!input.trim()) return;
     let msg = input.trim();
     const rawMsg = msg; // Save raw input before attachments for routing decisions
-    const intent = detectIntentFromInput(msg);
+    const autoIntent = detectIntentFromInput(msg);
+    const intent = manualMode === 'auto' ? autoIntent : manualMode;
     setInput('');
     setDetectedIntent('chat');
 
@@ -564,7 +567,7 @@ export function ChatPanel() {
       setAttachments([]);
     }
 
-    // Route by detected intent first, then check for orchestration on build/chat
+    // Route by selected/detected intent, then check for orchestration on build/chat
     // Use rawMsg (without attachments) for shouldOrchestrate to avoid false positives from code content
     if (intent === 'evaluate') {
       handleEvaluate(msg);
@@ -1014,28 +1017,76 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Auto-detected intent pill (shown when typing) */}
-      {detectedIntent !== 'chat' && (
-        <div className="flex items-center gap-2 border-b border-pablo-border px-3 py-1">
-          <span className="font-ui text-[10px] text-pablo-text-muted">Detected:</span>
-          <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-ui text-[10px] font-medium ${
-            detectedIntent === 'build' ? 'bg-pablo-gold/20 text-pablo-gold' :
-            detectedIntent === 'evaluate' ? 'bg-blue-500/20 text-blue-400' :
-            detectedIntent === 'fix' ? 'bg-orange-500/20 text-orange-400' :
-            'bg-pablo-hover text-pablo-text-dim'
-          }`}>
-            {detectedIntent === 'build' && <Rocket size={10} />}
-            {detectedIntent === 'evaluate' && <Search size={10} />}
-            {detectedIntent === 'fix' && <Wrench size={10} />}
-            {detectedIntent.charAt(0).toUpperCase() + detectedIntent.slice(1)}
+      {/* Mode selector + auto-detected intent */}
+      <div className="flex items-center gap-2 border-b border-pablo-border px-3 py-1">
+        {(['auto', 'chat', 'build', 'evaluate', 'fix'] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => setManualMode(mode)}
+            className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-ui text-[10px] font-medium transition-colors ${
+              manualMode === mode
+                ? mode === 'build' ? 'bg-pablo-gold/20 text-pablo-gold'
+                  : mode === 'evaluate' ? 'bg-blue-500/20 text-blue-400'
+                  : mode === 'fix' ? 'bg-orange-500/20 text-orange-400'
+                  : 'bg-pablo-hover text-pablo-text'
+                : 'text-pablo-text-muted hover:text-pablo-text-dim hover:bg-pablo-hover/50'
+            }`}
+          >
+            {mode === 'build' && <Rocket size={10} />}
+            {mode === 'evaluate' && <Search size={10} />}
+            {mode === 'fix' && <Wrench size={10} />}
+            {mode === 'auto' && <Cpu size={10} />}
+            {mode === 'chat' && <MessageSquare size={10} />}
+            {mode.charAt(0).toUpperCase() + mode.slice(1)}
+          </button>
+        ))}
+        {manualMode === 'auto' && detectedIntent !== 'chat' && (
+          <span className="ml-1 font-ui text-[10px] text-pablo-text-muted">
+            detected: {detectedIntent}
           </span>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Error banner */}
+      {/* Error banner with retry */}
       {error && (
         <div className="shrink-0 border-b border-pablo-red/20 bg-pablo-red/10 px-3 py-1.5">
-          <p className="font-ui text-xs text-pablo-red">{error}</p>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <AlertTriangle size={12} className="shrink-0 text-pablo-red" />
+              <p className="font-ui text-xs text-pablo-red truncate">
+                {error.includes('fetch') || error.includes('connect')
+                  ? 'Could not reach AI backend. Check your connection and try again.'
+                  : error}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                // Retry last user message: remove the failed user+assistant msgs first to avoid duplicates
+                const lastUserMsg = messages.filter(m => m.role === 'user').pop();
+                if (lastUserMsg) {
+                  // Remove the failed assistant message (if any) that followed the user message
+                  const lastUserIdx = messages.findIndex(m => m.id === lastUserMsg.id);
+                  const failedAssistant = messages.slice(lastUserIdx + 1).find(m => m.role === 'assistant');
+                  if (failedAssistant) removeMessage(failedAssistant.id);
+                  // Remove the original user message so send functions can re-add it
+                  removeMessage(lastUserMsg.id);
+                  const intent = manualMode === 'auto' ? detectIntentFromInput(lastUserMsg.content) : manualMode;
+                  if (intent === 'evaluate') handleEvaluate(lastUserMsg.content);
+                  else if (intent === 'fix') handleFix(lastUserMsg.content);
+                  else if (shouldOrchestrate(lastUserMsg.content)) sendOrchestratedMessage(lastUserMsg.content);
+                  else if (intent === 'build') sendAgentMessage(lastUserMsg.content);
+                  else sendMessage(lastUserMsg.content);
+                }
+              }}
+              className="flex shrink-0 items-center gap-1 rounded bg-pablo-red/20 px-2 py-0.5 font-ui text-[10px] text-pablo-red transition-colors hover:bg-pablo-red/30"
+            >
+              <RotateCw size={10} />
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
@@ -1178,7 +1229,12 @@ export function ChatPanel() {
                 }
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Describe what you want to build..."
+              placeholder={
+                manualMode === 'build' ? 'Describe the app you want to build...' :
+                manualMode === 'evaluate' ? 'Which repo or code should I evaluate?' :
+                manualMode === 'fix' ? 'Describe the bug or paste the error...' :
+                'Ask anything, describe a feature, or paste an error...'
+              }
               className="max-h-32 min-h-[36px] flex-1 resize-none bg-transparent font-ui text-sm text-pablo-text outline-none placeholder:text-pablo-text-muted"
               rows={1}
             />
@@ -1265,7 +1321,7 @@ export function ChatPanel() {
               Enter to send, Shift+Enter for new line
             </span>
             <span className="font-ui text-[10px] text-pablo-text-muted">
-              Auto-routing
+              Mode: {manualMode === 'auto' ? 'Auto' : manualMode.charAt(0).toUpperCase() + manualMode.slice(1)}
             </span>
           </div>
         </form>

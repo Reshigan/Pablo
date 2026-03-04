@@ -102,15 +102,25 @@ export function CodeEditor() {
           const selection = editorInstance.getSelection();
           if (!selection || selection.isEmpty()) return;
 
-          // Position popover near the selection
+          // Position popover near the selection, clamped to viewport
           const coords = editorInstance.getScrolledVisiblePosition(selection.getStartPosition());
           if (coords) {
             const editorDom = editorInstance.getDomNode();
             const rect = editorDom?.getBoundingClientRect();
-            setInlineEditPos({
-              top: coords.top + (rect?.top ?? 0) + coords.height + 4,
-              left: coords.left + (rect?.left ?? 0),
-            });
+            const popoverWidth = 320;
+            const popoverHeight = 36;
+            let top = coords.top + (rect?.top ?? 0) + coords.height + 4;
+            let left = coords.left + (rect?.left ?? 0);
+            // Clamp to viewport edges
+            if (left + popoverWidth > window.innerWidth - 16) {
+              left = window.innerWidth - popoverWidth - 16;
+            }
+            if (left < 16) left = 16;
+            if (top + popoverHeight > window.innerHeight - 16) {
+              top = coords.top + (rect?.top ?? 0) - popoverHeight - 4;
+            }
+            if (top < 16) top = 16;
+            setInlineEditPos({ top, left });
           }
           setInlineEditVisible(true);
           setInlineEditInput('');

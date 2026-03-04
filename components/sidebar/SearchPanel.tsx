@@ -14,6 +14,14 @@ interface SearchResult {
   matchEnd: number;
 }
 
+interface GitHubContentItem {
+  content?: string;
+  encoding?: string;
+  name: string;
+  path: string;
+  type: string;
+}
+
 interface GitHubSearchItem {
   name: string;
   path: string;
@@ -37,6 +45,7 @@ export function SearchPanel() {
   const [hasSearched, setHasSearched] = useState(false);
 
   const selectedRepo = useRepoStore((s) => s.selectedRepo);
+  const selectedBranch = useRepoStore((s) => s.selectedBranch);
   const openFile = useEditorStore((s) => s.openFile);
 
   // Search across open editor tabs (local search — always available)
@@ -174,22 +183,44 @@ export function SearchPanel() {
   );
 
   const handleResultClick = useCallback(
-    (result: SearchResult) => {
+    async (result: SearchResult) => {
       if (!selectedRepo) return;
-      const ext = result.file.split('.').pop()?.toLowerCase() ?? '';
-      const langMap: Record<string, string> = {
-        ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
-        json: 'json', md: 'markdown', css: 'css', py: 'python', rs: 'rust', go: 'go',
-      };
-      openFile({
-        id: `${selectedRepo.full_name}:${result.file}`,
-        path: result.file,
-        name: result.file.split('/').pop() ?? result.file,
-        language: langMap[ext] ?? 'plaintext',
-        content: `// Loading ${result.file}...`,
-      });
+      const filename = result.file.split('/').pop() ?? result.file;
+      const tabId = `${selectedRepo.full_name}:${result.file}`;
+
+      try {
+        const params = new URLSearchParams({ repo: selectedRepo.full_name, path: result.file, ref: selectedBranch });
+        const response = await fetch(`/api/github/contents?${params.toString()}`);
+        if (!response.ok) throw new Error('Fetch failed');
+        const data = (await response.json()) as GitHubContentItem;
+        const content = data.content && data.encoding === 'base64'
+          ? new TextDecoder().decode(Uint8Array.from(atob(data.content), c => c.charCodeAt(0)))
+          : (data.content ?? '');
+        const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+        const langMap: Record<string, string> = {
+          ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
+          json: 'json', md: 'markdown', css: 'css', scss: 'scss', html: 'html',
+          py: 'python', rs: 'rust', go: 'go', sql: 'sql', yaml: 'yaml', yml: 'yaml',
+        };
+        openFile({
+          id: tabId,
+          path: result.file,
+          name: filename,
+          language: langMap[ext] ?? 'plaintext',
+          content,
+        });
+      } catch {
+        // On error, open with error placeholder
+        openFile({
+          id: tabId,
+          path: result.file,
+          name: filename,
+          language: 'plaintext',
+          content: `// Failed to load ${result.file}`,
+        });
+      }
     },
-    [selectedRepo, openFile]
+    [selectedRepo, selectedBranch, openFile]
   );
 
   const toggleFile = useCallback((file: string) => {

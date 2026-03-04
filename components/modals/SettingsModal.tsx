@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Settings, Cpu, Palette, Keyboard, Database, Globe } from 'lucide-react';
 import { useUIStore } from '@/stores/ui';
-import { toastSuccess } from '@/stores/toast';
+import { toastSuccess, toastError } from '@/stores/toast';
 
 function usePersistedSetting<T>(key: string, defaultValue: T): [T, (value: T) => void] {
   const [value, setValue] = useState<T>(() => {
@@ -95,6 +95,27 @@ function ModelSettings() {
   const [reasoningTemp, setReasoningTemp] = usePersistedSetting('reasoningTemp', 70);
   const [codeTemp, setCodeTemp] = usePersistedSetting('codeTemp', 30);
   const [ollamaEndpoint, setOllamaEndpoint] = usePersistedSetting('ollamaEndpoint', 'http://localhost:11434');
+  const [ollamaApiKey, setOllamaApiKey] = usePersistedSetting('ollamaApiKey', '');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [savingApiKey, setSavingApiKey] = useState(false);
+
+  const saveApiKeyToVault = useCallback(async () => {
+    if (!ollamaApiKey.trim() || savingApiKey) return;
+    setSavingApiKey(true);
+    try {
+      const res = await fetch('/api/secrets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: 'global', key: 'OLLAMA_API_KEY', value: ollamaApiKey.trim() }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toastSuccess('Saved', 'Ollama API key stored in Secrets Vault');
+    } catch {
+      toastError('Save failed', 'Could not store API key in Secrets Vault');
+    } finally {
+      setSavingApiKey(false);
+    }
+  }, [ollamaApiKey, savingApiKey]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -160,13 +181,59 @@ function ModelSettings() {
           onChange={(e) => setOllamaEndpoint(e.target.value)}
           className="rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-code text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
         />
+        <p className="font-ui text-[10px] text-pablo-text-muted">
+          Used only if you run your own Ollama. Pablo Cloud defaults to Ollama Cloud.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="font-ui text-xs text-pablo-text-dim">Ollama API Key</label>
+        <div className="flex gap-2">
+          <input
+            type={showApiKey ? 'text' : 'password'}
+            value={ollamaApiKey}
+            onChange={(e) => setOllamaApiKey(e.target.value)}
+            placeholder="Optional"
+            className="flex-1 rounded border border-pablo-border bg-pablo-input px-2 py-1.5 font-code text-xs text-pablo-text outline-none focus:border-pablo-gold/50"
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKey((v) => !v)}
+            className="rounded border border-pablo-border bg-pablo-active px-2 py-1.5 font-ui text-xs text-pablo-text-dim transition-colors hover:bg-pablo-hover"
+          >
+            {showApiKey ? 'Hide' : 'Show'}
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="font-ui text-[10px] text-pablo-text-muted">
+            Stored locally. Use Secrets Vault to persist across devices.
+          </p>
+          <button
+            type="button"
+            onClick={saveApiKeyToVault}
+            disabled={!ollamaApiKey.trim() || savingApiKey}
+            className="rounded bg-pablo-gold/10 px-2 py-1 font-ui text-[10px] text-pablo-gold transition-colors hover:bg-pablo-gold/20 disabled:opacity-40"
+          >
+            {savingApiKey ? 'Saving…' : 'Save to Vault'}
+          </button>
+        </div>
       </div>
     </div>
   );
 }
 
 function AppearanceSettings() {
+  const [theme, setTheme] = usePersistedSetting<'dark' | 'light'>('theme', 'dark');
   const [fontSize, setFontSize] = usePersistedSetting('fontSize', '13px (Default)');
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (theme === 'dark') {
+      document.documentElement.removeAttribute('data-theme');
+    } else {
+      document.documentElement.setAttribute('data-theme', theme);
+    }
+  }, [theme]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -175,15 +242,34 @@ function AppearanceSettings() {
       <div className="flex flex-col gap-1">
         <label className="font-ui text-xs text-pablo-text-dim">Theme</label>
         <div className="flex gap-2">
-          <div className="flex-1 rounded-lg border-2 border-pablo-gold bg-pablo-bg p-3 text-center">
-            <div className="mb-1 text-xs text-pablo-gold">●</div>
-            <span className="font-ui text-[10px] text-pablo-text-dim">Dark (Default)</span>
-          </div>
-          <div className="flex-1 rounded-lg border border-pablo-border bg-pablo-panel p-3 text-center opacity-40">
-            <div className="mb-1 text-xs text-pablo-text-muted">●</div>
-            <span className="font-ui text-[10px] text-pablo-text-muted">Light (N/A)</span>
-          </div>
+          <button
+            type="button"
+            onClick={() => { setTheme('dark'); toastSuccess('Setting saved', 'Theme set to Dark'); }}
+            className={`flex-1 rounded-lg border p-3 text-center transition-colors ${
+              theme === 'dark'
+                ? 'border-pablo-gold bg-pablo-bg'
+                : 'border-pablo-border bg-pablo-panel hover:bg-pablo-hover'
+            }`}
+          >
+            <div className={`mb-1 text-xs ${theme === 'dark' ? 'text-pablo-gold' : 'text-pablo-text-muted'}`}>●</div>
+            <span className={`font-ui text-[10px] ${theme === 'dark' ? 'text-pablo-text-dim' : 'text-pablo-text-muted'}`}>Dark</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setTheme('light'); toastSuccess('Setting saved', 'Theme set to Light'); }}
+            className={`flex-1 rounded-lg border p-3 text-center transition-colors ${
+              theme === 'light'
+                ? 'border-pablo-gold bg-pablo-panel'
+                : 'border-pablo-border bg-pablo-panel hover:bg-pablo-hover'
+            }`}
+          >
+            <div className={`mb-1 text-xs ${theme === 'light' ? 'text-pablo-gold' : 'text-pablo-text-muted'}`}>●</div>
+            <span className={`font-ui text-[10px] ${theme === 'light' ? 'text-pablo-text-dim' : 'text-pablo-text-muted'}`}>Light</span>
+          </button>
         </div>
+        <p className="font-ui text-[10px] text-pablo-text-muted">
+          Light theme is experimental.
+        </p>
       </div>
 
       <div className="flex flex-col gap-1">
