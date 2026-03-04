@@ -12,6 +12,8 @@ import { DependencyManager } from './DependencyManager';
 import { DeployLogs } from './DeployLogs';
 import { BugScannerPanel } from './BugScannerPanel';
 import { TerminalPanel } from './Terminal';
+import { MissionControl } from './MissionControl';
+import { CostDashboard } from './CostDashboard';
 import { useUIStore } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
 
@@ -46,6 +48,8 @@ export function WorkspaceArea() {
     'deploy-logs': DeployLogs,
     bugs: BugScannerPanel,
     terminal: TerminalPanel,
+    'mission-control': MissionControl,
+    costs: CostDashboard,
   };
 
   const ActivePanel = panels[activeWorkspaceTab];

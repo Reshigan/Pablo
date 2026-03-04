@@ -10,6 +10,7 @@ import {
   Terminal as TerminalIcon,
   Play,
   Wrench,
+  Crosshair,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
@@ -97,6 +98,8 @@ export function LivePreview() {
   const [showTerminal, setShowTerminal] = useState(false);
   const [pyodideOutput, setPyodideOutput] = useState<string>('');
   const [isAutoFixing, setIsAutoFixing] = useState(false);
+  const [inspectMode, setInspectMode] = useState(false);
+  const [selectedElement, setSelectedElement] = useState<{ tagName: string; className: string; componentName?: string; selector: string } | null>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const prevFilesRef = useRef<string>('');
@@ -152,6 +155,32 @@ export function LivePreview() {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [terminalLog, pyodideOutput]);
+
+  // Preview bridge: listen for element selection from iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'pablo:element:selected') {
+        setSelectedElement(e.data.element);
+        setInspectMode(false);
+        // Notify iframe to stop inspect mode
+        iframeRef.current?.contentWindow?.postMessage({ type: 'pablo:inspect:stop' }, '*');
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  const toggleInspect = useCallback(() => {
+    const next = !inspectMode;
+    setInspectMode(next);
+    if (next) {
+      setSelectedElement(null);
+      // Inject bridge script and start inspect
+      iframeRef.current?.contentWindow?.postMessage({ type: 'pablo:inspect:start' }, '*');
+    } else {
+      iframeRef.current?.contentWindow?.postMessage({ type: 'pablo:inspect:stop' }, '*');
+    }
+  }, [inspectMode]);
 
   // Static HTML preview
   const previewHtml = useMemo(() => {
@@ -410,6 +439,17 @@ export function LivePreview() {
           </div>
         )}
 
+        {/* Inspect mode toggle (Preview Bridge) */}
+        <button
+          onClick={toggleInspect}
+          className={`flex h-6 w-6 items-center justify-center rounded transition-colors ${
+            inspectMode ? 'bg-pablo-gold/20 text-pablo-gold' : 'text-pablo-text-muted hover:bg-pablo-hover'
+          }`}
+          title="Inspect element"
+        >
+          <Crosshair size={12} />
+        </button>
+
         <button onClick={refresh}
           className="flex h-6 w-6 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover">
           <RefreshCw size={12} />
@@ -509,6 +549,29 @@ export function LivePreview() {
             ) : null}
           </div>
         </div>
+
+        {/* Selected element info (Preview Bridge) */}
+        {selectedElement && (
+          <div className="shrink-0 border-t border-pablo-border bg-pablo-panel px-3 py-1.5">
+            <div className="flex items-center gap-2">
+              <Crosshair size={10} className="text-pablo-gold" />
+              <span className="font-code text-[10px] text-pablo-text-dim">
+                &lt;{selectedElement.tagName.toLowerCase()}{selectedElement.className ? ` class="${selectedElement.className.slice(0, 40)}"` : ''}&gt;
+              </span>
+              {selectedElement.componentName && (
+                <span className="rounded bg-pablo-gold/10 px-1.5 py-0.5 font-code text-[9px] text-pablo-gold">
+                  {selectedElement.componentName}
+                </span>
+              )}
+              <button
+                onClick={() => setSelectedElement(null)}
+                className="ml-auto text-pablo-text-muted hover:text-pablo-text-dim"
+              >
+                <span className="font-code text-[9px]">dismiss</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Terminal output panel */}
         {showTerminal && (

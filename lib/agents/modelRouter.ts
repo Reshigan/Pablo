@@ -210,7 +210,30 @@ export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LL
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NON_STREAMING_TIMEOUT_MS);
   try {
-    return await callOllamaCloud(request, startTime, env, controller.signal);
+    const result = await callOllamaCloud(request, startTime, env, controller.signal);
+
+    // Cost tracking: log this LLM call asynchronously (fire-and-forget)
+    try {
+      const { estimateCost } = await import('@/lib/db/d1-costs');
+      const cost = estimateCost(result.model, result.tokens_used, Math.round(result.tokens_used * 0.8));
+      // Log cost event for tracking (non-blocking)
+      void fetch('/api/costs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: result.model,
+          tokensIn: result.tokens_used,
+          tokensOut: Math.round(result.tokens_used * 0.8),
+          durationMs: result.duration_ms,
+          costUsd: cost,
+          source: request.model.description || 'model-router',
+        }),
+      }).catch(() => { /* non-blocking */ });
+    } catch {
+      // Cost tracking failure should never block the response
+    }
+
+    return result;
   } finally {
     clearTimeout(timer);
   }

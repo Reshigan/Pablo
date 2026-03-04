@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket, Search, Wrench } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket, Search, Wrench, Mic } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -84,9 +84,11 @@ export function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
-  const { startRun, processEvent, completeRun, failRun, isRunning: agentRunning } = useAgentStore();
+  const { startRun, processEvent, completeRun, failRun, isRunning: agentRunning, processOrchestratorEvent, resetOrchestration } = useAgentStore();
   const { selectedRepo, selectedBranch } = useRepoStore();
   const { setActiveWorkspaceTab } = useUIStore();
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -315,6 +317,12 @@ export function ChatPanel() {
       // If agent mode is on, route through agent engine (with attachments included)
       // Auto-detect intent for routing
       const intent = detectIntentFromInput(fullContent);
+
+      // Check if this is a complex multi-domain task that should use orchestration
+      if (shouldOrchestrate(fullContent)) {
+        return sendOrchestratedMessage(fullContent);
+      }
+
       if (intent === 'build') {
         return sendAgentMessage(fullContent);
       }
@@ -589,6 +597,186 @@ export function ChatPanel() {
   const removeAttachment = useCallback((index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
+
+  /**
+   * Check if a message should use multi-agent orchestration
+   * (complex multi-domain tasks with 3+ requirement indicators)
+   */
+  const shouldOrchestrate = useCallback((text: string): boolean => {
+    const indicators = [
+      /auth/i, /crud/i, /dashboard/i, /api/i, /database/i,
+      /login/i, /register/i, /pipeline/i, /report/i, /export/i,
+      /import/i, /notification/i, /email/i, /payment/i, /invoice/i,
+      /search/i, /filter/i, /sort/i, /upload/i, /admin/i,
+    ];
+    return indicators.filter(p => p.test(text)).length >= 3;
+  }, []);
+
+  /**
+   * Send message through the Multi-Agent Orchestrator
+   */
+  const sendOrchestratedMessage = useCallback(
+    async (content: string) => {
+      if (!content.trim() || isStreaming) return;
+
+      resetOrchestration();
+      addMessage({ role: 'user', content: content.trim() });
+      const assistantId = addMessage({ role: 'assistant', content: '', isStreaming: true });
+      setStreaming(true);
+      setError(null);
+      setActiveWorkspaceTab('mission-control');
+
+      try {
+        const controller = new AbortController();
+        abortRef.current = controller;
+
+        const editorState = useEditorStore.getState();
+        const existingFiles: Record<string, string> = {};
+        for (const tab of editorState.tabs) {
+          if (tab.content && tab.path) {
+            existingFiles[tab.path] = tab.content;
+          }
+        }
+
+        const response = await fetch('/api/orchestrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: content.trim(),
+            existingFiles,
+          }),
+          signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error(`Orchestrator API error: ${response.status}`);
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error('No response body');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let streamContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data: ')) continue;
+            const data = trimmed.slice(6);
+            if (data === '[DONE]') break;
+
+            try {
+              const event = JSON.parse(data);
+              processOrchestratorEvent(event);
+
+              // Build message content from events
+              if (event.type === 'thinking' && event.content) {
+                streamContent += `> ${event.content}\n`;
+              } else if (event.type === 'file_written') {
+                streamContent += `### ${event.path}\n\`\`\`${event.language}\n${event.content}\n\`\`\`\n\n`;
+              } else if (event.type === 'done') {
+                streamContent += `\n---\n\n**${event.summary}**\n`;
+              } else if (event.type === 'error') {
+                streamContent += `\n**Error:** ${event.message}\n`;
+              }
+
+              updateMessage(assistantId, { content: streamContent });
+            } catch {
+              // Skip unparseable events
+            }
+          }
+        }
+
+        updateMessage(assistantId, { isStreaming: false });
+
+        // Parse generated files and open as diffs
+        const finalContent = useChatStore.getState().messages.find((m) => m.id === assistantId)?.content ?? '';
+        const parsedFiles = parseGeneratedFiles(finalContent);
+        if (parsedFiles.length > 0) {
+          const edStore = useEditorStore.getState();
+          for (const file of parsedFiles) {
+            const fileId = generateId('orch');
+            const existingTab = edStore.tabs.find((t) => t.path === file.filename);
+            edStore.addDiff({
+              fileId,
+              filename: file.filename,
+              language: file.language,
+              oldContent: existingTab?.content ?? '',
+              newContent: file.content,
+            });
+          }
+          useToastStore.getState().addToast({
+            type: 'success',
+            title: 'Orchestration Complete',
+            message: `${parsedFiles.length} file(s) ready for review in Diff tab`,
+            duration: 5000,
+          });
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          updateMessage(assistantId, {
+            isStreaming: false,
+            content: (useChatStore.getState().messages.find((m) => m.id === assistantId)?.content ?? '') + '\n\n*[Orchestration stopped]*',
+          });
+        } else {
+          const errorMsg = err instanceof Error ? err.message : 'Orchestration failed';
+          setError(errorMsg);
+          updateMessage(assistantId, { isStreaming: false, content: `Error: ${errorMsg}` });
+        }
+      } finally {
+        setStreaming(false);
+        abortRef.current = null;
+      }
+    },
+    [isStreaming, addMessage, updateMessage, setStreaming, setError, processOrchestratorEvent, resetOrchestration, setActiveWorkspaceTab]
+  );
+
+  /**
+   * Voice-to-text: record audio and transcribe via /api/transcribe
+   */
+  const toggleVoiceRecording = useCallback(async () => {
+    if (isRecording) {
+      // Stop recording
+      mediaRecorderRef.current?.stop();
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
+
+        try {
+          const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
+          if (res.ok) {
+            const { text } = await res.json() as { text: string };
+            if (text) setInput(prev => prev + (prev ? ' ' : '') + text);
+          }
+        } catch {
+          // Transcription failed silently
+        }
+      };
+
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch {
+      // Microphone access denied
+    }
+  }, [isRecording]);
 
   /**
    * Detect user intent from input to auto-suggest mode
@@ -1005,6 +1193,19 @@ export function ChatPanel() {
                 title="Attach document"
               >
                 <Paperclip size={14} />
+              </button>
+              <button
+                type="button"
+                onClick={toggleVoiceRecording}
+                className={`flex h-7 w-7 items-center justify-center rounded-md transition-colors duration-150 ${
+                  isRecording
+                    ? 'text-pablo-red animate-pulse hover:bg-pablo-red/10'
+                    : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+                }`}
+                aria-label={isRecording ? 'Stop recording' : 'Voice input'}
+                title={isRecording ? 'Stop recording' : 'Voice-to-text'}
+              >
+                <Mic size={14} />
               </button>
               {isStreaming ? (
                 <button
