@@ -23,6 +23,14 @@ import {
   Rocket,
   ExternalLink,
   AlertCircle,
+  Sparkles,
+  Download,
+  Share2,
+  LayoutTemplate,
+  TestTube2,
+  ShieldCheck,
+  Container,
+  Cloud,
   ImageIcon,
 } from 'lucide-react';
 import { useState, useCallback, useRef } from 'react';
@@ -41,11 +49,15 @@ import {
 import { useAgentStore, type AgentPhase, type AgentRunState } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
-import { useToastStore } from '@/stores/toast';
+import { useToastStore, toast } from '@/stores/toast';
 import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
 import { getDB } from '@/lib/db/drizzle';
+import { enhancePrompt } from '@/lib/agents/promptEnhancer';
+import { useActivityStore } from '@/stores/activity';
+import { TemplatePickerModal } from '@/components/pipeline/TemplatePickerModal';
+import { downloadProjectZip } from '@/lib/export/zipExport';
 
 const STATUS_ICONS: Record<StageStatus, typeof Circle> = {
   pending: Circle,
@@ -477,9 +489,21 @@ For each FAIL, provide the exact code fix as a complete corrected file.`,
 List each issue with severity (critical/warning/info) and a specific fix.`,
   };
 
+  // Feature 11: Inject .pablo project rules if present
+  let pabloRulesBlock = '';
+  try {
+    const pabloTab = useEditorStore.getState().tabs.find(t => t.path === '.pablo' || t.path.endsWith('/.pablo'));
+    if (pabloTab?.content) {
+      pabloRulesBlock = `\n## Project Rules (.pablo)\nThe following project-specific rules MUST be followed:\n${pabloTab.content}\n`;
+    }
+  } catch {
+    // Non-blocking — .pablo rules are optional
+  }
+
   const parts = [
     `Feature: ${featureDescription}`,
     stackBlock,
+    pabloRulesBlock,
     `\nYour task (${stage.label}): ${stageInstructions[stage.id]}`,
     '\nOutput format: For any code, respond with markdown code blocks that include filenames with full paths (e.g. ```tsx src/components/Dashboard.tsx).',
   ];
@@ -813,12 +837,23 @@ function AgentRunCard({ run }: { run: AgentRunState }) {
 
 // ─── Main PipelineView ────────────────────────────────────────────────
 
+/** Suggested next actions after pipeline completion */
+const SUGGESTED_ACTIONS = [
+  { label: 'Add Tests', icon: TestTube2, prompt: 'Add comprehensive unit tests and integration tests for all generated code' },
+  { label: 'Add Auth', icon: ShieldCheck, prompt: 'Add user authentication with JWT, login/register pages, and protected routes' },
+  { label: 'Dockerize', icon: Container, prompt: 'Add Dockerfile, docker-compose.yml, and deployment configuration' },
+  { label: 'Deploy', icon: Cloud, prompt: 'Deploy this project to Cloudflare Pages with production configuration' },
+  { label: 'Download ZIP', icon: Download, prompt: '__ZIP_DOWNLOAD__' },
+];
+
 export function PipelineView() {
   const { runs, startRun, updateStage, advanceStage, completeRun } = usePipelineStore();
   const agentStore = useAgentStore();
   const [featureInput, setFeatureInput] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
+  const [enhanceEnabled, setEnhanceEnabled] = useState(true);
+  const [showTemplates, setShowTemplates] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Feature 8: @-Mentions state
@@ -828,9 +863,45 @@ export function PipelineView() {
   const [mentionDropdownPos, setMentionDropdownPos] = useState({ top: 0, left: 0 });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const handleZipDownload = useCallback(() => {
+    const tabs = useEditorStore.getState().tabs;
+    if (tabs.length === 0) {
+      toast('No files', 'No files to download');
+      return;
+    }
+    const files = tabs.filter(t => t.content).map(t => ({ path: t.path, content: t.content }));
+    downloadProjectZip(files, 'pablo-project').catch(() => {
+      toast('Download failed', 'Could not create ZIP');
+    });
+  }, []);
+
+  const handleSuggestedAction = useCallback((prompt: string) => {
+    if (prompt === '__ZIP_DOWNLOAD__') {
+      handleZipDownload();
+      return;
+    }
+    setFeatureInput(prompt);
+  }, [handleZipDownload]);
+
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
     let description = featureInput.trim();
+
+    // Feature 9: Prompt Enhancement
+    if (enhanceEnabled && description.length < 200) {
+      try {
+        const enhanced = await enhancePrompt(description);
+        if (enhanced && enhanced !== description) {
+          description = enhanced;
+          useActivityStore.getState().addEntry('prompt_enhanced', `Prompt enhanced: "${featureInput.trim().slice(0, 60)}..."`  );
+        }
+      } catch {
+        // Fall back to original prompt
+      }
+    }
+
+    // Feature 21: Activity tracking
+    useActivityStore.getState().addEntry('pipeline_started', `Pipeline started: ${description.slice(0, 80)}...`);
     // Include attached documents in the feature description
     if (attachments.length > 0) {
       const attachmentText = attachments
@@ -1035,7 +1106,7 @@ export function PipelineView() {
       setIsBuilding(false);
       abortRef.current = null;
     }
-  }, [featureInput, isBuilding, attachments, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
+  }, [featureInput, isBuilding, attachments, enhanceEnabled, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -1131,14 +1202,39 @@ export function PipelineView() {
 
   return (
     <div className="flex h-full flex-col bg-pablo-panel">
+      {/* Template Picker Modal */}
+      <TemplatePickerModal
+        open={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelect={(prompt) => setFeatureInput(prompt)}
+      />
+
       {/* Header */}
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-pablo-border px-3">
         <span className="font-ui text-xs font-semibold uppercase tracking-wider text-pablo-text-dim">
           Feature Factory
         </span>
-        <span className="font-ui text-[10px] text-pablo-text-muted">
-          {runs.length} runs
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowTemplates(true)}
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 font-ui text-[10px] text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
+            title="Starter Templates"
+          >
+            <LayoutTemplate size={12} />
+            Templates
+          </button>
+          <button
+            onClick={handleZipDownload}
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 font-ui text-[10px] text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
+            title="Download project as ZIP"
+          >
+            <Download size={12} />
+            ZIP
+          </button>
+          <span className="font-ui text-[10px] text-pablo-text-muted">
+            {runs.length} runs
+          </span>
+        </div>
       </div>
 
       {/* Feature input */}
@@ -1182,6 +1278,20 @@ export function PipelineView() {
               aria-label="Attach document"
             >
               <Paperclip size={14} />
+            </button>
+            {/* Feature 9: Prompt Enhance toggle */}
+            <button
+              type="button"
+              onClick={() => setEnhanceEnabled(!enhanceEnabled)}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-colors ${
+                enhanceEnabled
+                  ? 'border-pablo-gold/30 bg-pablo-gold/10 text-pablo-gold'
+                  : 'border-pablo-border text-pablo-text-muted hover:bg-pablo-hover'
+              }`}
+              title={enhanceEnabled ? 'Prompt enhancement ON' : 'Prompt enhancement OFF'}
+              aria-label="Toggle prompt enhancement"
+            >
+              <Sparkles size={14} />
             </button>
             <button
               onClick={handleStart}
@@ -1296,6 +1406,28 @@ export function PipelineView() {
                 } : undefined}
               />
             ))}
+
+            {/* Feature 20: Suggested Next Actions */}
+            {runs.length > 0 && runs[runs.length - 1].status !== 'running' && (
+              <div className="rounded-lg border border-pablo-border bg-pablo-bg p-3">
+                <p className="mb-2 font-ui text-[10px] font-medium text-pablo-text-dim">Suggested Next Actions</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SUGGESTED_ACTIONS.map((action) => {
+                    const ActionIcon = action.icon;
+                    return (
+                      <button
+                        key={action.label}
+                        onClick={() => handleSuggestedAction(action.prompt)}
+                        className="flex items-center gap-1 rounded-lg border border-pablo-border px-2.5 py-1 font-ui text-[10px] text-pablo-text-dim transition-colors hover:border-pablo-gold/40 hover:bg-pablo-gold/5 hover:text-pablo-gold"
+                      >
+                        <ActionIcon size={11} />
+                        {action.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

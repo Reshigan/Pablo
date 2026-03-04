@@ -16,11 +16,14 @@ import {
   Plus,
   Rocket,
   FolderPlus,
+  Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import { useState, useCallback, useEffect } from 'react';
 import { useRepoStore } from '@/stores/repo';
 import { useEditorStore } from '@/stores/editor';
 import { toast } from '@/stores/toast';
+import { useActivityStore } from '@/stores/activity';
 
 interface CommitData {
   sha: string;
@@ -74,6 +77,11 @@ export function GitPanel() {
   // Deploy state
   const [deploying, setDeploying] = useState(false);
   const [deployProjectName, setDeployProjectName] = useState('');
+
+  // AI Review state (Feature 19)
+  const [showAIReview, setShowAIReview] = useState(false);
+  const [aiReviewing, setAiReviewing] = useState(false);
+  const [aiReviewResult, setAiReviewResult] = useState<string | null>(null);
 
   const dirtyTabs = tabs.filter((t) => t.isDirty);
 
@@ -672,6 +680,88 @@ export function GitPanel() {
                 </div>
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* Feature 19: AI Diff Review */}
+      <div className="border-b border-pablo-border shrink-0">
+        <button
+          onClick={() => setShowAIReview(!showAIReview)}
+          className="flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors hover:bg-pablo-hover"
+        >
+          {showAIReview ? <ChevronDown size={12} className="text-pablo-text-muted" /> : <ChevronRight size={12} className="text-pablo-text-muted" />}
+          <Sparkles size={12} className="text-purple-400" />
+          <span className="font-ui text-[11px] font-medium text-pablo-text-dim">AI Code Review</span>
+        </button>
+        {showAIReview && (
+          <div className="border-t border-pablo-border/50 px-3 py-2">
+            <p className="mb-1.5 font-ui text-[10px] text-pablo-text-muted">
+              AI will review your modified files and suggest improvements
+            </p>
+            <button
+              onClick={async () => {
+                const filesToReview = tabs.filter(t => t.isDirty && t.content);
+                if (filesToReview.length === 0) {
+                  toast('No changes', 'No modified files to review.');
+                  return;
+                }
+                setAiReviewing(true);
+                setAiReviewResult(null);
+                try {
+                  const codeContext = filesToReview
+                    .map(f => `--- ${f.path} ---\n${f.content.slice(0, 2000)}`)
+                    .join('\n\n');
+                  const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      messages: [{
+                        role: 'user',
+                        content: `Review these code changes and suggest improvements. Focus on bugs, security issues, and best practices. Be concise.\n\n${codeContext}`,
+                      }],
+                    }),
+                  });
+                  if (!res.ok) throw new Error('Review failed');
+                  const reader = res.body?.getReader();
+                  if (!reader) throw new Error('No response body');
+                  let result = '';
+                  const decoder = new TextDecoder();
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    for (const line of chunk.split('\n')) {
+                      if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                        try {
+                          const parsed = JSON.parse(line.slice(6)) as { content?: string; done?: boolean };
+                          const content = parsed.content;
+                          if (content) result += content;
+                        } catch { /* skip */ }
+                      }
+                    }
+                  }
+                  setAiReviewResult(result || 'No issues found.');
+                  useActivityStore.getState().addEntry('ai_review', `AI reviewed ${filesToReview.length} file(s)`);
+                } catch {
+                  setAiReviewResult('Review failed — API may be unavailable.');
+                } finally {
+                  setAiReviewing(false);
+                }
+              }}
+              disabled={aiReviewing || dirtyTabs.length === 0}
+              className="flex w-full items-center justify-center gap-1.5 rounded bg-purple-500/20 px-3 py-1 font-ui text-xs font-medium text-purple-300 transition-colors hover:bg-purple-500/30 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {aiReviewing ? <Loader2 size={12} className="animate-spin" /> : <MessageSquare size={12} />}
+              {aiReviewing ? 'Reviewing...' : `Review ${dirtyTabs.length} file(s)`}
+            </button>
+            {aiReviewResult && (
+              <div className="mt-2 max-h-40 overflow-y-auto rounded bg-pablo-bg px-2 py-1.5">
+                <pre className="whitespace-pre-wrap font-code text-[10px] text-pablo-text-dim leading-relaxed">
+                  {aiReviewResult}
+                </pre>
+              </div>
+            )}
           </div>
         )}
       </div>

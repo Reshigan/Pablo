@@ -8,6 +8,10 @@ import {
   BarChart3,
   Plug,
   LayoutList,
+  Activity,
+  History,
+  Flag,
+  KeyRound,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
@@ -18,6 +22,10 @@ import { MemoryPanel } from '@/components/sidebar/MemoryPanel';
 import { MetricsPanel } from '@/components/sidebar/MetricsPanel';
 import { MCPPanel } from '@/components/sidebar/MCPPanel';
 import { SessionsPanel } from '@/components/sidebar/SessionsPanel';
+import { ActivityPanel } from '@/components/sidebar/ActivityPanel';
+import { PromptHistoryPanel } from '@/components/sidebar/PromptHistoryPanel';
+import { CheckpointPanel } from '@/components/sidebar/CheckpointPanel';
+import { SecretsPanel } from '@/components/sidebar/SecretsPanel';
 
 interface SidebarTabConfig {
   id: SidebarTab;
@@ -30,6 +38,10 @@ const tabs: SidebarTabConfig[] = [
   { id: 'files', icon: Files, label: 'File Explorer' },
   { id: 'search', icon: Search, label: 'Search' },
   { id: 'git', icon: GitBranch, label: 'Source Control' },
+  { id: 'activity', icon: Activity, label: 'Activity Feed' },
+  { id: 'history', icon: History, label: 'Prompt History' },
+  { id: 'checkpoints', icon: Flag, label: 'Checkpoints' },
+  { id: 'secrets', icon: KeyRound, label: 'Secrets Vault' },
   { id: 'memory', icon: Brain, label: 'Self-Learning' },
   { id: 'metrics', icon: BarChart3, label: 'Metrics' },
   { id: 'mcp', icon: Plug, label: 'MCP Servers' },
@@ -59,6 +71,10 @@ const panelComponents: Record<SidebarTab, React.ComponentType> = {
   files: FileExplorer,
   search: SearchPanel,
   git: GitPanel,
+  activity: ActivityPanel,
+  history: PromptHistoryPanel,
+  checkpoints: CheckpointPanel,
+  secrets: SecretsPanel,
   memory: MemoryPanel,
   metrics: MetricsPanel,
   mcp: MCPPanel,

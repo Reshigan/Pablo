@@ -1,6 +1,6 @@
 'use client';
 
-import { X, Code2, GitCompareArrows, Database, Globe, TestTube2, Play } from 'lucide-react';
+import { X, Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug } from 'lucide-react';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 
 interface TabConfig {
@@ -16,6 +16,9 @@ const workspaceTabs: TabConfig[] = [
   { id: 'api-tester', label: 'API Tester', icon: TestTube2 },
   { id: 'preview', label: 'Preview', icon: Globe },
   { id: 'pipeline', label: 'Pipeline', icon: Play },
+  { id: 'dependencies', label: 'Packages', icon: Package },
+  { id: 'deploy-logs', label: 'Deploys', icon: Rocket },
+  { id: 'bugs', label: 'Problems', icon: Bug },
 ];
 
 export function WorkspaceTabs() {
