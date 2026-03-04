@@ -734,8 +734,8 @@ export function GitPanel() {
                     for (const line of chunk.split('\n')) {
                       if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                         try {
-                          const parsed = JSON.parse(line.slice(6)) as { choices?: Array<{ delta?: { content?: string } }> };
-                          const content = parsed.choices?.[0]?.delta?.content;
+                          const parsed = JSON.parse(line.slice(6)) as { content?: string; done?: boolean };
+                          const content = parsed.content;
                           if (content) result += content;
                         } catch { /* skip */ }
                       }

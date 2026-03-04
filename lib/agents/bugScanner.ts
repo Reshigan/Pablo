@@ -139,8 +139,8 @@ export async function scanProject(
                 const d = line.slice(6).trim();
                 if (d === '[DONE]') break;
                 try {
-                  const p = JSON.parse(d) as { choices?: Array<{ delta?: { content?: string } }> };
-                  if (p.choices?.[0]?.delta?.content) text += p.choices[0].delta.content;
+                  const p = JSON.parse(d) as { content?: string; done?: boolean };
+                  if (p.content) text += p.content;
                 } catch { /* skip */ }
               }
             }

@@ -307,7 +307,8 @@ export function SearchPanel() {
                   } else {
                     const flags = caseSensitive ? 'g' : 'gi';
                     const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const re = new RegExp(escaped, flags);
+                    const pattern = wholeWord ? `\\b${escaped}\\b` : escaped;
+                    const re = new RegExp(pattern, flags);
                     const before = newContent;
                     newContent = newContent.replace(re, replaceText);
                     if (before !== newContent) replacedCount++;

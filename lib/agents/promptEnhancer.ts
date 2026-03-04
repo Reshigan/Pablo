@@ -58,8 +58,8 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
           const data = line.slice(6).trim();
           if (data === '[DONE]') break;
           try {
-            const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-            const content = parsed.choices?.[0]?.delta?.content;
+            const parsed = JSON.parse(data) as { content?: string; done?: boolean };
+            const content = parsed.content;
             if (content) enhanced += content;
           } catch {
             // Not JSON, might be raw text
