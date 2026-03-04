@@ -19,14 +19,30 @@ import { NextRequest } from 'next/server';
 import { reviewPR, type PRReviewResult } from '@/lib/agents/prReview';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
 
-function verifyGitHubSignature(payload: string, signature: string): boolean {
-  // Use Web Crypto API for Workers compatibility
+async function verifyGitHubSignature(payload: string, signature: string): Promise<boolean> {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
   if (!secret) return false;
+  if (!signature.startsWith('sha256=')) return false;
 
-  // Verify using constant-time comparison (simplified for Edge Runtime)
-  // In production, use proper HMAC verification with Web Crypto
-  return signature.startsWith('sha256=');
+  // HMAC-SHA256 verification using Web Crypto API (Workers-compatible)
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(payload));
+  const expected = 'sha256=' + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Constant-time comparison
+  if (expected.length !== signature.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i++) {
+    mismatch |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+  return mismatch === 0;
 }
 
 async function getEnvConfig(): Promise<EnvConfig> {
@@ -53,7 +69,7 @@ export async function POST(request: NextRequest) {
     const event = request.headers.get('x-github-event');
 
     // Verify webhook signature
-    if (process.env.GITHUB_WEBHOOK_SECRET && !verifyGitHubSignature(rawBody, signature)) {
+    if (process.env.GITHUB_WEBHOOK_SECRET && !(await verifyGitHubSignature(rawBody, signature))) {
       return new Response('Invalid signature', { status: 401 });
     }
 
@@ -62,7 +78,7 @@ export async function POST(request: NextRequest) {
       label?: { name: string };
       issue?: { number: number; title: string; body?: string };
       comment?: { body: string };
-      pull_request?: { number: number; title: string; body?: string; diff_url: string };
+      pull_request?: { number: number; title: string; body?: string; diff_url: string; head?: { sha: string } };
       repository: { full_name: string };
     };
 
@@ -83,7 +99,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (event === 'pull_request' && body.action === 'opened') {
-      handlePRReview(body.pull_request!, body.repository).catch(console.error);
+      handlePRReview(body.pull_request!, body.repository, body.pull_request!.head?.sha || '').catch(console.error);
       return Response.json({ ok: true, status: 'reviewing' });
     }
 
@@ -113,6 +129,7 @@ interface PRData {
   title: string;
   body?: string;
   diff_url: string;
+  head?: { sha: string };
 }
 
 async function handleIssue(issue: IssueData, repo: RepoData): Promise<void> {
@@ -133,7 +150,7 @@ async function handleIssueComment(issue: IssueData, comment: CommentData, repo: 
   console.log(`[GitHub Webhook] Processing comment on issue #${issue.number} on ${repo.full_name}: ${message.slice(0, 100)}`);
 }
 
-async function handlePRReview(pr: PRData, repo: RepoData): Promise<void> {
+async function handlePRReview(pr: PRData, repo: RepoData, headSha: string): Promise<void> {
   console.log(`[GitHub Webhook] Reviewing PR #${pr.number} on ${repo.full_name}`);
 
   try {
@@ -193,7 +210,7 @@ async function handlePRReview(pr: PRData, repo: RepoData): Promise<void> {
             body: `${severityEmoji(comment.severity)} ${comment.body}`,
             path: comment.path,
             line: comment.line,
-            commit_id: '', // Would need the head SHA
+            commit_id: headSha,
           }),
         },
       );

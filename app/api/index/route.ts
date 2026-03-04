@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
       const filesToFetch = codeFiles.slice(0, 100);
       const filePromises = filesToFetch.map(async (f) => {
         const resp = await fetch(
-          `https://api.github.com/repos/${body.repo}/contents/${encodeURIComponent(f.path)}?ref=${encodeURIComponent(branch)}`,
+          `https://api.github.com/repos/${body.repo}/contents/${f.path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,

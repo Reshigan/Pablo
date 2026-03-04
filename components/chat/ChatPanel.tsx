@@ -559,6 +559,12 @@ export function ChatPanel() {
     setInput('');
     setDetectedIntent('chat');
 
+    // Priority: check for multi-agent orchestration first (complex multi-domain tasks)
+    if (shouldOrchestrate(msg)) {
+      sendOrchestratedMessage(msg);
+      return;
+    }
+
     // Auto-route based on detected intent
     if (intent === 'evaluate') {
       handleEvaluate(msg);
