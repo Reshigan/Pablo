@@ -1077,6 +1077,10 @@ export function PipelineView() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Feature 8: Track cursor position for accurate mention replacement
+  const mentionCursorRef = useRef<number>(0);
+  const mentionQueryRef = useRef<string>('');
+
   // Feature 8: Handle @-mention input detection
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const value = e.target.value;
@@ -1088,6 +1092,8 @@ export function PipelineView() {
     const atMatch = textBeforeCursor.match(/@(\S*)$/);
 
     if (atMatch) {
+      mentionCursorRef.current = cursorPos;
+      mentionQueryRef.current = atMatch[1];
       setMentionQuery(atMatch[1]);
       setShowMentionDropdown(true);
       // Position dropdown near textarea
@@ -1101,11 +1107,18 @@ export function PipelineView() {
   // Feature 8: Handle mention selection
   const handleMentionSelect = useCallback((item: MentionItem) => {
     setSelectedMentions(prev => [...prev, item.value]);
-    // Replace the @query text with the mention label
+    // Replace only the @query portion, preserving text before and after
+    const cursorPos = mentionCursorRef.current;
+    const queryLen = mentionQueryRef.current.length;
     setFeatureInput(prev => {
-      const atIdx = prev.lastIndexOf('@');
+      const atStart = cursorPos - queryLen - 1; // -1 for the @ sign
+      if (atStart >= 0 && prev[atStart] === '@') {
+        return prev.slice(0, atStart) + item.label + ' ' + prev.slice(cursorPos);
+      }
+      // Fallback: find closest @ before cursor
+      const atIdx = prev.lastIndexOf('@', cursorPos - 1);
       if (atIdx >= 0) {
-        return prev.slice(0, atIdx) + item.label + ' ';
+        return prev.slice(0, atIdx) + item.label + ' ' + prev.slice(cursorPos);
       }
       return prev;
     });
