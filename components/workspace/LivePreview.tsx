@@ -23,6 +23,7 @@ import {
   type PreviewRuntime,
 } from '@/lib/preview/runtimeManager';
 import { hasError, parseError } from '@/lib/agents/autoFixLoop';
+import { PREVIEW_BRIDGE_SCRIPT } from '@/lib/preview/previewBridge';
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
@@ -66,6 +67,10 @@ function assemblePreviewHtml(
         ? html.replace('</body>', `${jsBlock}\n</body>`)
         : html + '\n' + jsBlock;
     }
+    // Inject preview bridge script for inspect mode
+    html = html.includes('</body>')
+      ? html.replace('</body>', `${PREVIEW_BRIDGE_SCRIPT}\n</body>`)
+      : html + '\n' + PREVIEW_BRIDGE_SCRIPT;
     return html;
   }
 
@@ -74,6 +79,7 @@ function assemblePreviewHtml(
 ${cssFiles.map(f => `<style>${f.content.replace(/<\/style/gi, '<\\/style')}</style>`).join('\n')}
 </head><body><div id="app"></div>
 ${jsFiles.map(f => `<script>${f.content.replace(/<\/script/gi, '<\\/script')}<\/script>`).join('\n')}
+${PREVIEW_BRIDGE_SCRIPT}
 </body></html>`;
   }
 
@@ -85,6 +91,7 @@ body{font-family:monospace;background:#0d1117;color:#e6edf3;padding:16px}
 pre{padding:10px;font-size:11px;overflow-x:auto;margin:0}
 </style></head><body>
 ${tabs.map(f => `<div class="file"><div class="header">${escapeHtml(f.name)}</div><pre>${escapeHtml(f.content)}</pre></div>`).join('\n')}
+${PREVIEW_BRIDGE_SCRIPT}
 </body></html>`;
 }
 

@@ -535,6 +535,7 @@ export function ChatPanel() {
     e.preventDefault();
     if (!input.trim()) return;
     let msg = input.trim();
+    const rawMsg = msg; // Save raw input before attachments for routing decisions
     const intent = detectIntentFromInput(msg);
     setInput('');
     setDetectedIntent('chat');
@@ -549,11 +550,12 @@ export function ChatPanel() {
     }
 
     // Route by detected intent first, then check for orchestration on build/chat
+    // Use rawMsg (without attachments) for shouldOrchestrate to avoid false positives from code content
     if (intent === 'evaluate') {
       handleEvaluate(msg);
     } else if (intent === 'fix') {
       handleFix(msg);
-    } else if (shouldOrchestrate(msg)) {
+    } else if (shouldOrchestrate(rawMsg)) {
       // Complex multi-domain tasks (3+ requirement indicators) use multi-agent orchestration
       sendOrchestratedMessage(msg);
     } else if (intent === 'build') {
