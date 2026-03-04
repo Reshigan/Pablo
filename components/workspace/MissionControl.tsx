@@ -85,7 +85,9 @@ export function MissionControl() {
     );
   }
 
-  const currentPhaseIdx = PHASE_ORDER.indexOf(orchestration.phase as OrchestrationPhase);
+  const currentPhaseIdx = orchestration.phase === 'done' || orchestration.phase === 'failed'
+    ? PHASE_ORDER.length  // All phases should show as completed
+    : PHASE_ORDER.indexOf(orchestration.phase as OrchestrationPhase);
 
   return (
     <div className="flex flex-col h-full bg-[#1e1e2e] text-white overflow-auto">
