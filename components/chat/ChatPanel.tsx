@@ -304,15 +304,8 @@ export function ChatPanel() {
     async (content: string) => {
       if (!content.trim() || isStreaming) return;
 
-      // Build content with attachments included (must happen BEFORE agent mode check)
-      let fullContent = content.trim();
-      if (attachments.length > 0) {
-        const attachmentText = attachments
-          .map((att) => `\n\n--- Attached: ${att.name} ---\n${att.content}`)
-          .join('');
-        fullContent += attachmentText;
-        setAttachments([]); // Clear after sending
-      }
+      // Attachments are already handled by handleSubmit before calling sendMessage
+      const fullContent = content.trim();
 
       // If agent mode is on, route through agent engine (with attachments included)
       // Auto-detect intent for routing

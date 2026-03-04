@@ -75,12 +75,8 @@ export async function POST(request: NextRequest) {
             sendEvent,
           );
 
-          // Send final summary
-          sendEvent({
-            type: 'done',
-            summary: `Orchestration complete: ${result.files.length} files, ${result.totalTokens} tokens, ${(result.totalDurationMs / 1000).toFixed(1)}s`,
-            filesChanged: result.files.map(f => f.path),
-          } as OrchestratorEvent);
+          // runOrchestrator already emits 'done' event via sendEvent callback
+          // No need to send another one here
         } catch (error) {
           sendEvent({
             type: 'error',

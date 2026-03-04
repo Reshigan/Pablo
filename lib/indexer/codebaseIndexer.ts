@@ -38,13 +38,13 @@ export interface CodebaseGraph {
 function classifyFile(path: string, content: string): FileNode['type'] {
   const lower = path.toLowerCase();
   if (lower.includes('.test.') || lower.includes('.spec.') || lower.includes('__tests__')) return 'test';
-  if (lower.includes('/api/') || lower.match(/route\.(ts|js)$/)) return 'api';
+  if (lower.includes('/api/')) return 'api';
   if (lower.match(/\.(css|scss|less|styled)/) || lower.includes('styles')) return 'style';
   if (lower.match(/(config|\.config)\.(ts|js|mjs)$/) || lower.includes('wrangler') || lower.includes('tsconfig')) return 'config';
   if (lower.includes('/models/') || lower.includes('/schema') || lower.includes('/entities/')) return 'model';
   if (lower.includes('/components/') || lower.includes('/pages/')) return 'component';
   if (lower.match(/page\.(tsx|jsx)$/)) return 'component';
-  if (lower.match(/route\.(ts|js)$/)) return 'route';
+  if (lower.match(/route\.(ts|js)$/)) return 'route';  // Non-/api/ route files (e.g. src/routes/)
   if (lower.includes('/utils/') || lower.includes('/lib/') || lower.includes('/helpers/')) return 'util';
 
   // Content-based detection

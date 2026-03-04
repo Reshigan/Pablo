@@ -280,6 +280,7 @@ async function executeWorker(
     task.status = 'complete';
     task.result = workerResult;
 
+    onEvent?.({ type: 'step_complete', step: { id: task.id, type: 'generate', description: task.title, status: 'done', input: {} }, index: 0 } as OrchestratorEvent);
     onEvent?.({ type: 'thinking', content: `Worker done: ${task.title} (${files.length} files, ${workerResult.durationMs}ms)` } as OrchestratorEvent);
 
     for (const file of files) {
@@ -290,7 +291,7 @@ async function executeWorker(
   } catch (error) {
     task.status = 'failed';
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    onEvent?.({ type: 'error', message: `Worker failed: ${task.title} - ${errorMsg}` } as OrchestratorEvent);
+    onEvent?.({ type: 'step_failed', step: { id: task.id, type: 'generate', description: task.title, status: 'failed', error: errorMsg, input: {} }, index: 0, error: errorMsg } as OrchestratorEvent);
 
     return {
       taskId: task.id,
