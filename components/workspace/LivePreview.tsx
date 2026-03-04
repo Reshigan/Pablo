@@ -9,6 +9,7 @@ import {
   Loader2,
   Terminal as TerminalIcon,
   Play,
+  Wrench,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
@@ -19,6 +20,7 @@ import {
   type PreviewFile,
   type PreviewRuntime,
 } from '@/lib/preview/runtimeManager';
+import { hasError, parseError } from '@/lib/agents/autoFixLoop';
 
 type ViewportSize = 'desktop' | 'tablet' | 'mobile';
 
@@ -93,8 +95,10 @@ export function LivePreview() {
   const [iframeKey, setIframeKey] = useState(0);
   const [showTerminal, setShowTerminal] = useState(false);
   const [pyodideOutput, setPyodideOutput] = useState<string>('');
+  const [isAutoFixing, setIsAutoFixing] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const prevFilesRef = useRef<string>('');
 
   const tabs = useEditorStore((s) => s.tabs);
   const runs = usePipelineStore((s) => s.runs);
@@ -117,6 +121,30 @@ export function LivePreview() {
     setRuntime(detected);
   }, [previewFiles]);
 
+  // Hot reload: write updated files to running WebContainer (Feature 1)
+  useEffect(() => {
+    if (runtime !== 'webcontainer' || runtimeStatus !== 'ready') return;
+    const filesHash = JSON.stringify(previewFiles.map(f => ({ p: f.path, c: f.content })));
+    if (prevFilesRef.current === filesHash) return;
+    if (prevFilesRef.current === '') {
+      prevFilesRef.current = filesHash;
+      return; // Skip first render
+    }
+    prevFilesRef.current = filesHash;
+
+    // Write changed files to WebContainer for HMR
+    (async () => {
+      try {
+        const { writeFile } = await import('@/lib/preview/webcontainerRuntime');
+        for (const file of previewFiles) {
+          await writeFile(file.path, file.content);
+        }
+      } catch {
+        // Non-blocking — HMR may fail silently
+      }
+    })();
+  }, [previewFiles, runtime, runtimeStatus]);
+
   // Auto-scroll terminal
   useEffect(() => {
     if (terminalRef.current) {
@@ -133,6 +161,10 @@ export function LivePreview() {
   const appendLog = useCallback((text: string) => {
     setTerminalLog(prev => prev + text);
   }, []);
+
+  // Check if terminal output has errors (for auto-fix button — Feature 3)
+  const currentOutput = runtime === 'pyodide' ? pyodideOutput : terminalLog;
+  const showAutoFix = currentOutput.length > 0 && hasError(currentOutput);
 
   // Start WebContainer preview
   const startWebContainer = useCallback(async () => {
@@ -193,6 +225,47 @@ export function LivePreview() {
     }
   }, [runtime, startWebContainer, startPyodide]);
 
+  // Auto-fix handler (Feature 3)
+  const handleAutoFix = useCallback(async () => {
+    setIsAutoFixing(true);
+    appendLog('\n--- Auto-Fix Loop Started ---\n');
+
+    try {
+      const { runAutoFixLoop } = await import('@/lib/agents/autoFixLoop');
+      const editorStore = useEditorStore.getState();
+      const files = editorStore.tabs
+        .filter(t => t.content)
+        .map(t => ({ path: t.path, content: t.content, language: t.language }));
+
+      await runAutoFixLoop(currentOutput, files, {}, {
+        maxIterations: 3,
+        autoApply: false,
+        onProgress: (msg) => appendLog(`[Auto-Fix] ${msg}\n`),
+        onFixApplied: (filename, newContent) => {
+          const existingTab = editorStore.tabs.find(t => t.path === filename);
+          editorStore.addDiff({
+            fileId: `autofix-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            filename,
+            language: existingTab?.language || 'typescript',
+            oldContent: existingTab?.content || '',
+            newContent,
+          });
+          appendLog(`[Auto-Fix] Created diff for ${filename} — review in Diff tab\n`);
+        },
+        onComplete: (success, iterations) => {
+          appendLog(`[Auto-Fix] ${success ? 'Completed' : 'Failed'} after ${iterations} iteration(s)\n`);
+          if (success) {
+            toast('Auto-Fix', 'Fixes ready for review in Diff tab');
+          }
+        },
+      });
+    } catch (err) {
+      appendLog(`[Auto-Fix] Error: ${err instanceof Error ? err.message : err}\n`);
+    } finally {
+      setIsAutoFixing(false);
+    }
+  }, [currentOutput, appendLog]);
+
   // Suppress unused variable warning - runs is used for reactivity
   void runs;
 
@@ -214,6 +287,7 @@ export function LivePreview() {
 
   const viewportConfig = VIEWPORT_SIZES[viewport];
   const isRunning = runtimeStatus === 'booting' || runtimeStatus === 'installing' || runtimeStatus === 'starting' || runtimeStatus === 'loading' || runtimeStatus === 'running';
+  const parsedError = showAutoFix ? parseError(currentOutput) : null;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-pablo-bg">
@@ -241,6 +315,23 @@ export function LivePreview() {
             {isRunning ? <Loader2 size={10} className="animate-spin" /> : <Play size={10} />}
             {isRunning ? runtimeStatus : 'Run'}
           </button>
+        )}
+
+        {/* Auto-Fix button (Feature 3) */}
+        {showAutoFix && !isAutoFixing && (
+          <button
+            onClick={handleAutoFix}
+            className="flex items-center gap-1 rounded bg-pablo-red/10 px-2 py-0.5 font-ui text-[10px] text-pablo-red transition-colors hover:bg-pablo-red/20"
+          >
+            <Wrench size={10} />
+            Auto-Fix
+          </button>
+        )}
+        {isAutoFixing && (
+          <div className="flex items-center gap-1 rounded bg-pablo-gold/10 px-2 py-0.5">
+            <Loader2 size={10} className="animate-spin text-pablo-gold" />
+            <span className="font-ui text-[10px] text-pablo-gold">Fixing...</span>
+          </div>
         )}
 
         <button onClick={refresh}
@@ -349,6 +440,11 @@ export function LivePreview() {
             <div className="flex items-center gap-1.5 border-b border-[#30363d] px-3 py-1">
               <TerminalIcon size={10} className="text-pablo-gold" />
               <span className="font-code text-[10px] text-pablo-text-muted">Output</span>
+              {parsedError && (
+                <span className="ml-auto rounded bg-pablo-red/20 px-1.5 py-0.5 font-code text-[9px] text-pablo-red">
+                  {parsedError.type}: {parsedError.message.slice(0, 60)}
+                </span>
+              )}
             </div>
             <pre className="p-3 font-code text-[11px] text-[#e6edf3] whitespace-pre-wrap leading-relaxed">
               {runtime === 'pyodide' ? pyodideOutput : terminalLog || 'No output yet. Click Run to start.\n'}

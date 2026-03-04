@@ -101,24 +101,48 @@ export function TerminalPanel() {
 
     const executeCommand = async (command: string) => {
       isExecuting = true;
+
+      // Feature 2: Try WebContainer shell first, then /api/terminal, then local fallback
+      let handled = false;
+
+      // Attempt WebContainer shell
       try {
-        const response = await fetch('/api/terminal', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ command }),
+        const { runCommand } = await import('@/lib/preview/webcontainerRuntime');
+        const parts = command.split(/\s+/);
+        const cmd = parts[0];
+        const args = parts.slice(1);
+
+        await runCommand(cmd, args, (data: string) => {
+          const formatted = data.replace(/\n/g, '\r\n');
+          term.write(formatted);
         });
-        if (response.ok) {
-          const result = (await response.json()) as { output: string; exitCode: number };
-          if (result.output) {
-            // Convert \n to \r\n for xterm display
-            const formatted = result.output.replace(/\n/g, '\r\n');
-            term.writeln(formatted);
-          }
-        } else {
-          term.writeln(`\x1b[38;2;239;68;68mError:\x1b[0m API returned ${response.status}`);
-        }
+        handled = true;
       } catch {
-        // Fallback to local commands if API is unavailable
+        // WebContainer not booted or command failed — fall through
+      }
+
+      if (!handled) {
+        try {
+          const response = await fetch('/api/terminal', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ command }),
+          });
+          if (response.ok) {
+            const result = (await response.json()) as { output: string; exitCode: number };
+            if (result.output) {
+              const formatted = result.output.replace(/\n/g, '\r\n');
+              term.writeln(formatted);
+            }
+            handled = true;
+          }
+        } catch {
+          // API unavailable — fall through to local
+        }
+      }
+
+      if (!handled) {
+        // Fallback to local commands
         if (command === 'clear') {
           term.clear();
         } else if (command.startsWith('echo ')) {
@@ -130,6 +154,7 @@ export function TerminalPanel() {
           term.writeln('\x1b[38;2;100;116;139m  Type "help" for available commands\x1b[0m');
         }
       }
+
       isExecuting = false;
       term.write('\x1b[38;2;148;163;184m$ \x1b[0m');
     };
