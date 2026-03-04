@@ -77,6 +77,9 @@ interface ChatRequestBody {
   max_tokens?: number;
   mode?: 'chat' | 'generate' | 'multi-turn' | 'pipeline-stage';
   sessionId?: string;
+  /** Client-side override from Settings modal — falls back to env vars */
+  ollamaUrl?: string;
+  ollamaApiKey?: string;
 }
 
 /**
@@ -562,8 +565,12 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as ChatRequestBody;
     const { messages, mode } = body;
 
-    // Get env config (handles both Worker and local dev)
-    const env = await getEnvConfig();
+    // Get env config — client-side Settings override takes priority if provided
+    // Security: if client provides a custom URL, only use their API key (not server's)
+    const baseEnv = await getEnvConfig();
+    const env: EnvConfig = body.ollamaUrl
+      ? { OLLAMA_URL: body.ollamaUrl, OLLAMA_API_KEY: body.ollamaApiKey || '' }
+      : { OLLAMA_URL: baseEnv.OLLAMA_URL, OLLAMA_API_KEY: body.ollamaApiKey || baseEnv.OLLAMA_API_KEY };
 
     // Get the last user message
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';

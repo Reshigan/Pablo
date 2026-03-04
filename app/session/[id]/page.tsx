@@ -18,6 +18,7 @@ import { useChatStore } from '@/stores/chat';
 import { usePipelineStore } from '@/stores/pipeline';
 import { useEditorStore } from '@/stores/editor';
 import { useRepoStore } from '@/stores/repo';
+import { useLearningStore } from '@/stores/learning';
 import { useEffect, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
@@ -49,6 +50,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     saveSession,
     setCurrentSessionId,
   } = useSessionStore();
+
+  // Hydrate learning store from D1 on mount
+  useEffect(() => {
+    useLearningStore.getState().hydrate().catch(() => { /* non-blocking */ });
+  }, []);
 
   // Initialize session on mount
   useEffect(() => {

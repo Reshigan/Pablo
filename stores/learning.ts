@@ -44,8 +44,10 @@ interface LearningState {
   totalPatterns: number;
   avgConfidence: number;
   sessionsAnalyzed: number;
+  hydrated: boolean;
 
   // Actions
+  hydrate: () => Promise<void>;
   addPattern: (pattern: Omit<Pattern, 'id' | 'createdAt' | 'lastUsed' | 'usageCount'>) => string;
   updatePattern: (id: string, updates: Partial<Pattern>) => void;
   removePattern: (id: string) => void;
@@ -72,6 +74,49 @@ export const useLearningStore = create<LearningState>((set, get) => ({
   totalPatterns: 0,
   avgConfidence: 0,
   sessionsAnalyzed: 0,
+  hydrated: false,
+
+  hydrate: async () => {
+    if (get().hydrated) return;
+    try {
+      const res = await fetch('/api/patterns');
+      if (!res.ok) { set({ hydrated: true }); return; }
+      const rows = (await res.json()) as Array<{
+        id: string;
+        type: PatternType;
+        trigger: string;
+        action: string;
+        confidence: number;
+        usageCount: number;
+        lastUsedAt: string | null;
+        metadata: string | null;
+        createdAt: string;
+      }>;
+      const hydrated: Pattern[] = rows.map((r) => ({
+        id: r.id,
+        type: r.type,
+        trigger: r.trigger,
+        action: r.action,
+        context: r.metadata ?? '',
+        confidence: r.confidence,
+        usageCount: r.usageCount,
+        lastUsed: r.lastUsedAt ? new Date(r.lastUsedAt).getTime() : Date.now(),
+        createdAt: new Date(r.createdAt).getTime(),
+        tags: [r.type],
+      }));
+      set({
+        patterns: hydrated,
+        totalPatterns: hydrated.length,
+        avgConfidence: hydrated.length > 0
+          ? hydrated.reduce((s, p) => s + p.confidence, 0) / hydrated.length
+          : 0,
+        hydrated: true,
+      });
+    } catch {
+      // Non-blocking — patterns stay empty if D1 is unavailable
+      set({ hydrated: true });
+    }
+  },
 
   addPattern: (pattern) => {
     const id = generateId('pat');

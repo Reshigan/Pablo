@@ -5,7 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useChatStore } from '@/stores/chat';
-import { useToastStore } from '@/stores/toast';
+import { useToastStore, toastError } from '@/stores/toast';
 import { useEditorStore } from '@/stores/editor';
 import { useAgentStore } from '@/stores/agent';
 import { parseGeneratedFiles } from '@/lib/code-parser';
@@ -337,19 +337,25 @@ export function ChatPanel() {
 
       // Build messages array for API using latest store state
       // (avoids stale closure after addMessage calls above)
+      // Fix #23: Truncate conversation history to prevent oversized requests
+      const MAX_HISTORY_MESSAGES = 40; // keep last 40 messages (~20 turns)
+      const MAX_MESSAGE_CHARS = 12000; // truncate individual messages to 12k chars
       const currentMessages = useChatStore.getState().messages;
+      const recentMessages = currentMessages
+        .filter((m) => m.id !== assistantId)
+        .slice(-MAX_HISTORY_MESSAGES);
       const apiMessages = [
         {
           role: 'system' as const,
           content:
             'You are Pablo, an AI coding assistant inside an IDE. Help the user build features, debug code, and explain concepts. Be concise and use markdown for code blocks.',
         },
-        ...currentMessages
-          .filter((m) => m.id !== assistantId)
-          .map((m) => ({
-            role: m.role as 'user' | 'assistant',
-            content: m.content,
-          })),
+        ...recentMessages.map((m) => ({
+          role: m.role as 'user' | 'assistant',
+          content: m.content.length > MAX_MESSAGE_CHARS
+            ? m.content.slice(0, MAX_MESSAGE_CHARS) + '\n\n[...truncated]'
+            : m.content,
+        })),
       ];
 
       let timeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -364,6 +370,13 @@ export function ChatPanel() {
 
         const currentSessionId = useSessionStore.getState().currentSessionId;
 
+        // Read user-configured Ollama endpoint from Settings (localStorage)
+        let ollamaUrl: string | undefined;
+        try {
+          const stored = localStorage.getItem('pablo-settings-ollamaEndpoint');
+          if (stored) ollamaUrl = JSON.parse(stored) as string;
+        } catch { /* ignore */ }
+
         const response = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -372,6 +385,7 @@ export function ChatPanel() {
             model: 'deepseek-r1',
             temperature: 0.7,
             sessionId: currentSessionId || undefined,
+            ollamaUrl: ollamaUrl || undefined,
           }),
           signal: controller.signal,
         });
@@ -512,6 +526,7 @@ export function ChatPanel() {
               ? 'Could not connect to AI backend. Check that OLLAMA_URL and OLLAMA_API_KEY are configured.'
               : rawMsg;
           setError(userMessage);
+          toastError('Chat Error', userMessage);
           updateMessage(assistantId, {
             isStreaming: false,
             content: `Error: ${userMessage}`,

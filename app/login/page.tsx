@@ -22,7 +22,7 @@ export default function LoginPage() {
             Pablo
           </h1>
           <p className="font-ui text-sm text-pablo-text-muted text-center">
-            AI-Powered IDE with DeepSeek-R1 reasoning and Qwen3-Coder implementation
+            AI-Powered IDE &mdash; Build, Review &amp; Deploy with intelligent code generation
           </p>
         </div>
 
