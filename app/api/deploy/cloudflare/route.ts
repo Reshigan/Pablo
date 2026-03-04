@@ -10,6 +10,7 @@
  * 3. Return the live deployment URL
  */
 import { NextRequest } from 'next/server';
+import { auth } from '@/lib/auth';
 
 interface DeployFile {
   path: string;
@@ -95,8 +96,29 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
   // Build a static HTML page that includes all component code inline
   // Since we can't run a build step on Cloudflare Pages Direct Upload,
   // we create a self-contained HTML file with embedded React via CDN
+  //
+  // Transform ES module syntax to browser-compatible globals:
+  // - Strip import/export statements (React etc. are loaded via CDN UMD)
+  // - Convert TypeScript type annotations to JS (Babel standalone handles this)
+  // - Escape backticks and ${} to prevent template literal injection
   const componentCode = codeFiles
-    .map(f => `// --- ${f.path} ---\n${f.content}`)
+    .map(f => {
+      let code = f.content;
+      // Strip ES module imports (React, recharts, etc. are UMD globals)
+      code = code.replace(/^\s*import\s+.*?from\s+['"].*?['"];?\s*$/gm, '');
+      code = code.replace(/^\s*import\s+['"].*?['"];?\s*$/gm, '');
+      // Convert `export default function X` → `function X`
+      code = code.replace(/^\s*export\s+default\s+/gm, '');
+      // Convert `export function X` → `function X`
+      code = code.replace(/^\s*export\s+(?=(?:function|const|let|var|class|interface|type|enum)\s)/gm, '');
+      // Strip standalone `export { ... }` lines
+      code = code.replace(/^\s*export\s*\{[^}]*\};?\s*$/gm, '');
+      // Strip TypeScript-only constructs that Babel standalone doesn't handle
+      code = code.replace(/^\s*(?:interface|type)\s+\w+[^{]*\{[^}]*\}\s*$/gm, '');
+      // Escape backticks and template expressions to prevent injection
+      code = code.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
+      return `// --- ${f.path} ---\n${code}`;
+    })
     .join('\n\n');
 
   const html = `<!DOCTYPE html>
@@ -173,6 +195,12 @@ function generateSPABundle(files: DeployFile[], projectName: string): DeployFile
 }
 
 export async function POST(request: NextRequest) {
+  // Auth guard — only authenticated users can deploy
+  const session = await auth();
+  if (!session) {
+    return Response.json({ error: 'Unauthorized — sign in to deploy' }, { status: 401 });
+  }
+
   const body = (await request.json()) as {
     files: DeployFile[];
     project_name?: string;
