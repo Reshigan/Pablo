@@ -80,7 +80,7 @@ export const useLearningStore = create<LearningState>((set, get) => ({
     if (get().hydrated) return;
     try {
       const res = await fetch('/api/patterns');
-      if (!res.ok) return;
+      if (!res.ok) { set({ hydrated: true }); return; }
       const rows = (await res.json()) as Array<{
         id: string;
         type: PatternType;
