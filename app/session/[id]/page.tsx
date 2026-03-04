@@ -174,7 +174,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {sidebarOpen && (
           <PanelResizer
             direction="horizontal"
-            onResize={(delta) => setSidebarWidth(sidebarWidth + delta)}
+            onResize={(delta) => setSidebarWidth(prev => prev + delta)}
           />
         )}
 
@@ -187,7 +187,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {chatOpen && (
           <PanelResizer
             direction="horizontal"
-            onResize={(delta) => setChatWidth(chatWidth - delta)}
+            onResize={(delta) => setChatWidth(prev => prev - delta)}
           />
         )}
 
@@ -209,7 +209,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         <>
           <PanelResizer
             direction="vertical"
-            onResize={(delta) => setTerminalHeight(terminalHeight - delta)}
+            onResize={(delta) => setTerminalHeight(prev => prev - delta)}
           />
           <div className="shrink-0 border-t border-pablo-border bg-pablo-panel">
             <div className="flex h-6 items-center justify-between border-b border-pablo-border px-3">

@@ -68,11 +68,11 @@ interface UIState {
   // Actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
-  setSidebarWidth: (width: number) => void;
+  setSidebarWidth: (width: number | ((prev: number) => number)) => void;
   toggleChat: () => void;
-  setChatWidth: (width: number) => void;
+  setChatWidth: (width: number | ((prev: number) => number)) => void;
   toggleTerminal: () => void;
-  setTerminalHeight: (height: number) => void;
+  setTerminalHeight: (height: number | ((prev: number) => number)) => void;
   setActiveWorkspaceTab: (tab: WorkspaceTab) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
@@ -110,11 +110,11 @@ export const useUIStore = create<UIState>()(
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarTab: (tab) => set({ sidebarTab: tab }),
-      setSidebarWidth: (width) => set({ sidebarWidth: Math.max(200, Math.min(500, width)) }),
+      setSidebarWidth: (width) => set((state) => ({ sidebarWidth: Math.max(200, Math.min(500, typeof width === 'function' ? width(state.sidebarWidth) : width)) })),
       toggleChat: () => set((state) => ({ chatOpen: !state.chatOpen })),
-      setChatWidth: (width) => set({ chatWidth: Math.max(380, Math.min(800, width)) }),
+      setChatWidth: (width) => set((state) => ({ chatWidth: Math.max(380, Math.min(800, typeof width === 'function' ? width(state.chatWidth) : width)) })),
       toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
-      setTerminalHeight: (height) => set({ terminalHeight: Math.max(100, Math.min(600, height)) }),
+      setTerminalHeight: (height) => set((state) => ({ terminalHeight: Math.max(100, Math.min(600, typeof height === 'function' ? height(state.terminalHeight) : height)) })),
       setActiveWorkspaceTab: (tab) => set({ activeWorkspaceTab: tab }),
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
       toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
