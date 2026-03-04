@@ -569,13 +569,14 @@ export async function POST(request: NextRequest) {
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';
 
     // Persist user message to DB if sessionId is provided
-    const sessionId = body.sessionId;
+    let sessionId = body.sessionId;
     if (sessionId && lastUserMessage) {
       try {
         // Ensure session exists in D1
         let dbSession = await d1GetSession(sessionId);
         if (!dbSession) {
           dbSession = await d1CreateSession({ title: lastUserMessage.slice(0, 80) });
+          sessionId = dbSession.id;
         }
         await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
       } catch {
