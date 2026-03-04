@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand';
+import { useEditorStore } from '@/stores/editor';
 
 export interface Checkpoint {
   id: string;
@@ -38,7 +39,6 @@ export const useCheckpointStore = create<CheckpointState>((set, get) => ({
     // If no files provided, grab from editor store
     const checkpointFiles = files || (() => {
       try {
-        const { useEditorStore } = require('@/stores/editor') as typeof import('@/stores/editor');
         return useEditorStore.getState().tabs.map((t) => ({
           path: t.path,
           content: t.content,
