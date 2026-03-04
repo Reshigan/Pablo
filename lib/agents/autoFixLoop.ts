@@ -51,10 +51,12 @@ export function parseError(output: string): ParsedError | null {
   if (npmMatch) return { type: 'build', message: npmMatch[1] };
 
   // Generic error detection — stricter patterns to avoid false positives
+  const errorPattern = /\b(ERR!|FATAL|FAIL|error\s+TS\d|error during|failed to|cannot find|unexpected token|is not defined)\b/i;
   const falsePositivePattern = /\b(no error|0 errors?|error-free|error handling|error boundary|error\.message|onerror|error\s*[:=]\s*(false|null|undefined|none|0)|catch\s*\(error\))\b/i;
-  if (/\b(ERR!|FATAL|FAIL|error\s+TS\d|error during|failed to|cannot find|unexpected token|is not defined)\b/i.test(output) && !falsePositivePattern.test(output)) {
-    const lines = output.split('\n').filter(l => /\b(ERR!|FATAL|FAIL|error\s+TS|error during|failed to|cannot find|unexpected token|is not defined)\b/i.test(l));
-    const errorLine = lines[0] || output.slice(0, 500);
+  // Test false positives per-line, not on entire output, so unrelated lines don't suppress real errors
+  const errorLines = output.split('\n').filter(l => errorPattern.test(l) && !falsePositivePattern.test(l));
+  if (errorLines.length > 0) {
+    const errorLine = errorLines[0];
     return { type: 'unknown', message: errorLine.trim().slice(0, 300) };
   }
 

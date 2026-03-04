@@ -252,7 +252,7 @@ ${selectedText}`,
       {/* Feature 5: Cmd+K Inline Edit Popover */}
       {inlineEditVisible && (
         <div
-          className="absolute z-50 flex items-center gap-1.5 rounded-lg border border-pablo-gold/40 bg-pablo-panel px-2 py-1 shadow-xl"
+          className="fixed z-50 flex items-center gap-1.5 rounded-lg border border-pablo-gold/40 bg-pablo-panel px-2 py-1 shadow-xl"
           style={{ top: inlineEditPos.top, left: inlineEditPos.left, minWidth: 280 }}
         >
           <input
