@@ -13,6 +13,7 @@ import { generateId } from '@/lib/db/queries';
 import type { AgentEvent } from '@/lib/agents/agentEngine';
 import { useRepoStore } from '@/stores/repo';
 import { useUIStore } from '@/stores/ui';
+import { useSessionStore } from '@/stores/session';
 import { EvaluationReport } from './EvaluationReport';
 import type { EvaluationResult, EvaluationIssue } from '@/lib/agents/repoEvaluator';
 
@@ -351,9 +352,17 @@ export function ChatPanel() {
           })),
       ];
 
+      let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
       try {
         const controller = new AbortController();
         abortRef.current = controller;
+        // Timeout: abort after 60 seconds with a clear message
+        timeoutId = setTimeout(() => {
+          controller.abort();
+        }, 60000);
+
+        const currentSessionId = useSessionStore.getState().currentSessionId;
 
         const response = await fetch('/api/chat', {
           method: 'POST',
@@ -362,6 +371,7 @@ export function ChatPanel() {
             messages: apiMessages,
             model: 'deepseek-r1',
             temperature: 0.7,
+            sessionId: currentSessionId || undefined,
           }),
           signal: controller.signal,
         });
@@ -412,6 +422,18 @@ export function ChatPanel() {
 
             // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
             if (parsed.error) {
+              if (parsed.error === 'no_backend') {
+                const msg =
+                  parsed.content ||
+                  'No AI backend configured. Go to Settings and configure OLLAMA_URL and OLLAMA_API_KEY.';
+                setError(msg);
+                updateMessage(assistantId, {
+                  isStreaming: false,
+                  content: `Error: ${msg}`,
+                });
+                streamDone = true;
+                break;
+              }
               throw new Error(`Stream error: ${parsed.error}`);
             }
 
@@ -472,6 +494,10 @@ export function ChatPanel() {
           });
         }
       } catch (err) {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+
         if (err instanceof Error && err.name === 'AbortError') {
           updateMessage(assistantId, {
             isStreaming: false,
@@ -480,15 +506,21 @@ export function ChatPanel() {
                 ?.content ?? '') + '\n\n*[Generation stopped]*',
           });
         } else {
-          const errorMsg =
-            err instanceof Error ? err.message : 'Unknown error';
-          setError(errorMsg);
+          const rawMsg = err instanceof Error ? err.message : 'Unknown error';
+          const userMessage =
+            rawMsg === 'Load failed' || rawMsg === 'Failed to fetch'
+              ? 'Could not connect to AI backend. Check that OLLAMA_URL and OLLAMA_API_KEY are configured.'
+              : rawMsg;
+          setError(userMessage);
           updateMessage(assistantId, {
             isStreaming: false,
-            content: `Error: ${errorMsg}`,
+            content: `Error: ${userMessage}`,
           });
         }
       } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         setStreaming(false);
         abortRef.current = null;
       }
