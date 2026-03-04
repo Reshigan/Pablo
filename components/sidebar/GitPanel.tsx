@@ -423,42 +423,34 @@ export function GitPanel() {
                     setSelectedBranch(b.name);
                     setShowBranches(false);
 
-                    // Load files from the new branch
-                    if (selectedRepo) {
-                      try {
-                        const res = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${encodeURIComponent(b.name)}&path=`);
-                        if (res.ok) {
-                          const tree = (await res.json()) as Array<{ type: string; path: string; name: string }>;
-                          const editorStore = useEditorStore.getState();
+                    if (!selectedRepo) return;
 
-                          // Recursively load files from the tree
-                          for (const item of tree) {
-                            if (item.type === 'file') {
-                              try {
-                                const fileRes = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${encodeURIComponent(b.name)}&path=${encodeURIComponent(item.path)}`);
-                                if (fileRes.ok) {
-                                  const fileData = (await fileRes.json()) as { content?: string; encoding?: string; name: string };
-                                  if (fileData.content && fileData.encoding === 'base64') {
-                                    const decoded = (() => { const clean = fileData.content.replace(/\n/g, ''); const bytes = Uint8Array.from(atob(clean), c => c.charCodeAt(0)); return new TextDecoder().decode(bytes); })();
-                                    editorStore.openFile({
-                                      id: `branch-${Date.now()}-${item.path}`,
-                                      path: item.path,
-                                      name: item.name,
-                                      content: decoded,
-                                      language: '',
-                                    });
-                                  }
-                                }
-                              } catch {
-                                // Skip individual file load failures
-                              }
-                            }
-                          }
-                          toast('Branch switched', `Loaded files from ${b.name}`);
-                        }
-                      } catch {
-                        toast('Branch switched', `Commits will go to ${b.name}. Files not loaded — open files manually from File Explorer.`);
+                    // Use the proper repo loader (Trees API) instead of manual Contents API calls
+                    const { loadRepoFilesViaAPI } = await import('@/lib/agents/repoLoader');
+                    const editorStore = useEditorStore.getState();
+
+                    toast('Loading branch...', `Switching to ${b.name}`);
+                    editorStore.closeAllTabs();
+
+                    try {
+                      const files = await loadRepoFilesViaAPI(selectedRepo.full_name, b.name, {
+                        maxFiles: 100,
+                        onProgress: () => { /* toast updates handled below */ },
+                      });
+
+                      for (const file of files) {
+                        editorStore.openFile({
+                          id: `branch-${Date.now()}-${file.path}`,
+                          path: file.path,
+                          name: file.path.split('/').pop() || file.path,
+                          content: file.content,
+                          language: file.language,
+                        });
                       }
+
+                      toast('Branch loaded', `${files.length} files from ${b.name}`);
+                    } catch (err) {
+                      toast('Branch switch failed', err instanceof Error ? err.message : 'Unknown error');
                     }
                   }}
                   className={`flex w-full items-center gap-2 px-3 py-1 text-left font-ui text-xs transition-colors hover:bg-pablo-hover ${b.name === selectedBranch ? 'text-pablo-gold bg-pablo-gold/5' : 'text-pablo-text-dim'}`}

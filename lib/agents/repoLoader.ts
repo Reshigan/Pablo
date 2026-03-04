@@ -182,8 +182,9 @@ export async function loadRepoFiles(
 }
 
 /**
- * Load repo files from the client-side via Pablo's API routes
- * (for use in browser context where we don't have direct GitHub token access)
+ * Load repo files from the client-side via Pablo's API routes.
+ * Uses the Git Trees API for single-call tree loading (v7 Part 3),
+ * then fetches file contents in parallel batches.
  */
 export async function loadRepoFilesViaAPI(
   repo: string,
@@ -193,79 +194,79 @@ export async function loadRepoFilesViaAPI(
     onProgress?: (msg: string) => void;
   } = {},
 ): Promise<RepoFile[]> {
-  const maxFiles = options.maxFiles ?? 100;
+  const maxFiles = options.maxFiles ?? 200;
   const onProgress = options.onProgress;
 
-  onProgress?.(`Loading files from ${repo}@${branch}...`);
+  onProgress?.(`Loading repository tree for ${repo}@${branch}...`);
 
-  // Use Pablo's contents API to get root directory listing
-  const rootRes = await fetch(
-    `/api/github/contents?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&path=`,
+  // Step 1: Get full tree in a single API call via Trees API
+  const treeRes = await fetch(
+    `/api/github/tree?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&recursive=true`,
   );
 
-  if (!rootRes.ok) {
-    throw new Error(`Failed to load repo contents: ${rootRes.status}`);
+  if (!treeRes.ok) {
+    throw new Error(`Failed to load repo tree: ${treeRes.status}`);
   }
 
-  const rootItems = (await rootRes.json()) as Array<{
-    type: string;
-    path: string;
-    name: string;
-    size?: number;
-  }>;
+  const treeData = (await treeRes.json()) as {
+    tree: Array<{ path: string; type: 'blob' | 'tree'; sha: string; size?: number }>;
+    truncated: boolean;
+  };
 
+  // Step 2: Filter to code files only
+  const blobs = treeData.tree
+    .filter((item) => item.type === 'blob')
+    .filter((item) => !shouldSkip(item.path))
+    .filter((item) => item.size === undefined || item.size <= 100_000); // skip files > 100KB
+
+  onProgress?.(`Found ${blobs.length} code files (${treeData.tree.length} total in repo)`);
+
+  // Step 3: Sort by size (smaller first) and take up to maxFiles
+  const sorted = blobs.sort((a, b) => (a.size ?? 0) - (b.size ?? 0));
+  const selected = sorted.slice(0, maxFiles);
+
+  // Step 4: Load file contents in parallel batches via Contents API
   const files: RepoFile[] = [];
+  const BATCH_SIZE = 10;
 
-  // Recursively load files
-  async function loadDir(items: typeof rootItems): Promise<void> {
-    for (const item of items) {
-      if (files.length >= maxFiles) break;
-      if (shouldSkip(item.path)) continue;
+  for (let i = 0; i < selected.length; i += BATCH_SIZE) {
+    const batch = selected.slice(i, i + BATCH_SIZE);
+    const results = await Promise.allSettled(
+      batch.map(async (blob) => {
+        const encodedPath = blob.path.split('/').map(encodeURIComponent).join('/');
+        const fileRes = await fetch(
+          `/api/github/contents?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&path=${encodedPath}`,
+        );
+        if (!fileRes.ok) return null;
 
-      if (item.type === 'file') {
-        try {
-          const fileRes = await fetch(
-            `/api/github/contents?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(item.path)}`,
-          );
-          if (!fileRes.ok) continue;
+        const fileData = (await fileRes.json()) as {
+          content?: string;
+          encoding?: string;
+        };
 
-          const fileData = (await fileRes.json()) as {
-            content?: string;
-            encoding?: string;
-            name: string;
+        if (fileData.content && fileData.encoding === 'base64') {
+          const decoded = decodeBase64(fileData.content);
+          return {
+            path: blob.path,
+            content: decoded,
+            language: detectLanguage(blob.path),
           };
-
-          if (fileData.content && fileData.encoding === 'base64') {
-            const decoded = decodeBase64(fileData.content);
-            files.push({
-              path: item.path,
-              content: decoded,
-              language: detectLanguage(item.path),
-            });
-
-            if (files.length % 10 === 0) {
-              onProgress?.(`Loaded ${files.length} files...`);
-            }
-          }
-        } catch {
-          // Skip individual file failures
         }
-      } else if (item.type === 'dir') {
-        try {
-          const dirRes = await fetch(
-            `/api/github/contents?repo=${encodeURIComponent(repo)}&branch=${encodeURIComponent(branch)}&path=${encodeURIComponent(item.path)}`,
-          );
-          if (!dirRes.ok) continue;
-          const dirItems = (await dirRes.json()) as typeof rootItems;
-          await loadDir(dirItems);
-        } catch {
-          // Skip directory failures
-        }
+        return null;
+      }),
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled' && result.value) {
+        files.push(result.value);
       }
+    }
+
+    if (files.length > 0 && i + BATCH_SIZE < selected.length) {
+      onProgress?.(`Loaded ${files.length}/${selected.length} files...`);
     }
   }
 
-  await loadDir(rootItems);
   onProgress?.(`Loaded ${files.length} files from ${repo}@${branch}`);
   return files;
 }

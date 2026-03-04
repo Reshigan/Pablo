@@ -169,6 +169,23 @@ export const domainKb = sqliteTable('domain_kb', {
     .default(sql`(datetime('now'))`),
 });
 
+// ─── Secrets (Environment Variables) ────────────────────────────────────────
+
+export const secrets = sqliteTable('secrets', {
+  id: text('id').primaryKey(),
+  sessionId: text('session_id').references(() => sessions.id, {
+    onDelete: 'cascade',
+  }),
+  key: text('key').notNull(),
+  value: text('value').notNull(),
+  createdAt: text('created_at')
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 // ─── Type exports ────────────────────────────────────────────────────────────
 
 export type Session = typeof sessions.$inferSelect;

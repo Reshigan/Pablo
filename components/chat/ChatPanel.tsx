@@ -69,8 +69,7 @@ export function ChatPanel() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
-  const [chatMode, setChatMode] = useState<'chat' | 'agent' | 'build' | 'evaluate' | 'fix'>('chat');
-  const agentMode = chatMode === 'agent';
+  const [detectedIntent, setDetectedIntent] = useState<'chat' | 'build' | 'evaluate' | 'fix'>('chat');
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -313,7 +312,9 @@ export function ChatPanel() {
       }
 
       // If agent mode is on, route through agent engine (with attachments included)
-      if (agentMode) {
+      // Auto-detect intent for routing
+      const intent = detectIntentFromInput(fullContent);
+      if (intent === 'build') {
         return sendAgentMessage(fullContent);
       }
 
@@ -495,7 +496,6 @@ export function ChatPanel() {
     [
       messages,
       isStreaming,
-      agentMode,
       attachments,
       addMessage,
       appendToMessage,
@@ -515,13 +515,18 @@ export function ChatPanel() {
     e.preventDefault();
     if (!input.trim()) return;
     const msg = input;
+    const intent = detectIntentFromInput(msg);
     setInput('');
+    setDetectedIntent('chat');
 
-    // Route based on mode
-    if (chatMode === 'evaluate') {
+    // Auto-route based on detected intent
+    if (intent === 'evaluate') {
       handleEvaluate(msg);
-    } else if (chatMode === 'fix') {
+    } else if (intent === 'fix') {
       handleFix(msg);
+    } else if (intent === 'build') {
+      // Build intent uses agent mode for full pipeline
+      sendAgentMessage(msg);
     } else {
       sendMessage(msg);
     }
@@ -748,7 +753,7 @@ export function ChatPanel() {
    */
   const handleFixIssue = useCallback(
     (issue: EvaluationIssue) => {
-      setChatMode('fix');
+      setDetectedIntent('fix');
       const fixPrompt = `Fix: ${issue.title} in ${issue.file}${issue.line ? `:${issue.line}` : ''}\n${issue.description}${issue.suggestedFix ? `\nSuggested fix: ${issue.suggestedFix}` : ''}`;
       setInput(fixPrompt);
       inputRef.current?.focus();
@@ -779,29 +784,23 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Mode selector (Chat / Agent / Build / Evaluate / Fix) */}
-      <div className="flex items-center gap-1 border-b border-pablo-border px-3 py-1">
-        {[
-          { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
-          { id: 'agent' as const, label: 'Agent', icon: Cpu },
-          { id: 'build' as const, label: 'Build', icon: Rocket },
-          { id: 'evaluate' as const, label: 'Evaluate', icon: Search },
-          { id: 'fix' as const, label: 'Fix', icon: Wrench },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setChatMode(id)}
-            className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
-              chatMode === id
-                ? 'bg-pablo-gold/20 text-pablo-gold'
-                : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
-            }`}
-          >
-            <Icon size={10} />
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Auto-detected intent pill (shown when typing) */}
+      {detectedIntent !== 'chat' && (
+        <div className="flex items-center gap-2 border-b border-pablo-border px-3 py-1">
+          <span className="font-ui text-[10px] text-pablo-text-muted">Detected:</span>
+          <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-ui text-[10px] font-medium ${
+            detectedIntent === 'build' ? 'bg-pablo-gold/20 text-pablo-gold' :
+            detectedIntent === 'evaluate' ? 'bg-blue-500/20 text-blue-400' :
+            detectedIntent === 'fix' ? 'bg-orange-500/20 text-orange-400' :
+            'bg-pablo-hover text-pablo-text-dim'
+          }`}>
+            {detectedIntent === 'build' && <Rocket size={10} />}
+            {detectedIntent === 'evaluate' && <Search size={10} />}
+            {detectedIntent === 'fix' && <Wrench size={10} />}
+            {detectedIntent.charAt(0).toUpperCase() + detectedIntent.slice(1)}
+          </span>
+        </div>
+      )}
 
       {/* Error banner */}
       {error && (
@@ -939,7 +938,15 @@ export function ChatPanel() {
             <textarea
               ref={inputRef}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                setInput(e.target.value);
+                // Auto-detect intent as user types
+                if (e.target.value.trim().length > 3) {
+                  setDetectedIntent(detectIntentFromInput(e.target.value));
+                } else {
+                  setDetectedIntent('chat');
+                }
+              }}
               onKeyDown={handleKeyDown}
               placeholder="Describe what you want to build..."
               className="max-h-32 min-h-[36px] flex-1 resize-none bg-transparent font-ui text-sm text-pablo-text outline-none placeholder:text-pablo-text-muted"
@@ -1015,7 +1022,7 @@ export function ChatPanel() {
               Enter to send, Shift+Enter for new line
             </span>
             <span className="font-ui text-[10px] text-pablo-text-muted">
-              Mode: {chatMode.charAt(0).toUpperCase() + chatMode.slice(1)}
+              Auto-routing
             </span>
           </div>
         </form>
