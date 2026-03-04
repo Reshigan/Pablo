@@ -214,11 +214,11 @@ export function TerminalPanel() {
   }, []);
 
   return (
-    <div className="flex h-full flex-col bg-pablo-bg">
+    <div className="flex h-full flex-col bg-pablo-bg" style={{ minHeight: 0 }}>
       <div
         ref={termRef}
         className="flex-1 overflow-hidden px-1"
-        style={{ display: isReady ? 'block' : 'none' }}
+        style={{ display: isReady ? 'block' : 'none', minHeight: 0 }}
       />
       {!isReady && (
         <div className="flex flex-1 items-center justify-center">

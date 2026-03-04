@@ -11,6 +11,7 @@ import { PipelineView } from '@/components/pipeline/PipelineView';
 import { DependencyManager } from './DependencyManager';
 import { DeployLogs } from './DeployLogs';
 import { BugScannerPanel } from './BugScannerPanel';
+import { TerminalPanel } from './Terminal';
 import { useUIStore } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
 
@@ -44,6 +45,7 @@ export function WorkspaceArea() {
     dependencies: DependencyManager,
     'deploy-logs': DeployLogs,
     bugs: BugScannerPanel,
+    terminal: TerminalPanel,
   };
 
   const ActivePanel = panels[activeWorkspaceTab];

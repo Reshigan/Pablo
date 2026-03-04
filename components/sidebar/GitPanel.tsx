@@ -419,7 +419,48 @@ export function GitPanel() {
               {branches.map((b) => (
                 <button
                   key={b.name}
-                  onClick={() => { setSelectedBranch(b.name); setShowBranches(false); }}
+                  onClick={async () => {
+                    setSelectedBranch(b.name);
+                    setShowBranches(false);
+
+                    // Load files from the new branch
+                    if (selectedRepo) {
+                      try {
+                        const res = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${b.name}&path=`);
+                        if (res.ok) {
+                          const tree = (await res.json()) as Array<{ type: string; path: string; name: string }>;
+                          const editorStore = useEditorStore.getState();
+
+                          // Recursively load files from the tree
+                          for (const item of tree) {
+                            if (item.type === 'file') {
+                              try {
+                                const fileRes = await fetch(`/api/github/contents?repo=${encodeURIComponent(selectedRepo.full_name)}&branch=${b.name}&path=${encodeURIComponent(item.path)}`);
+                                if (fileRes.ok) {
+                                  const fileData = (await fileRes.json()) as { content?: string; encoding?: string; name: string };
+                                  if (fileData.content && fileData.encoding === 'base64') {
+                                    const decoded = atob(fileData.content);
+                                    editorStore.openFile({
+                                      id: `branch-${Date.now()}-${item.path}`,
+                                      path: item.path,
+                                      name: item.name,
+                                      content: decoded,
+                                      language: '',
+                                    });
+                                  }
+                                }
+                              } catch {
+                                // Skip individual file load failures
+                              }
+                            }
+                          }
+                          toast('Branch switched', `Loaded files from ${b.name}`);
+                        }
+                      } catch {
+                        toast('Branch switched', `Commits will go to ${b.name}. Files not loaded — open files manually from File Explorer.`);
+                      }
+                    }
+                  }}
                   className={`flex w-full items-center gap-2 px-3 py-1 text-left font-ui text-xs transition-colors hover:bg-pablo-hover ${b.name === selectedBranch ? 'text-pablo-gold bg-pablo-gold/5' : 'text-pablo-text-dim'}`}
                 >
                   <GitBranch size={10} />
