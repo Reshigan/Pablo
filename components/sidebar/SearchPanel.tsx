@@ -186,37 +186,38 @@ export function SearchPanel() {
     async (result: SearchResult) => {
       if (!selectedRepo) return;
       const filename = result.file.split('/').pop() ?? result.file;
-      openFile({
-        id: `${selectedRepo.full_name}:${result.file}`,
-        path: result.file,
-        name: filename,
-        language: 'plaintext',
-        content: `// Loading ${result.file}...`,
-      });
+      const tabId = `${selectedRepo.full_name}:${result.file}`;
 
       try {
         const params = new URLSearchParams({ repo: selectedRepo.full_name, path: result.file, ref: selectedBranch });
         const response = await fetch(`/api/github/contents?${params.toString()}`);
         if (!response.ok) throw new Error('Fetch failed');
         const data = (await response.json()) as GitHubContentItem;
-        const content = data.content && data.encoding === 'base64' ? atob(data.content) : (data.content ?? '');
+        const content = data.content && data.encoding === 'base64'
+          ? new TextDecoder().decode(Uint8Array.from(atob(data.content), c => c.charCodeAt(0)))
+          : (data.content ?? '');
+        const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+        const langMap: Record<string, string> = {
+          ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
+          json: 'json', md: 'markdown', css: 'css', scss: 'scss', html: 'html',
+          py: 'python', rs: 'rust', go: 'go', sql: 'sql', yaml: 'yaml', yml: 'yaml',
+        };
         openFile({
-          id: `${selectedRepo.full_name}:${result.file}`,
+          id: tabId,
           path: result.file,
           name: filename,
-          language: (() => {
-            const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-            const langMap: Record<string, string> = {
-              ts: 'typescript', tsx: 'typescriptreact', js: 'javascript', jsx: 'javascriptreact',
-              json: 'json', md: 'markdown', css: 'css', scss: 'scss', html: 'html',
-              py: 'python', rs: 'rust', go: 'go', sql: 'sql', yaml: 'yaml', yml: 'yaml',
-            };
-            return langMap[ext] ?? 'plaintext';
-          })(),
+          language: langMap[ext] ?? 'plaintext',
           content,
         });
       } catch {
-        // keep placeholder content
+        // On error, open with error placeholder
+        openFile({
+          id: tabId,
+          path: result.file,
+          name: filename,
+          language: 'plaintext',
+          content: `// Failed to load ${result.file}`,
+        });
       }
     },
     [selectedRepo, selectedBranch, openFile]

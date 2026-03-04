@@ -61,6 +61,7 @@ export function ChatPanel() {
     isStreaming,
     error,
     addMessage,
+    removeMessage,
     appendToMessage,
     updateMessage,
     setStreaming,
@@ -1063,9 +1064,15 @@ export function ChatPanel() {
               type="button"
               onClick={() => {
                 setError(null);
-                // Retry last user message if available
+                // Retry last user message: remove the failed user+assistant msgs first to avoid duplicates
                 const lastUserMsg = messages.filter(m => m.role === 'user').pop();
                 if (lastUserMsg) {
+                  // Remove the failed assistant message (if any) that followed the user message
+                  const lastUserIdx = messages.findIndex(m => m.id === lastUserMsg.id);
+                  const failedAssistant = messages.slice(lastUserIdx + 1).find(m => m.role === 'assistant');
+                  if (failedAssistant) removeMessage(failedAssistant.id);
+                  // Remove the original user message so send functions can re-add it
+                  removeMessage(lastUserMsg.id);
                   const intent = manualMode === 'auto' ? detectIntentFromInput(lastUserMsg.content) : manualMode;
                   if (intent === 'evaluate') handleEvaluate(lastUserMsg.content);
                   else if (intent === 'fix') handleFix(lastUserMsg.content);

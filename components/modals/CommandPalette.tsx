@@ -79,7 +79,7 @@ async function fetchFileContent(repo: string, path: string, ref: string): Promis
   const response = await fetch(`/api/github/contents?${params.toString()}`);
   if (!response.ok) throw new Error(`Failed to fetch file: ${response.status}`);
   const data = (await response.json()) as GitHubContentItem;
-  if (data.content && data.encoding === 'base64') return atob(data.content);
+  if (data.content && data.encoding === 'base64') return new TextDecoder().decode(Uint8Array.from(atob(data.content), c => c.charCodeAt(0)));
   return data.content ?? '';
 }
 

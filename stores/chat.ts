@@ -19,6 +19,7 @@ interface ChatState {
 
   // Actions
   addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => string;
+  removeMessage: (id: string) => void;
   updateMessage: (id: string, updates: Partial<ChatMessage>) => void;
   appendToMessage: (id: string, content: string) => void;
   setStreaming: (streaming: boolean) => void;
@@ -53,6 +54,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
     return id;
   },
+
+  removeMessage: (id) =>
+    set((state) => ({
+      messages: state.messages.filter((m) => m.id !== id),
+    })),
 
   updateMessage: (id, updates) =>
     set((state) => ({
