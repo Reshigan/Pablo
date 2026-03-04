@@ -90,7 +90,7 @@ export function TopBar({
           aria-label="Command Palette"
         >
           <Command size={14} />
-          <span className="font-ui text-[11px]">Cmd+K</span>
+          <span className="font-ui text-[11px]">{'\u2318\u21E7P'}</span>
         </button>
 
         {/* Settings */}

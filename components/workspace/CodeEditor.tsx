@@ -248,7 +248,21 @@ ${selectedText}`,
   }
 
   return (
-    <div className="flex-1 overflow-hidden relative">
+    <div className="flex flex-1 flex-col overflow-hidden relative">
+      {/* Issue 8: Editor breadcrumbs */}
+      {activeTab && (
+        <div className="flex h-6 shrink-0 items-center gap-1 border-b border-pablo-border bg-pablo-panel px-3">
+          {activeTab.path.split('/').map((segment, i, arr) => (
+            <span key={i} className="flex items-center gap-1">
+              {i > 0 && <span className="text-pablo-text-muted">/</span>}
+              <span className={`font-ui text-[11px] ${i === arr.length - 1 ? 'text-pablo-text' : 'text-pablo-text-muted'}`}>
+                {segment}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* Feature 5: Cmd+K Inline Edit Popover */}
       {inlineEditVisible && (
         <div

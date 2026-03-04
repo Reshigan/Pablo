@@ -9,6 +9,7 @@ import { ChatPanel } from '@/components/chat/ChatPanel';
 import { TerminalPanel } from '@/components/workspace/Terminal';
 import { CommandPalette } from '@/components/modals/CommandPalette';
 import { SettingsModal } from '@/components/modals/SettingsModal';
+import { WelcomeModal } from '@/components/modals/WelcomeModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { useUIStore } from '@/stores/ui';
@@ -32,12 +33,15 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     chatWidth,
     sidebarWidth,
     terminalOpen,
+    terminalHeight,
     toggleSidebar,
     toggleChat,
     toggleTerminal,
     toggleCommandPalette,
     setSidebarWidth,
     setChatWidth,
+    setTerminalHeight,
+    setActiveWorkspaceTab,
   } = useUIStore();
 
   const {
@@ -109,17 +113,32 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         e.preventDefault();
         toggleTerminal();
       }
-      if (isMeta && e.key === 'k') {
+      // Issue 15: Cmd+Shift+P for command palette (instead of Cmd+K)
+      if (isMeta && e.shiftKey && e.key.toLowerCase() === 'p') {
         e.preventDefault();
         toggleCommandPalette();
+        return;
       }
+      // Issue 14: Cmd+P for Preview toggle
+      if (isMeta && !e.shiftKey && e.key.toLowerCase() === 'p') {
+        e.preventDefault();
+        const current = useUIStore.getState().activeWorkspaceTab;
+        setActiveWorkspaceTab(current === 'preview' ? 'editor' : 'preview');
+        return;
+      }
+      // Issue 14: Cmd+D for Diff tab
+      if (isMeta && e.key === 'd') {
+        e.preventDefault();
+        setActiveWorkspaceTab('diff');
+      }
+      // Cmd+K reserved for inline edit (Feature 5)
       // Cmd+S: Save session
       if (isMeta && e.key === 's') {
         e.preventDefault();
         saveSession().catch(() => { /* non-blocking */ });
       }
     },
-    [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette, saveSession]
+    [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette, saveSession, setActiveWorkspaceTab]
   );
 
   useEffect(() => {
@@ -155,7 +174,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {sidebarOpen && (
           <PanelResizer
             direction="horizontal"
-            onResize={(delta) => setSidebarWidth(sidebarWidth + delta)}
+            onResize={(delta) => setSidebarWidth(prev => prev + delta)}
           />
         )}
 
@@ -168,7 +187,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         {chatOpen && (
           <PanelResizer
             direction="horizontal"
-            onResize={(delta) => setChatWidth(chatWidth - delta)}
+            onResize={(delta) => setChatWidth(prev => prev - delta)}
           />
         )}
 
@@ -185,20 +204,26 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         )}
       </div>
 
-      {/* Terminal */}
+      {/* Terminal with resize handle (Issue 5) */}
       {terminalOpen && (
-        <div className="shrink-0 border-t border-pablo-border bg-pablo-panel">
-          <div className="flex h-6 items-center justify-between border-b border-pablo-border px-3">
-            <span className="font-ui text-[11px] font-semibold uppercase tracking-wider text-pablo-text-dim">
-              Terminal
-            </span>
+        <>
+          <PanelResizer
+            direction="vertical"
+            onResize={(delta) => setTerminalHeight(prev => prev - delta)}
+          />
+          <div className="shrink-0 border-t border-pablo-border bg-pablo-panel">
+            <div className="flex h-6 items-center justify-between border-b border-pablo-border px-3">
+              <span className="font-ui text-[11px] font-semibold uppercase tracking-wider text-pablo-text-dim">
+                Terminal
+              </span>
+            </div>
+            <div style={{ height: terminalHeight }}>
+              <ErrorBoundary name="Terminal">
+                <TerminalPanel />
+              </ErrorBoundary>
+            </div>
           </div>
-          <div style={{ height: 180 }}>
-            <ErrorBoundary name="Terminal">
-              <TerminalPanel />
-            </ErrorBoundary>
-          </div>
-        </div>
+        </>
       )}
 
       {/* Status Bar */}
@@ -207,6 +232,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       {/* Modals & Overlays */}
       <CommandPalette />
       <SettingsModal />
+      <WelcomeModal />
       <ToastContainer />
     </div>
   );

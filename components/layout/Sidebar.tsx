@@ -12,6 +12,7 @@ import {
   History,
   Flag,
   KeyRound,
+  BookOpen,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
@@ -31,20 +32,25 @@ interface SidebarTabConfig {
   id: SidebarTab;
   icon: LucideIcon;
   label: string;
+  group: 'core' | 'ai' | 'project';
 }
 
+// Issue 10: Reordered by frequency, grouped into Core/AI/Project
 const tabs: SidebarTabConfig[] = [
-  { id: 'sessions', icon: LayoutList, label: 'Sessions' },
-  { id: 'files', icon: Files, label: 'File Explorer' },
-  { id: 'search', icon: Search, label: 'Search' },
-  { id: 'git', icon: GitBranch, label: 'Source Control' },
-  { id: 'activity', icon: Activity, label: 'Activity Feed' },
-  { id: 'history', icon: History, label: 'Prompt History' },
-  { id: 'checkpoints', icon: Flag, label: 'Checkpoints' },
-  { id: 'secrets', icon: KeyRound, label: 'Secrets Vault' },
-  { id: 'memory', icon: Brain, label: 'Self-Learning' },
-  { id: 'metrics', icon: BarChart3, label: 'Metrics' },
-  { id: 'mcp', icon: Plug, label: 'MCP Servers' },
+  // Core
+  { id: 'files', icon: Files, label: 'File Explorer', group: 'core' },
+  { id: 'search', icon: Search, label: 'Search', group: 'core' },
+  { id: 'git', icon: GitBranch, label: 'Source Control', group: 'core' },
+  // AI
+  { id: 'memory', icon: Brain, label: 'Self-Learning', group: 'ai' },
+  { id: 'sessions', icon: LayoutList, label: 'Sessions', group: 'ai' },
+  { id: 'history', icon: BookOpen, label: 'Prompt History', group: 'ai' },
+  // Project
+  { id: 'checkpoints', icon: Flag, label: 'Checkpoints', group: 'project' },
+  { id: 'activity', icon: Activity, label: 'Activity', group: 'project' },
+  { id: 'secrets', icon: KeyRound, label: 'Secrets', group: 'project' },
+  { id: 'metrics', icon: BarChart3, label: 'Metrics', group: 'project' },
+  { id: 'mcp', icon: Plug, label: 'MCP Servers', group: 'project' },
 ];
 
 function SidebarTabIcon({ tab, isActive, onClick }: { tab: SidebarTabConfig; isActive: boolean; onClick: () => void }) {
@@ -91,15 +97,20 @@ export function Sidebar() {
       role="complementary"
       aria-label="Sidebar"
     >
-      {/* Icon strip - always visible */}
+      {/* Icon strip - always visible (Issue 10: grouped with dividers) */}
       <div className="flex w-12 shrink-0 flex-col border-r border-pablo-border bg-pablo-panel pt-1">
-        {tabs.map((tab) => (
-          <SidebarTabIcon
-            key={tab.id}
-            tab={tab}
-            isActive={sidebarTab === tab.id}
-            onClick={() => setSidebarTab(tab.id)}
-          />
+        {tabs.map((tab, i) => (
+          <div key={tab.id}>
+            {/* Group divider between core/ai/project */}
+            {i > 0 && tabs[i - 1].group !== tab.group && (
+              <div className="mx-2 my-1 h-px bg-pablo-border" />
+            )}
+            <SidebarTabIcon
+              tab={tab}
+              isActive={sidebarTab === tab.id}
+              onClick={() => setSidebarTab(tab.id)}
+            />
+          </div>
         ))}
       </div>
 

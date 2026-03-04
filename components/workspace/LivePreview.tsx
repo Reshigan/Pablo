@@ -14,6 +14,7 @@ import {
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
 import { usePipelineStore } from '@/stores/pipeline';
+import { useUIStore } from '@/stores/ui';
 import { toast } from '@/stores/toast';
 import {
   detectRuntime,
@@ -224,6 +225,21 @@ export function LivePreview() {
       setIframeKey(k => k + 1);
     }
   }, [runtime, startWebContainer, startPyodide]);
+
+  // Issue 9: Consume autoStartPreview flag — auto-refresh preview when all diffs accepted
+  const autoStartPreview = useUIStore(s => s.autoStartPreview);
+  const setAutoStartPreview = useUIStore(s => s.setAutoStartPreview);
+  useEffect(() => {
+    if (!autoStartPreview || previewFiles.length === 0) return;
+    setAutoStartPreview(false);
+    if (runtime === 'webcontainer') {
+      startWebContainer();
+    } else if (runtime === 'pyodide') {
+      startPyodide();
+    } else {
+      setIframeKey(k => k + 1);
+    }
+  }, [autoStartPreview, setAutoStartPreview, previewFiles.length, runtime, startWebContainer, startPyodide]);
 
   // Auto-fix handler (Feature 3)
   const handleAutoFix = useCallback(async () => {
