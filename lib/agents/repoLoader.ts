@@ -101,7 +101,7 @@ export async function loadRepoFiles(
 
   // Step 1: Get the full tree recursively
   const treeRes = await fetch(
-    `https://api.github.com/repos/${repo}/git/trees/${branch}?recursive=1`,
+    `https://api.github.com/repos/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
@@ -138,7 +138,7 @@ export async function loadRepoFiles(
   for (const blob of selected) {
     try {
       const contentRes = await fetch(
-        `https://api.github.com/repos/${repo}/contents/${encodeURIComponent(blob.path)}?ref=${encodeURIComponent(branch)}`,
+        `https://api.github.com/repos/${repo}/contents/${blob.path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`,
         {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -279,7 +279,8 @@ function decodeBase64(base64: string): string {
     const clean = base64.replace(/\n/g, '');
     // Use atob for browser, Buffer for Node
     if (typeof atob !== 'undefined') {
-      return atob(clean);
+      const bytes = Uint8Array.from(atob(clean), c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
     }
     return Buffer.from(clean, 'base64').toString('utf-8');
   } catch {
