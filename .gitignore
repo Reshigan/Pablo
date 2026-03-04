@@ -41,3 +41,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# CFG-02: additional ignores for production safety
+# Wrangler local state
+.wrangler/
+
+# Scripts that may contain secrets
+set-ollama-secret.sh
+
+# SQLite local dev databases
+*.sqlite
+*.sqlite3
+*.db

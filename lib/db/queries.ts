@@ -56,6 +56,7 @@ class InMemoryStore {
     const session: Session = {
       id: data.id ?? generateId('ses'),
       title: data.title ?? 'Untitled Session',
+      userId: (data as Record<string, unknown>).userId as string | null ?? null,
       repoUrl: data.repoUrl ?? null,
       repoBranch: data.repoBranch ?? 'main',
       createdAt: now,

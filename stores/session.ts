@@ -4,6 +4,15 @@ import type { PipelineRun } from './pipeline';
 import type { FileTab, DiffHunk } from './editor';
 import type { GitHubRepo } from './repo';
 
+// REL-03: lazy store accessors to avoid circular deps
+// Uses dynamic import() instead of require() for Workers ES-module compatibility.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _chatStore: any, _pipelineStore: any, _editorStore: any, _repoStore: any;
+async function getChatStore() { if (!_chatStore) { _chatStore = (await import('./chat')).useChatStore; } return _chatStore; }
+async function getPipelineStore() { if (!_pipelineStore) { _pipelineStore = (await import('./pipeline')).usePipelineStore; } return _pipelineStore; }
+async function getEditorStore() { if (!_editorStore) { _editorStore = (await import('./editor')).useEditorStore; } return _editorStore; }
+async function getRepoStore() { if (!_repoStore) { _repoStore = (await import('./repo')).useRepoStore; } return _repoStore; }
+
 // ─── Session Types ────────────────────────────────────────────────────────────
 
 export interface SessionSnapshot {
@@ -86,12 +95,12 @@ function mapApiSession(raw: Record<string, unknown>): AppSession {
 
 // ─── Snapshot helpers ─────────────────────────────────────────────────────────
 
-function captureSnapshot(): SessionSnapshot {
-  // Dynamic imports to avoid circular deps at module level
-  const { useChatStore } = require('./chat') as typeof import('./chat');
-  const { usePipelineStore } = require('./pipeline') as typeof import('./pipeline');
-  const { useEditorStore } = require('./editor') as typeof import('./editor');
-  const { useRepoStore } = require('./repo') as typeof import('./repo');
+async function captureSnapshot(): Promise<SessionSnapshot> {
+  // REL-03: use dynamic import() instead of require()
+  const useChatStore = await getChatStore();
+  const usePipelineStore = await getPipelineStore();
+  const useEditorStore = await getEditorStore();
+  const useRepoStore = await getRepoStore();
 
   const chat = useChatStore.getState();
   const pipeline = usePipelineStore.getState();
@@ -109,11 +118,11 @@ function captureSnapshot(): SessionSnapshot {
   };
 }
 
-function restoreSnapshot(snapshot: SessionSnapshot): void {
-  const { useChatStore } = require('./chat') as typeof import('./chat');
-  const { usePipelineStore } = require('./pipeline') as typeof import('./pipeline');
-  const { useEditorStore } = require('./editor') as typeof import('./editor');
-  const { useRepoStore } = require('./repo') as typeof import('./repo');
+async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
+  const useChatStore = await getChatStore();
+  const usePipelineStore = await getPipelineStore();
+  const useEditorStore = await getEditorStore();
+  const useRepoStore = await getRepoStore();
 
   // Restore chat
   const chatStore = useChatStore.getState();
@@ -143,11 +152,11 @@ function restoreSnapshot(snapshot: SessionSnapshot): void {
 
 // ─── Clear all stores (for session isolation) ────────────────────────────────
 
-function clearAllStores(): void {
-  const { useChatStore } = require('./chat') as typeof import('./chat');
-  const { usePipelineStore } = require('./pipeline') as typeof import('./pipeline');
-  const { useEditorStore } = require('./editor') as typeof import('./editor');
-  const { useRepoStore } = require('./repo') as typeof import('./repo');
+async function clearAllStores(): Promise<void> {
+  const useChatStore = await getChatStore();
+  const usePipelineStore = await getPipelineStore();
+  const useEditorStore = await getEditorStore();
+  const useRepoStore = await getRepoStore();
 
   // Clear chat messages and state
   useChatStore.getState().clearMessages();
@@ -205,7 +214,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const session = mapApiSession(await res.json());
 
       // Clear all stores so the new session starts fresh
-      clearAllStores();
+      await clearAllStores();
 
       set((state) => ({
         sessions: [session, ...state.sessions],
@@ -243,11 +252,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const session = mapApiSession(await res.json());
 
       // Clear all stores first so stale state from previous session is removed
-      clearAllStores();
+      await clearAllStores();
 
       // Restore snapshot if present (otherwise stores stay clean)
       if (session.snapshot) {
-        restoreSnapshot(session.snapshot);
+        await restoreSnapshot(session.snapshot);
       }
 
       set((state) => ({
@@ -266,15 +275,24 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     const { currentSessionId, isSaving } = get();
     if (!currentSessionId || isSaving) return;
 
+    // REL-05: capture sessionId before async work to prevent race condition
+    // when user switches sessions while save is in-flight
+    const savingSessionId = currentSessionId;
     set({ isSaving: true });
     try {
-      const snapshot = captureSnapshot();
+      const snapshot = await captureSnapshot();
 
       // Also capture repo info
-      const { useRepoStore } = require('./repo') as typeof import('./repo');
+      const useRepoStore = await getRepoStore();
       const repo = useRepoStore.getState();
 
-      await fetch(`/api/sessions/${currentSessionId}`, {
+      // REL-05: only save if we're still on the same session
+      if (get().currentSessionId !== savingSessionId) {
+        set({ isSaving: false });
+        return; // Session switched during save — discard stale snapshot
+      }
+
+      await fetch(`/api/sessions/${savingSessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

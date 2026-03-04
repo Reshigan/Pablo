@@ -94,6 +94,64 @@ const MIGRATION_STATEMENTS = [
 )`,
   // v2: add snapshot column to sessions
   `ALTER TABLE sessions ADD COLUMN snapshot TEXT`,
+  // v3: SEC-03 multi-tenancy — add user_id to sessions
+  `ALTER TABLE sessions ADD COLUMN user_id TEXT`,
+  // v3: tables for cost tracking, agent runs, playbooks, codebase index
+  `CREATE TABLE IF NOT EXISTS llm_calls (
+  id TEXT PRIMARY KEY,
+  session_id TEXT,
+  model TEXT NOT NULL,
+  tokens_in INTEGER NOT NULL DEFAULT 0,
+  tokens_out INTEGER NOT NULL DEFAULT 0,
+  duration_ms INTEGER NOT NULL DEFAULT 0,
+  cost_usd REAL NOT NULL DEFAULT 0,
+  source TEXT DEFAULT 'chat',
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  `CREATE TABLE IF NOT EXISTS agent_runs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL,
+  orchestration_id TEXT NOT NULL,
+  agent_name TEXT NOT NULL,
+  phase TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'running',
+  input_summary TEXT DEFAULT '',
+  output_summary TEXT DEFAULT '',
+  files_generated INTEGER DEFAULT 0,
+  tokens_used INTEGER DEFAULT 0,
+  duration_ms INTEGER DEFAULT 0,
+  issues TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT
+)`,
+  `CREATE TABLE IF NOT EXISTS playbooks (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  trigger_pattern TEXT DEFAULT '',
+  steps_json TEXT NOT NULL DEFAULT '[]',
+  created_by TEXT,
+  usage_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
+  `CREATE TABLE IF NOT EXISTS codebase_index (
+  id TEXT PRIMARY KEY,
+  repo_full_name TEXT NOT NULL,
+  branch TEXT NOT NULL,
+  graph_json TEXT NOT NULL,
+  indexed_at TEXT NOT NULL,
+  total_files INTEGER DEFAULT 0,
+  total_size INTEGER DEFAULT 0
+)`,
+  `CREATE TABLE IF NOT EXISTS secrets (
+  id TEXT PRIMARY KEY,
+  session_id TEXT REFERENCES sessions(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+)`,
 ];
 
 interface D1Binding {

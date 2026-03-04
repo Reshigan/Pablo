@@ -51,12 +51,12 @@ async function getEnvConfig(): Promise<EnvConfig> {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://ollama.com',
+      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://api.ollama.ai/v1',
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || '',
     };
   } catch {
     return {
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com',
+      OLLAMA_URL: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY || '',
     };
   }
@@ -68,8 +68,12 @@ export async function POST(request: NextRequest) {
     const signature = request.headers.get('x-hub-signature-256') || '';
     const event = request.headers.get('x-github-event');
 
-    // Verify webhook signature
-    if (process.env.GITHUB_WEBHOOK_SECRET && !(await verifyGitHubSignature(rawBody, signature))) {
+    // SEC-04: mandatory webhook signature verification
+    if (!process.env.GITHUB_WEBHOOK_SECRET) {
+      console.error('[GitHub Webhook] GITHUB_WEBHOOK_SECRET not set — rejecting request');
+      return new Response('Webhook secret not configured', { status: 500 });
+    }
+    if (!(await verifyGitHubSignature(rawBody, signature))) {
       return new Response('Invalid signature', { status: 401 });
     }
 

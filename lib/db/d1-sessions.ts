@@ -10,6 +10,7 @@ import { generateId } from './queries';
 
 export interface D1Session {
   id: string;
+  userId: string | null;
   title: string;
   repoUrl: string | null;
   repoBranch: string | null;
@@ -24,6 +25,7 @@ export interface D1Session {
  * Create a new session in D1.
  */
 export async function d1CreateSession(data: {
+  userId?: string | null;
   title?: string;
   repoUrl?: string | null;
   repoBranch?: string;
@@ -35,6 +37,7 @@ export async function d1CreateSession(data: {
   if (d1) {
     await d1.insert(sessions).values({
       id,
+      userId: data.userId ?? null,
       title: data.title ?? 'Untitled Session',
       repoUrl: data.repoUrl ?? null,
       repoBranch: data.repoBranch ?? 'main',
@@ -53,6 +56,7 @@ export async function d1CreateSession(data: {
   // Fallback: return a constructed object
   return {
     id,
+    userId: data.userId ?? null,
     title: data.title ?? 'Untitled Session',
     repoUrl: data.repoUrl ?? null,
     repoBranch: data.repoBranch ?? 'main',
@@ -67,10 +71,10 @@ export async function d1CreateSession(data: {
 /**
  * List all sessions from D1, sorted by updatedAt descending.
  */
-export async function d1ListSessions(): Promise<D1Session[]> {
+export async function d1ListSessions(userId: string): Promise<D1Session[]> {
   const d1 = await getD1();
   if (d1) {
-    const rows = await d1.select().from(sessions).orderBy(desc(sessions.updatedAt));
+    const rows = await d1.select().from(sessions).where(eq(sessions.userId, userId)).orderBy(desc(sessions.updatedAt));
     return rows as unknown as D1Session[];
   }
   return [];
