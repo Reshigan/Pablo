@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug } from 'lucide-react';
+import { Code2, GitCompareArrows, Database, Globe, TestTube2, Play, Package, Rocket, Bug, Terminal } from 'lucide-react';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
 import { usePipelineStore } from '@/stores/pipeline';
@@ -22,6 +22,7 @@ const workspaceTabs: TabConfig[] = [
   { id: 'dependencies', label: 'Packages', icon: Package },
   { id: 'deploy-logs', label: 'Deploys', icon: Rocket },
   { id: 'bugs', label: 'Problems', icon: Bug },
+  { id: 'terminal', label: 'Terminal', icon: Terminal },
 ];
 
 function TabBadge({ tabId }: { tabId: WorkspaceTab }) {
@@ -49,7 +50,7 @@ export function WorkspaceTabs() {
   const { activeWorkspaceTab, setActiveWorkspaceTab } = useUIStore();
 
   return (
-    <div className="flex h-9 shrink-0 items-center border-b border-pablo-border bg-pablo-panel">
+    <div className="flex h-7 shrink-0 items-center border-b border-pablo-border bg-pablo-panel">
       {workspaceTabs.map((tab) => {
         const TabIcon = tab.icon;
         const isActive = activeWorkspaceTab === tab.id;

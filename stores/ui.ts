@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
 export type SidebarTab = 'sessions' | 'files' | 'search' | 'git' | 'memory' | 'metrics' | 'mcp' | 'activity' | 'history' | 'checkpoints' | 'secrets';
-export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline' | 'dependencies' | 'deploy-logs' | 'bugs';
+export type WorkspaceTab = 'editor' | 'diff' | 'db-designer' | 'api-tester' | 'preview' | 'pipeline' | 'dependencies' | 'deploy-logs' | 'bugs' | 'terminal';
 
 /**
  * Safe storage adapter — works in SSR, Workers, and browsers
@@ -49,10 +49,6 @@ interface UIState {
   chatOpen: boolean;
   chatWidth: number;
 
-  // Terminal
-  terminalOpen: boolean;
-  terminalHeight: number;
-
   // Workspace
   activeWorkspaceTab: WorkspaceTab;
 
@@ -72,7 +68,6 @@ interface UIState {
   toggleChat: () => void;
   setChatWidth: (width: number | ((prev: number) => number)) => void;
   toggleTerminal: () => void;
-  setTerminalHeight: (height: number | ((prev: number) => number)) => void;
   setActiveWorkspaceTab: (tab: WorkspaceTab) => void;
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
@@ -90,10 +85,6 @@ export const useUIStore = create<UIState>()(
       // Chat
       chatOpen: true,
       chatWidth: 420,
-
-      // Terminal
-      terminalOpen: true,
-      terminalHeight: 200,
 
       // Workspace
       activeWorkspaceTab: 'editor',
@@ -113,8 +104,9 @@ export const useUIStore = create<UIState>()(
       setSidebarWidth: (width) => set((state) => ({ sidebarWidth: Math.max(200, Math.min(500, typeof width === 'function' ? width(state.sidebarWidth) : width)) })),
       toggleChat: () => set((state) => ({ chatOpen: !state.chatOpen })),
       setChatWidth: (width) => set((state) => ({ chatWidth: Math.max(380, Math.min(800, typeof width === 'function' ? width(state.chatWidth) : width)) })),
-      toggleTerminal: () => set((state) => ({ terminalOpen: !state.terminalOpen })),
-      setTerminalHeight: (height) => set((state) => ({ terminalHeight: Math.max(100, Math.min(600, typeof height === 'function' ? height(state.terminalHeight) : height)) })),
+      toggleTerminal: () => set((state) => ({
+        activeWorkspaceTab: state.activeWorkspaceTab === 'terminal' ? 'editor' : 'terminal',
+      })),
       setActiveWorkspaceTab: (tab) => set({ activeWorkspaceTab: tab }),
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
       toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
@@ -130,8 +122,6 @@ export const useUIStore = create<UIState>()(
         sidebarWidth: state.sidebarWidth,
         chatOpen: state.chatOpen,
         chatWidth: state.chatWidth,
-        terminalOpen: state.terminalOpen,
-        terminalHeight: state.terminalHeight,
         activeWorkspaceTab: state.activeWorkspaceTab,
       }),
     },

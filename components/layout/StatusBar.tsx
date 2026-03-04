@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2 } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useRepoStore } from '@/stores/repo';
 import { useEditorStore } from '@/stores/editor';
 import { useChatStore } from '@/stores/chat';
@@ -9,6 +9,7 @@ import { useBackgroundTaskStore } from '@/stores/backgroundTasks';
 import { usePipelineStore } from '@/stores/pipeline';
 
 export function StatusBar() {
+  const [collapsed, setCollapsed] = useState(false);
   const { selectedRepo, selectedBranch } = useRepoStore();
   const { tabs, activeTabId } = useEditorStore();
   const tasks = useBackgroundTaskStore((s) => s.tasks);
@@ -28,10 +29,23 @@ export function StatusBar() {
   const cost = (tokens / 1000000 * 0.15).toFixed(4);
   const tokenDisplay = tokens >= 1000 ? `${(tokens / 1000).toFixed(1)}K` : tokens.toString();
 
+  if (collapsed) {
+    return (
+      <footer
+        className="flex h-[4px] shrink-0 cursor-pointer border-t border-pablo-border bg-pablo-bg transition-all hover:h-[6px] hover:bg-pablo-hover"
+        role="contentinfo"
+        onDoubleClick={() => setCollapsed(false)}
+        title="Double-click to expand status bar"
+      />
+    );
+  }
+
   return (
     <footer
       className="flex h-[28px] shrink-0 items-center justify-between border-t border-pablo-border bg-pablo-bg px-3 font-ui text-[11px] text-pablo-text-muted"
       role="contentinfo"
+      onDoubleClick={() => setCollapsed(true)}
+      title="Double-click to collapse"
     >
       {/* Left section */}
       <div className="flex items-center gap-3">

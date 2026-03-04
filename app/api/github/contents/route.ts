@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const repo = searchParams.get('repo');
   const path = searchParams.get('path') || '';
-  const ref = searchParams.get('ref') || '';
+  const ref = searchParams.get('ref') || searchParams.get('branch') || '';
 
   if (!repo) {
     return NextResponse.json({ error: 'repo parameter required' }, { status: 400 });

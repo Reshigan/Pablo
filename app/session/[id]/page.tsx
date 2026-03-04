@@ -6,7 +6,6 @@ import { StatusBar } from '@/components/layout/StatusBar';
 import { PanelResizer } from '@/components/layout/PanelResizer';
 import { WorkspaceArea } from '@/components/workspace/WorkspaceArea';
 import { ChatPanel } from '@/components/chat/ChatPanel';
-import { TerminalPanel } from '@/components/workspace/Terminal';
 import { CommandPalette } from '@/components/modals/CommandPalette';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { WelcomeModal } from '@/components/modals/WelcomeModal';
@@ -32,15 +31,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     chatOpen,
     chatWidth,
     sidebarWidth,
-    terminalOpen,
-    terminalHeight,
     toggleSidebar,
     toggleChat,
     toggleTerminal,
     toggleCommandPalette,
     setSidebarWidth,
     setChatWidth,
-    setTerminalHeight,
     setActiveWorkspaceTab,
   } = useUIStore();
 
@@ -139,6 +135,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       }
     },
     [toggleSidebar, toggleChat, toggleTerminal, toggleCommandPalette, saveSession, setActiveWorkspaceTab]
+    // toggleTerminal now switches workspace tab to 'terminal' instead of toggling a bottom panel
   );
 
   useEffect(() => {
@@ -203,28 +200,6 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           </div>
         )}
       </div>
-
-      {/* Terminal with resize handle (Issue 5) */}
-      {terminalOpen && (
-        <>
-          <PanelResizer
-            direction="vertical"
-            onResize={(delta) => setTerminalHeight(prev => prev - delta)}
-          />
-          <div className="shrink-0 border-t border-pablo-border bg-pablo-panel">
-            <div className="flex h-6 items-center justify-between border-b border-pablo-border px-3">
-              <span className="font-ui text-[11px] font-semibold uppercase tracking-wider text-pablo-text-dim">
-                Terminal
-              </span>
-            </div>
-            <div style={{ height: terminalHeight }}>
-              <ErrorBoundary name="Terminal">
-                <TerminalPanel />
-              </ErrorBoundary>
-            </div>
-          </div>
-        </>
-      )}
 
       {/* Status Bar */}
       <StatusBar />

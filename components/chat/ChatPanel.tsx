@@ -1,6 +1,6 @@
 'use client';
 
-import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket } from 'lucide-react';
+import { Send, Paperclip, StopCircle, Trash2, Bot, User, Loader2, CheckCircle2, AlertTriangle, Copy, Check, Cpu, X, FileText, MessageSquare, Rocket, Search, Wrench } from 'lucide-react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -11,6 +11,10 @@ import { useAgentStore } from '@/stores/agent';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
 import type { AgentEvent } from '@/lib/agents/agentEngine';
+import { useRepoStore } from '@/stores/repo';
+import { useUIStore } from '@/stores/ui';
+import { EvaluationReport } from './EvaluationReport';
+import type { EvaluationResult, EvaluationIssue } from '@/lib/agents/repoEvaluator';
 
 interface PipelineProgress {
   active: boolean;
@@ -65,8 +69,9 @@ export function ChatPanel() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
-  const [chatMode, setChatMode] = useState<'chat' | 'agent' | 'build'>('chat');
+  const [chatMode, setChatMode] = useState<'chat' | 'agent' | 'build' | 'evaluate' | 'fix'>('chat');
   const agentMode = chatMode === 'agent';
+  const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [pipeline, setPipeline] = useState<PipelineProgress>({
@@ -80,6 +85,8 @@ export function ChatPanel() {
   const abortRef = useRef<AbortController | null>(null);
 
   const { startRun, processEvent, completeRun, failRun, isRunning: agentRunning } = useAgentStore();
+  const { selectedRepo, selectedBranch } = useRepoStore();
+  const { setActiveWorkspaceTab } = useUIStore();
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -509,7 +516,15 @@ export function ChatPanel() {
     if (!input.trim()) return;
     const msg = input;
     setInput('');
-    sendMessage(msg);
+
+    // Route based on mode
+    if (chatMode === 'evaluate') {
+      handleEvaluate(msg);
+    } else if (chatMode === 'fix') {
+      handleFix(msg);
+    } else {
+      sendMessage(msg);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -538,6 +553,209 @@ export function ChatPanel() {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  /**
+   * Detect user intent from input to auto-suggest mode
+   */
+  const detectIntentFromInput = useCallback((text: string): 'chat' | 'build' | 'evaluate' | 'fix' => {
+    const lower = text.toLowerCase();
+    // Evaluate patterns
+    if (/\b(evaluate|audit|scan|health|review\s+repo|analyze\s+repo|check\s+quality)\b/.test(lower)) {
+      return 'evaluate';
+    }
+    // Fix patterns
+    if (/\b(fix|bug|error|crash|broken|not\s+work|fail|patch|debug|repair)\b/.test(lower)) {
+      return 'fix';
+    }
+    // Build patterns
+    if (/\b(build|create|generate|implement|make|scaffold|new\s+app|new\s+project)\b/.test(lower)) {
+      return 'build';
+    }
+    return 'chat';
+  }, []);
+
+  /**
+   * Handle Evaluate mode: load repo files → run evaluateRepo → show report
+   */
+  const handleEvaluate = useCallback(
+    async (content: string) => {
+      if (isStreaming) return;
+
+      addMessage({ role: 'user', content: content || 'Evaluate repository' });
+      const assistantId = addMessage({ role: 'assistant', content: '', isStreaming: true });
+      setStreaming(true);
+      setError(null);
+      setEvaluationResult(null);
+
+      try {
+        // Step 1: Load repo files
+        const repoName = selectedRepo?.full_name;
+        const branch = selectedBranch || 'main';
+
+        if (!repoName) {
+          throw new Error('No repository selected. Please select a repo from the Git panel first.');
+        }
+
+        updateMessage(assistantId, { content: 'Loading repository files...' });
+
+        const { loadRepoFilesViaAPI } = await import('@/lib/agents/repoLoader');
+        const files = await loadRepoFilesViaAPI(repoName, branch, {
+          maxFiles: 50,
+          onProgress: (msg) => updateMessage(assistantId, { content: msg }),
+        });
+
+        if (files.length === 0) {
+          throw new Error('No files loaded from repository. Check that the repo has accessible files.');
+        }
+
+        // Step 2: Run evaluation
+        updateMessage(assistantId, { content: `Evaluating ${files.length} files...` });
+
+        const { evaluateRepo } = await import('@/lib/agents/repoEvaluator');
+
+        // Get env config from /api/chat endpoint
+        const envRes = await fetch('/api/env');
+        const env = envRes.ok ? await envRes.json() : {};
+
+        const result = await evaluateRepo(
+          files,
+          env as { OLLAMA_URL?: string; OLLAMA_API_KEY?: string },
+          (msg) => updateMessage(assistantId, { content: msg }),
+        );
+
+        setEvaluationResult(result);
+        updateMessage(assistantId, {
+          content: `Repository evaluation complete. Health score: **${result.healthScore}/100**`,
+          isStreaming: false,
+        });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Evaluation failed';
+        setError(errorMsg);
+        updateMessage(assistantId, { isStreaming: false, content: `Error: ${errorMsg}` });
+      } finally {
+        setStreaming(false);
+      }
+    },
+    [isStreaming, selectedRepo, selectedBranch, addMessage, updateMessage, setStreaming, setError],
+  );
+
+  /**
+   * Handle Fix mode: detect mode → load repo files → run incrementalPipeline → create diffs
+   */
+  const handleFix = useCallback(
+    async (content: string) => {
+      if (!content.trim() || isStreaming) return;
+
+      addMessage({ role: 'user', content: content.trim() });
+      const assistantId = addMessage({ role: 'assistant', content: '', isStreaming: true });
+      setStreaming(true);
+      setError(null);
+
+      try {
+        const repoName = selectedRepo?.full_name;
+        const branch = selectedBranch || 'main';
+
+        if (!repoName) {
+          throw new Error('No repository selected. Please select a repo from the Git panel first.');
+        }
+
+        // Step 1: Load repo files
+        updateMessage(assistantId, { content: 'Loading repository files...' });
+
+        const { loadRepoFilesViaAPI } = await import('@/lib/agents/repoLoader');
+        const files = await loadRepoFilesViaAPI(repoName, branch, {
+          maxFiles: 50,
+          onProgress: (msg) => updateMessage(assistantId, { content: msg }),
+        });
+
+        if (files.length === 0) {
+          throw new Error('No files loaded from repository.');
+        }
+
+        // Step 2: Detect mode and run pipeline
+        const { runIncrementalPipeline, detectIncrementalMode } = await import('@/lib/agents/incrementalPipeline');
+        const mode = detectIncrementalMode(content);
+
+        updateMessage(assistantId, { content: `Running ${mode} pipeline on ${files.length} files...` });
+
+        const envRes = await fetch('/api/env');
+        const env = envRes.ok ? await envRes.json() : {};
+
+        const result = await runIncrementalPipeline(
+          content.trim(),
+          mode,
+          files,
+          env as { OLLAMA_URL?: string; OLLAMA_API_KEY?: string },
+          (progress) => {
+            updateMessage(assistantId, {
+              content: `[${progress.stage}] ${progress.message} (${progress.progress}%)`,
+            });
+          },
+        );
+
+        // Step 3: Create diffs in the editor
+        const editorStore = useEditorStore.getState();
+
+        for (const edit of result.edits) {
+          const fileId = `fix-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          editorStore.addDiff({
+            fileId,
+            filename: edit.path,
+            language: files.find((f) => f.path === edit.path)?.language || 'plaintext',
+            oldContent: edit.oldContent,
+            newContent: edit.newContent,
+          });
+        }
+
+        for (const newFile of result.newFiles) {
+          const fileId = `fix-new-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+          editorStore.addDiff({
+            fileId,
+            filename: newFile.path,
+            language: newFile.language,
+            oldContent: '',
+            newContent: newFile.content,
+          });
+        }
+
+        // Switch to diff tab if there are changes
+        if (result.edits.length > 0 || result.newFiles.length > 0) {
+          setActiveWorkspaceTab('diff');
+          useToastStore.getState().addToast({
+            type: 'success',
+            title: 'Changes Ready',
+            message: `${result.edits.length} edit(s), ${result.newFiles.length} new file(s) — review in Diff tab`,
+            duration: 5000,
+          });
+        }
+
+        updateMessage(assistantId, {
+          content: result.explanation || `Applied ${result.edits.length} edit(s) and created ${result.newFiles.length} new file(s).`,
+          isStreaming: false,
+        });
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : 'Fix pipeline failed';
+        setError(errorMsg);
+        updateMessage(assistantId, { isStreaming: false, content: `Error: ${errorMsg}` });
+      } finally {
+        setStreaming(false);
+      }
+    },
+    [isStreaming, selectedRepo, selectedBranch, addMessage, updateMessage, setStreaming, setError, setActiveWorkspaceTab],
+  );
+
+  /**
+   * Handle "Fix This" button from EvaluationReport
+   */
+  const handleFixIssue = useCallback(
+    (issue: EvaluationIssue) => {
+      setChatMode('fix');
+      const fixPrompt = `Fix: ${issue.title} in ${issue.file}${issue.line ? `:${issue.line}` : ''}\n${issue.description}${issue.suggestedFix ? `\nSuggested fix: ${issue.suggestedFix}` : ''}`;
+      setInput(fixPrompt);
+      inputRef.current?.focus();
+    },
+    [],
+  );
+
   return (
     <div className="flex h-full flex-col bg-pablo-panel">
       {/* Chat header */}
@@ -561,41 +779,28 @@ export function ChatPanel() {
         </div>
       </div>
 
-      {/* Issue 12: Mode selector (Chat / Agent / Build) */}
+      {/* Mode selector (Chat / Agent / Build / Evaluate / Fix) */}
       <div className="flex items-center gap-1 border-b border-pablo-border px-3 py-1">
-        <button
-          onClick={() => setChatMode('chat')}
-          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
-            chatMode === 'chat'
-              ? 'bg-pablo-gold/20 text-pablo-gold'
-              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
-          }`}
-        >
-          <MessageSquare size={10} />
-          Chat
-        </button>
-        <button
-          onClick={() => setChatMode('agent')}
-          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
-            chatMode === 'agent'
-              ? 'bg-pablo-gold/20 text-pablo-gold'
-              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
-          }`}
-        >
-          <Cpu size={10} />
-          Agent
-        </button>
-        <button
-          onClick={() => setChatMode('build')}
-          className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
-            chatMode === 'build'
-              ? 'bg-pablo-gold/20 text-pablo-gold'
-              : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
-          }`}
-        >
-          <Rocket size={10} />
-          Build
-        </button>
+        {[
+          { id: 'chat' as const, label: 'Chat', icon: MessageSquare },
+          { id: 'agent' as const, label: 'Agent', icon: Cpu },
+          { id: 'build' as const, label: 'Build', icon: Rocket },
+          { id: 'evaluate' as const, label: 'Evaluate', icon: Search },
+          { id: 'fix' as const, label: 'Fix', icon: Wrench },
+        ].map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => setChatMode(id)}
+            className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-ui text-[10px] transition-colors ${
+              chatMode === id
+                ? 'bg-pablo-gold/20 text-pablo-gold'
+                : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+            }`}
+          >
+            <Icon size={10} />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Error banner */}
@@ -716,6 +921,12 @@ export function ChatPanel() {
                 )}
               </div>
             ))}
+            {/* Evaluation Report (rendered after evaluate mode completes) */}
+            {evaluationResult && (
+              <div className="animate-slide-in">
+                <EvaluationReport result={evaluationResult} onFixIssue={handleFixIssue} />
+              </div>
+            )}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -804,7 +1015,7 @@ export function ChatPanel() {
               Enter to send, Shift+Enter for new line
             </span>
             <span className="font-ui text-[10px] text-pablo-text-muted">
-              Mode: {chatMode === 'chat' ? 'Chat' : chatMode === 'agent' ? 'Agent' : 'Build'}
+              Mode: {chatMode.charAt(0).toUpperCase() + chatMode.slice(1)}
             </span>
           </div>
         </form>
