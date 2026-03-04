@@ -212,8 +212,8 @@ ${selectedText}`,
             const data = line.slice(6);
             if (data === '[DONE]') continue;
             try {
-              const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-              const content = parsed.choices?.[0]?.delta?.content;
+              const parsed = JSON.parse(data) as { content?: string; choices?: Array<{ delta?: { content?: string } }> };
+              const content = parsed.content ?? parsed.choices?.[0]?.delta?.content;
               if (content) result += content;
             } catch {
               result += data;

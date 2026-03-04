@@ -32,8 +32,8 @@ async function parseStreamedResponse(response: Response): Promise<string> {
         const data = line.slice(6);
         if (data === '[DONE]') continue;
         try {
-          const parsed = JSON.parse(data) as { choices?: Array<{ delta?: { content?: string } }> };
-          const content = parsed.choices?.[0]?.delta?.content;
+          const parsed = JSON.parse(data) as { content?: string; choices?: Array<{ delta?: { content?: string } }> };
+          const content = parsed.content ?? parsed.choices?.[0]?.delta?.content;
           if (content) result += content;
         } catch {
           // Not JSON — could be raw text from non-SSE streaming

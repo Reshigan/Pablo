@@ -1035,7 +1035,7 @@ export function PipelineView() {
       setIsBuilding(false);
       abortRef.current = null;
     }
-  }, [featureInput, isBuilding, attachments, startRun, updateStage, advanceStage, completeRun]);
+  }, [featureInput, isBuilding, attachments, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
