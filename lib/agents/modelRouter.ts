@@ -204,8 +204,8 @@ export interface EnvConfig {
   OLLAMA_API_KEY?: string;
 }
 
-/** Timeout for non-streaming API calls (ms). Ollama Cloud 480B can take a while. */
-const NON_STREAMING_TIMEOUT_MS = 600_000; // 10 min
+/** BUG-04: Timeout for non-streaming API calls (ms). Reduced from 600s to 120s per spec. */
+const NON_STREAMING_TIMEOUT_MS = 120_000; // 2 min
 
 /**
  * callModelTracked — calls the model AND logs to D1 agent_runs.

@@ -849,9 +849,10 @@ export function ChatPanel() {
 
         const { evaluateRepo } = await import('@/lib/agents/repoEvaluator');
 
-        // Fetch LLM config from scoped server endpoint (SEC-05 safe)
+        // SEC-02: Fetch LLM config — API key is server-side only, client gets hasApiKey boolean
         const envRes = await fetch('/api/env-config');
-        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = envRes.ok ? await envRes.json() : {};
+        const envData: { OLLAMA_URL?: string; hasApiKey?: boolean } = envRes.ok ? await envRes.json() : {};
+        const env = { OLLAMA_URL: envData.OLLAMA_URL };
 
         const result = await evaluateRepo(
           files,
@@ -914,9 +915,10 @@ export function ChatPanel() {
 
         updateMessage(assistantId, { content: `Running ${mode} pipeline on ${files.length} files...` });
 
-        // Fetch LLM config from scoped server endpoint (SEC-05 safe)
+        // SEC-02: Fetch LLM config — API key is server-side only, client gets hasApiKey boolean
         const envRes = await fetch('/api/env-config');
-        const env: { OLLAMA_URL?: string; OLLAMA_API_KEY?: string } = envRes.ok ? await envRes.json() : {};
+        const envData: { OLLAMA_URL?: string; hasApiKey?: boolean } = envRes.ok ? await envRes.json() : {};
+        const env = { OLLAMA_URL: envData.OLLAMA_URL };
 
         const result = await runIncrementalPipeline(
           content.trim(),

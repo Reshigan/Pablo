@@ -26,19 +26,19 @@ type OptionalId<T> = Omit<T, 'id'> & { id?: string };
 
 // ─── ID Generation ───────────────────────────────────────────────────────────
 
-let idCounter = 0;
-
+/**
+ * SEC-04: Generate cryptographically random IDs using crypto.randomUUID().
+ * Prefixed with a short type identifier for readability (e.g. ses_, msg_, file_).
+ */
 export function generateId(prefix: string = ''): string {
-  idCounter += 1;
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 8);
-  const counter = idCounter.toString(36);
-  return prefix ? `${prefix}_${timestamp}${random}${counter}` : `${timestamp}${random}${counter}`;
+  const uuid = crypto.randomUUID();
+  return prefix ? `${prefix}_${uuid}` : uuid;
 }
 
 // ─── In-Memory Store (until D1 is connected) ─────────────────────────────────
-// This provides a working data layer during development
-// Will be replaced with actual D1 queries when Cloudflare Workers are configured
+// BUG-08: This provides a working data layer during LOCAL DEVELOPMENT ONLY.
+// In production, D1 should always be available. If InMemoryStore is used in
+// production, it means the DB binding is missing — data will NOT persist.
 
 class InMemoryStore {
   private sessions = new Map<string, Session>();

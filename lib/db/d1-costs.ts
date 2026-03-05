@@ -52,6 +52,27 @@ export function estimateCost(model: string, tokensIn: number, tokensOut: number)
   return (tokensIn / 1_000_000) * pricing.inputPer1M + (tokensOut / 1_000_000) * pricing.outputPer1M;
 }
 
+/** ARCH-03: Default daily budget per user in USD. Override with DAILY_BUDGET_USD env var. */
+const DEFAULT_DAILY_BUDGET_USD = 5.0;
+
+/**
+ * ARCH-03: Check if user has exceeded their daily budget.
+ * Returns { allowed: boolean, spent: number, budget: number }.
+ */
+export async function checkDailyBudget(_userId?: string): Promise<{ allowed: boolean; spent: number; budget: number }> {
+  const budget = parseFloat(process.env.DAILY_BUDGET_USD || '') || DEFAULT_DAILY_BUDGET_USD;
+  const db = await getDBAsync();
+  if (!db) return { allowed: true, spent: 0, budget };
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const row = await db.prepare(
+    `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
+  ).bind(today).first<{ spent: number }>();
+
+  const spent = row?.spent || 0;
+  return { allowed: spent < budget, spent, budget };
+}
+
 /**
  * Log an LLM call to D1
  */
