@@ -12,6 +12,7 @@ import { SettingsModal } from '@/components/modals/SettingsModal';
 import { WelcomeModal } from '@/components/modals/WelcomeModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
+import { ActivityIndicator } from '@/components/shared/ActivityIndicator';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
 import { useSessionStore } from '@/stores/session';
 import { useChatStore } from '@/stores/chat';
@@ -21,7 +22,7 @@ import { useRepoStore } from '@/stores/repo';
 import { useLearningStore } from '@/stores/learning';
 import { useEffect, useCallback, useRef, use } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react';
+import { Loader2, MessageSquare } from 'lucide-react';
 
 export default function SessionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -29,15 +30,12 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const initRef = useRef(false);
 
   const {
-    sidebarOpen,
     chatOpen,
     chatWidth,
-    sidebarWidth,
     toggleSidebar,
     toggleChat,
     toggleTerminal,
     toggleCommandPalette,
-    setSidebarWidth,
     setChatWidth,
     setActiveWorkspaceTab,
   } = useUIStore();
@@ -190,50 +188,55 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
       {/* Top Bar */}
-      <TopBar agentStatus="idle" />
+      <TopBar />
 
       {/* UX-14: ContextBar removed — repo/branch info now in StatusBar */}
 
-      {/* Main Area: Sidebar + Workspace + Chat */}
+      {/* Main Area: Sidebar icon rail + Workspace (full width) */}
       <div className="flex min-h-0 flex-1">
-        {/* Sidebar */}
+        {/* Sidebar — icon rail always visible, panel is overlay */}
         <ErrorBoundary name="Sidebar">
           <Sidebar />
         </ErrorBoundary>
 
-        {/* Sidebar Resize Handle */}
-        {sidebarOpen && (
-          <PanelResizer
-            direction="horizontal"
-            onResize={(delta) => setSidebarWidth(prev => prev + delta)}
-          />
-        )}
-
-        {/* Workspace */}
+        {/* Workspace — gets full remaining width */}
         <ErrorBoundary name="Workspace">
           <WorkspaceArea />
         </ErrorBoundary>
-
-        {/* Chat Resize Handle */}
-        {chatOpen && (
-          <PanelResizer
-            direction="horizontal"
-            onResize={(delta) => setChatWidth(prev => prev - delta)}
-          />
-        )}
-
-        {/* Chat Panel */}
-        {chatOpen && (
-          <div
-            className="flex h-full shrink-0 flex-col border-l border-pablo-border"
-            style={{ width: chatWidth }}
-          >
-            <ErrorBoundary name="Chat">
-              <ChatPanel />
-            </ErrorBoundary>
-          </div>
-        )}
       </div>
+
+      {/* Task 37: Floating chat toggle button */}
+      {!chatOpen && (
+        <button
+          onClick={toggleChat}
+          className="fixed bottom-16 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-pablo-gold text-pablo-bg shadow-lg transition-transform hover:scale-105 active:scale-95"
+          aria-label="Open chat"
+        >
+          <MessageSquare size={20} />
+        </button>
+      )}
+
+      {/* Task 37: Chat slide-over overlay */}
+      {chatOpen && (
+        <div
+          className="fixed right-0 top-12 bottom-6 z-30 flex flex-col border-l border-pablo-border bg-pablo-surface-2/95 backdrop-blur-sm shadow-elevated"
+          style={{ width: chatWidth }}
+        >
+          {/* Absolutely positioned left-edge resize handle */}
+          <div className="absolute left-0 top-0 bottom-0 z-10">
+            <PanelResizer
+              direction="horizontal"
+              onResize={(delta) => setChatWidth(prev => prev - delta)}
+            />
+          </div>
+          <ErrorBoundary name="Chat">
+            <ChatPanel />
+          </ErrorBoundary>
+        </div>
+      )}
+
+      {/* Task 38: Activity indicator — floating status pill */}
+      <ActivityIndicator />
 
       {/* Status Bar */}
       <StatusBar />

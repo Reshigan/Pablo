@@ -3,36 +3,66 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-pablo-bg: #0B0F19;
-  --color-pablo-panel: #111827;
-  --color-pablo-hover: #1F2937;
-  --color-pablo-active: #263248;
-  --color-pablo-input: #0D1117;
-  --color-pablo-border: #1E293B;
-  --color-pablo-border-hov: #334155;
+  /* Task 33: Surface layers — each panel is visually distinct */
+  --color-pablo-bg: #08090E;
+  --color-pablo-surface-0: #0D1017;
+  --color-pablo-surface-1: #121620;
+  --color-pablo-surface-2: #171C28;
+  --color-pablo-surface-3: #1D2333;
+
+  /* Keep old names as aliases for gradual migration */
+  --color-pablo-panel: #121620;
+  --color-pablo-hover: #1A2030;
+  --color-pablo-active: #222940;
+  --color-pablo-input: #0D1017;
+
+  /* Borders — subtle but distinct */
+  --color-pablo-border: #1E2640;
+  --color-pablo-border-hov: #2A3555;
+  --color-pablo-border-focus: #D4A843;
+
+  /* Accent — gold stays, add a glow variant */
   --color-pablo-gold: #D4A843;
-  --color-pablo-gold-dim: #B8942F;
-  --color-pablo-text: #E2E8F0;
-  --color-pablo-text-dim: #94A3B8;
-  --color-pablo-text-muted: #64748B;
+  --color-pablo-gold-dim: #B89430;
+  --color-pablo-gold-glow: rgba(212, 168, 67, 0.15);
+  --color-pablo-gold-bg: rgba(212, 168, 67, 0.06);
+
+  /* Text — add an extra tier for labels */
+  --color-pablo-text: #E8ECF4;
+  --color-pablo-text-secondary: #B0B8CC;
+  --color-pablo-text-dim: #8891A5;
+  --color-pablo-text-muted: #5C6478;
+  --color-pablo-text-ghost: #3E465A;
+
+  /* Semantic colours — unchanged */
   --color-pablo-green: #22C55E;
   --color-pablo-red: #EF4444;
   --color-pablo-blue: #3B82F6;
   --color-pablo-orange: #F59E0B;
   --color-pablo-purple: #A78BFA;
   --color-pablo-purple-bg: rgba(167, 139, 250, 0.08);
-  --color-pablo-gold-bg: rgba(212, 168, 67, 0.08);
 
-  /* UI-33: Semantic colour tokens for consistent theming */
+  /* Semantic aliases */
   --color-pablo-success: #22C55E;
   --color-pablo-warning: #F59E0B;
   --color-pablo-error: #EF4444;
   --color-pablo-info: #3B82F6;
-  --color-pablo-surface: #111827;
-  --color-pablo-surface-raised: #1F2937;
+  --color-pablo-surface: #121620;
+  --color-pablo-surface-raised: #1A2030;
   --color-pablo-overlay: rgba(0, 0, 0, 0.5);
 
-  --font-ui: 'DM Sans', system-ui, sans-serif;
+  /* Radius — consistent system */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* Shadows — subtle depth */
+  --shadow-panel: 0 1px 3px rgba(0,0,0,0.4), 0 0 0 1px rgba(30,38,64,0.5);
+  --shadow-elevated: 0 4px 12px rgba(0,0,0,0.5), 0 0 0 1px rgba(30,38,64,0.5);
+  --shadow-glow: 0 0 20px rgba(212, 168, 67, 0.1);
+
+  --font-ui: 'DM Sans', system-ui, -apple-system, sans-serif;
   --font-code: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
@@ -67,8 +97,8 @@ html, body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #0B0F19;
-  color: #E2E8F0;
+  background: #08090E;
+  color: #E8ECF4;
   font-family: 'DM Sans', system-ui, sans-serif;
 }
 
@@ -125,6 +155,23 @@ html, body {
   animation: fadeIn 150ms ease-out;
 }
 
+/* Task 33: Glass effect for overlays */
+.glass {
+  background: rgba(13, 16, 23, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Task 33: Subtle glow on focus/active */
+.glow-gold {
+  box-shadow: 0 0 0 1px var(--color-pablo-gold), 0 0 12px var(--color-pablo-gold-glow);
+}
+
+/* Task 33: Smooth panel transitions */
+.panel-transition {
+  transition: width 200ms ease, opacity 150ms ease, transform 150ms ease;
+}
+
 /* Resize handle */
 .resize-handle {
   position: relative;
@@ -147,6 +194,7 @@ html, body {
 
 .resize-handle-horizontal {
   width: 4px;
+  height: 100%;
   cursor: col-resize;
 }
 
