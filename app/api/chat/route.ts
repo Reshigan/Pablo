@@ -119,7 +119,9 @@ async function tryExternalAPIStreaming(
   model: string,
   temperature: number,
   max_tokens: number,
-  env: EnvConfig
+  env: EnvConfig,
+  /** Timeout in ms for the upstream fetch. Default 120s for chat; pipeline stages should pass longer values. */
+  timeoutMs = 120_000,
 ): Promise<Response | null> {
   const apiUrl = env.OLLAMA_URL || '';
   const apiKey = env.OLLAMA_API_KEY || '';
@@ -140,9 +142,11 @@ async function tryExternalAPIStreaming(
   const isOpenAICompatible =
     apiUrl.includes('/v1/') || apiUrl.endsWith('/v1') || apiUrl.includes('openai');
 
-  // Add 120-second timeout for large model responses (480B models need time)
+  // Timeout for the upstream Ollama API fetch.
+  // Pipeline stages pass a much longer value (10+ min) because 480B models
+  // can take 2-5 min just to emit the first token.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 120_000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const apiResponse = isOpenAICompatible
@@ -165,12 +169,16 @@ async function tryExternalAPIStreaming(
         });
 
     if (!apiResponse.ok) {
+      clearTimeout(timeoutId);
       console.warn(`[tryExternalAPI] ${model} returned ${apiResponse.status}`);
       return null;
     }
 
     const reader = apiResponse.body?.getReader();
-    if (!reader) return null;
+    if (!reader) {
+      clearTimeout(timeoutId);
+      return null;
+    }
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
@@ -194,6 +202,7 @@ async function tryExternalAPIStreaming(
                 if (!trimmed.startsWith('data: ')) continue;
                 const data = trimmed.slice(6);
                 if (data === '[DONE]') {
+                  clearTimeout(timeoutId);
                   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   controller.close();
                   return;
@@ -218,6 +227,7 @@ async function tryExternalAPIStreaming(
                   });
                   controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
                   if (isDone) {
+                    clearTimeout(timeoutId);
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                     controller.close();
                     return;
@@ -250,6 +260,7 @@ async function tryExternalAPIStreaming(
                   });
                   controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
                   if (chunk.done) {
+                    clearTimeout(timeoutId);
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                     controller.close();
                     return;
@@ -260,11 +271,13 @@ async function tryExternalAPIStreaming(
               }
             }
           }
+          clearTimeout(timeoutId);
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
           // Graceful stream error: send error SSE event instead of killing the stream
           // This lets the client detect the failure and retry the stage
+          clearTimeout(timeoutId);
           try {
             const errMsg = error instanceof Error ? error.message : 'Stream interrupted';
             const errData = JSON.stringify({ content: '', done: true, error: errMsg });
@@ -284,10 +297,9 @@ async function tryExternalAPIStreaming(
     });
   } catch (err) {
     // BUG-04: Log external API failure
+    clearTimeout(timeoutId);
     console.warn('[tryExternalAPI] Request failed:', err instanceof Error ? err.message : err);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -460,8 +472,14 @@ Rules:
     'gpt-oss:120b',
   ];
 
+  // Pipeline stages use 480B models that can take 2-5+ min for the first token.
+  // The client already has its own timeouts (FIRST_TOKEN_TIMEOUT_MS = 5 min,
+  // STAGE_TIMEOUT_MS = 15 min), so the server timeout must be at least as long
+  // to avoid killing the connection before the client decides to abort.
+  const PIPELINE_TIMEOUT_MS = 900_000; // 15 min — matches client STAGE_TIMEOUT_MS
+
   for (const model of modelsToTry) {
-    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 16384, env);
+    const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 16384, env, PIPELINE_TIMEOUT_MS);
     if (response) return response;
   }
 
