@@ -5,17 +5,35 @@
  *
  * IMPORTANT: This runs BEFORE pipeline stages start, so it must have a
  * strict timeout to avoid blocking the entire pipeline indefinitely.
+ * We use Promise.race (not just AbortController) because AbortController
+ * doesn't reliably abort SSE stream reads on Cloudflare Workers.
  */
 
-/** Maximum time to wait for prompt enhancement before falling back (ms) */
-const ENHANCE_TIMEOUT_MS = 15_000;
+/** Maximum time to wait for prompt enhancement before falling back (ms).
+ *  Keep this short — the pipeline should start quickly. */
+const ENHANCE_TIMEOUT_MS = 10_000; // 10 seconds
 
 interface EnvConfig {
   ollamaUrl?: string;
   ollamaApiKey?: string;
 }
 
+/**
+ * Enhance a vague prompt into a detailed specification.
+ * Guaranteed to resolve within ENHANCE_TIMEOUT_MS — never blocks the pipeline.
+ */
 export async function enhancePrompt(vaguePrompt: string, env?: EnvConfig): Promise<string> {
+  // Hard timeout via Promise.race — guaranteed to resolve even if fetch/stream hangs
+  return Promise.race([
+    doEnhance(vaguePrompt, env),
+    new Promise<string>((resolve) =>
+      setTimeout(() => resolve(vaguePrompt), ENHANCE_TIMEOUT_MS)
+    ),
+  ]);
+}
+
+/** Internal: actually call the API and parse the SSE stream */
+async function doEnhance(vaguePrompt: string, env?: EnvConfig): Promise<string> {
   const systemPrompt = `You are a requirements analyst. Rewrite the user's vague request into a detailed software specification. Include:
 - Specific UI components (sidebar, header, cards, tables, forms, modals)
 - Data models (entities, relationships, fields with types)
@@ -24,7 +42,7 @@ export async function enhancePrompt(vaguePrompt: string, env?: EnvConfig): Promi
 - Key user flows
 Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
 
-  // Use AbortController with timeout so enhancement never blocks the pipeline
+  // AbortController as a best-effort signal (may not work on all runtimes)
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ENHANCE_TIMEOUT_MS);
 
