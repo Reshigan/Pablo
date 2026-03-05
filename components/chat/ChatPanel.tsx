@@ -872,6 +872,7 @@ export function ChatPanel() {
           evalBuffer = lines.pop() ?? '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
+            let isServerError = false;
             try {
               const evt = JSON.parse(line.slice(6)) as { type: string; message?: string; result?: EvaluationResult; error?: string };
               if (evt.type === 'progress' && evt.message) {
@@ -879,10 +880,12 @@ export function ChatPanel() {
               } else if (evt.type === 'result' && evt.result) {
                 result = evt.result;
               } else if (evt.type === 'error') {
+                isServerError = true;
                 throw new Error(evt.error || 'Evaluation failed');
               }
             } catch (e) {
-              if (e instanceof Error && e.message !== 'Evaluation failed') throw e;
+              if (isServerError) throw e;
+              // JSON parse error — skip malformed SSE line
             }
           }
         }
@@ -967,6 +970,7 @@ export function ChatPanel() {
           fixBuffer = lines.pop() ?? '';
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
+            let isServerError = false;
             try {
               const evt = JSON.parse(line.slice(6)) as { type: string; stage?: string; message?: string; progress?: number; result?: FixResultShape; error?: string };
               if (evt.type === 'progress' && evt.stage && evt.message) {
@@ -976,10 +980,12 @@ export function ChatPanel() {
               } else if (evt.type === 'result' && evt.result) {
                 result = evt.result;
               } else if (evt.type === 'error') {
+                isServerError = true;
                 throw new Error(evt.error || 'Fix pipeline failed');
               }
             } catch (e) {
-              if (e instanceof Error && e.message !== 'Fix pipeline failed') throw e;
+              if (isServerError) throw e;
+              // JSON parse error — skip malformed SSE line
             }
           }
         }
