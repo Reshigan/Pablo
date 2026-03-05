@@ -7,8 +7,8 @@
 # OLLAMA_URL=http://localhost:11434
 # OLLAMA_API_KEY=
 
-# Option B: Ollama Cloud (OpenAI-compatible)
-OLLAMA_URL=https://api.ollama.com/v1
+# Option B: Ollama Cloud (native API)
+OLLAMA_URL=https://ollama.com/api
 OLLAMA_API_KEY=replace-with-your-ollama-api-key
 
 # GitHub OAuth (required for login)

@@ -17,12 +17,12 @@ export async function GET() {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     return Response.json({
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
+      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://ollama.com/api',
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY || '',
     });
   } catch {
     return Response.json({
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
+      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com/api',
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY || '',
     });
   }

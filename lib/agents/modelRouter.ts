@@ -277,10 +277,10 @@ interface OllamaCloudResult {
 }
 
 async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig, signal?: AbortSignal): Promise<LLMResponse> {
-  const OLLAMA_URL = env.OLLAMA_URL || 'https://api.ollama.ai/v1';
+  const OLLAMA_URL = env.OLLAMA_URL || 'https://ollama.com/api';
   const OLLAMA_KEY = env.OLLAMA_API_KEY;
 
-  const isOpenAICompatible = OLLAMA_URL.includes('/v1') || OLLAMA_URL.includes('openai');
+  const isOpenAICompatible = OLLAMA_URL.includes('/v1/') || OLLAMA_URL.endsWith('/v1') || OLLAMA_URL.includes('openai');
 
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (OLLAMA_KEY) {
@@ -324,7 +324,7 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
     };
   }
 
-  response = await fetch(`${OLLAMA_URL}/api/chat`, {
+  response = await fetch(`${OLLAMA_URL}/chat`, {
     method: 'POST',
     headers,
     body: JSON.stringify({

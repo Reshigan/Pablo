@@ -86,7 +86,7 @@ interface ChatRequestBody {
  * Get environment config from Cloudflare Worker context or process.env
  */
 /** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://api.ollama.ai/v1';
+const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -132,7 +132,7 @@ async function tryExternalAPIStreaming(
   }
 
   const isOpenAICompatible =
-    apiUrl.includes('/v1') || apiUrl.includes('openai') || apiUrl.includes('api.ollama.ai') || apiUrl.includes('api.ollama.com');
+    apiUrl.includes('/v1/') || apiUrl.endsWith('/v1') || apiUrl.includes('openai');
 
   // Add 120-second timeout for large model responses (480B models need time)
   const controller = new AbortController();
@@ -146,7 +146,7 @@ async function tryExternalAPIStreaming(
           body: JSON.stringify({ model, messages, stream: true, temperature, max_tokens }),
           signal: controller.signal,
         })
-      : await fetch(`${apiUrl.replace(/\/$/, '')}/api/chat`, {
+      : await fetch(`${apiUrl.replace(/\/$/, '')}/chat`, {
           method: 'POST',
           headers: reqHeaders,
           body: JSON.stringify({
