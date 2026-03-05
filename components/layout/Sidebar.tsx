@@ -89,10 +89,16 @@ export function Sidebar() {
     }
   }, [sidebarOpen, sidebarTab, setSidebarTab]);
 
-  // Task 35: Close sidebar on Escape key (skip if modal is open)
+  // Task 35: Close sidebar on Escape key (skip if modal just handled it)
   const handleEscape = useCallback((e: KeyboardEvent) => {
-    const ui = useUIStore.getState();
-    if (e.key === 'Escape' && sidebarOpen && !ui.commandPaletteOpen && !ui.settingsOpen) toggleSidebar();
+    if (e.key !== 'Escape' || !sidebarOpen || e.defaultPrevented) return;
+    // Defer to next tick so modal handlers can update state first
+    requestAnimationFrame(() => {
+      const ui = useUIStore.getState();
+      if (!ui.commandPaletteOpen && !ui.settingsOpen && ui.sidebarOpen) {
+        toggleSidebar();
+      }
+    });
   }, [sidebarOpen, toggleSidebar]);
 
   useEffect(() => {

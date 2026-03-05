@@ -114,10 +114,10 @@ export function CommandPalette() {
 
   const commands: CommandItem[] = [
     // Navigation
-    { id: 'nav-files', label: 'File Explorer', icon: File, category: 'navigation', shortcut: 'Ctrl+Shift+E', action: () => setSidebarTab('files' as SidebarTab) },
-    { id: 'nav-search', label: 'Search', icon: Search, category: 'navigation', shortcut: 'Ctrl+Shift+F', action: () => setSidebarTab('search' as SidebarTab) },
-    { id: 'nav-git', label: 'Source Control', icon: GitBranch, category: 'navigation', shortcut: 'Ctrl+Shift+G', action: () => setSidebarTab('git' as SidebarTab) },
-    { id: 'nav-memory', label: 'Self-Learning', icon: Brain, category: 'navigation', action: () => setSidebarTab('memory' as SidebarTab) },
+    { id: 'nav-files', label: 'File Explorer', icon: File, category: 'navigation', shortcut: 'Ctrl+Shift+E', action: () => { setSidebarTab('files'); if (!useUIStore.getState().sidebarOpen) toggleSidebar(); } },
+    { id: 'nav-search', label: 'Search', icon: Search, category: 'navigation', shortcut: 'Ctrl+Shift+F', action: () => { setSidebarTab('search'); if (!useUIStore.getState().sidebarOpen) toggleSidebar(); } },
+    { id: 'nav-git', label: 'Source Control', icon: GitBranch, category: 'navigation', shortcut: 'Ctrl+Shift+G', action: () => { setSidebarTab('git'); if (!useUIStore.getState().sidebarOpen) toggleSidebar(); } },
+    { id: 'nav-memory', label: 'Self-Learning', icon: Brain, category: 'navigation', action: () => { setSidebarTab('memory'); if (!useUIStore.getState().sidebarOpen) toggleSidebar(); } },
 
     // Workspace
     { id: 'ws-editor', label: 'Code Editor', icon: File, category: 'workspace', action: () => setActiveWorkspaceTab('editor' as WorkspaceTab) },
