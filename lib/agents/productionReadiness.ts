@@ -114,7 +114,7 @@ function staticChecks(
         });
       }
 
-      if (/eval\s*\(/.test(line) && !line.trim().startsWith('//')) {
+      if (/\beval\s*\(/.test(line) && !line.trim().startsWith('//')) {
         issues.push({
           id: nextId(), severity: 'critical', category: 'security',
           file: file.path, line: lineNum,
@@ -534,6 +534,7 @@ function buildIterationPrompt(
   const critical = issues.filter(i => i.severity === 'critical');
   const major = issues.filter(i => i.severity === 'major');
   const minor = issues.filter(i => i.severity === 'minor');
+  const suggestionIssues = issues.filter(i => i.severity === 'suggestion');
 
   if (critical.length > 0) {
     parts.push('## CRITICAL (must fix before deploy)');
@@ -561,6 +562,14 @@ function buildIterationPrompt(
     }
     if (minor.length > 10) {
       parts.push(`  ... and ${minor.length - 10} more minor issues`);
+    }
+    parts.push('');
+  }
+
+  if (suggestionIssues.length > 0) {
+    parts.push(`## SUGGESTIONS (${suggestionIssues.length} items)`);
+    for (const issue of suggestionIssues.slice(0, 10)) {
+      parts.push(`- [${issue.category}] ${issue.file}: ${issue.title} — ${issue.suggestion}`);
     }
     parts.push('');
   }
