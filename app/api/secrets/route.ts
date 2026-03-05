@@ -84,6 +84,9 @@ export async function DELETE(request: NextRequest) {
     }
     if (secret.sessionId) {
       await verifySessionOwnership(secret.sessionId);
+    } else {
+      // SEC-01: Secrets without a session are not user-scoped — deny deletion
+      return NextResponse.json({ error: 'Cannot delete unscoped secret' }, { status: 403 });
     }
 
     const deleted = await d1DeleteSecret(id);
