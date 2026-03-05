@@ -156,11 +156,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  // AI-Apply Diff system
+  // AI-Apply Diff system — upsert: replace existing diff with same fileId, else append
   addDiff: (diff) =>
-    set((state) => ({
-      pendingDiffs: [...state.pendingDiffs, { ...diff, status: 'pending' }],
-    })),
+    set((state) => {
+      const exists = state.pendingDiffs.some(d => d.fileId === diff.fileId);
+      if (exists) {
+        return {
+          pendingDiffs: state.pendingDiffs.map(d =>
+            d.fileId === diff.fileId ? { ...diff, status: 'pending' as const } : d
+          ),
+        };
+      }
+      return {
+        pendingDiffs: [...state.pendingDiffs, { ...diff, status: 'pending' as const }],
+      };
+    }),
 
   acceptDiff: (fileId) => {
     const { pendingDiffs, tabs } = get();
