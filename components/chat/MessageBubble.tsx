@@ -79,10 +79,10 @@ export function MessageBubble({ message }: MessageBubbleProps) {
             {message.model && (
               <span className="font-code text-[9px] text-pablo-text-muted">{message.model}</span>
             )}
-            {message.tokens && message.tokens > 0 && (
+            {message.tokens != null && message.tokens > 0 && (
               <span className="font-code text-[9px] text-pablo-text-muted">{message.tokens} tokens</span>
             )}
-            {message.tokens && message.tokens > 0 && (
+            {message.tokens != null && message.tokens > 0 && (
               <span className="font-code text-[9px] text-pablo-text-muted">${(message.tokens / 1_000_000 * 0.15).toFixed(4)}</span>
             )}
           </div>
