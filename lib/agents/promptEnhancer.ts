@@ -2,7 +2,13 @@
  * Feature 9: Prompt Enhancer
  * Rewrites vague user prompts into detailed software specifications
  * before running through the pipeline.
+ *
+ * IMPORTANT: This runs BEFORE pipeline stages start, so it must have a
+ * strict timeout to avoid blocking the entire pipeline indefinitely.
  */
+
+/** Maximum time to wait for prompt enhancement before falling back (ms) */
+const ENHANCE_TIMEOUT_MS = 15_000;
 
 interface EnvConfig {
   ollamaUrl?: string;
@@ -18,6 +24,10 @@ export async function enhancePrompt(vaguePrompt: string, env?: EnvConfig): Promi
 - Key user flows
 Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
 
+  // Use AbortController with timeout so enhancement never blocks the pipeline
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ENHANCE_TIMEOUT_MS);
+
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
@@ -31,6 +41,7 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
         model: 'deepseek-v3.2',
         max_tokens: 1024,
       }),
+      signal: controller.signal,
     });
 
     if (!res.ok) {
@@ -58,9 +69,11 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
           const data = line.slice(6).trim();
           if (data === '[DONE]') break;
           try {
-            const parsed = JSON.parse(data) as { content?: string; done?: boolean };
-            const content = parsed.content;
-            if (content) enhanced += content;
+            const parsed = JSON.parse(data) as { content?: string; done?: boolean; thinking?: boolean };
+            // Only append non-thinking content (thinking tokens are internal reasoning)
+            if (parsed.content && !parsed.thinking) {
+              enhanced += parsed.content;
+            }
           } catch {
             // Not JSON, might be raw text
             if (data && data !== '[DONE]') enhanced += data;
@@ -71,6 +84,8 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
 
     return enhanced.trim() || vaguePrompt;
   } catch {
-    return vaguePrompt; // Fallback on error
+    return vaguePrompt; // Fallback on error (including timeout abort)
+  } finally {
+    clearTimeout(timer);
   }
 }
