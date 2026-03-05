@@ -458,8 +458,8 @@ export function LivePreview() {
                 const data = line.slice(6);
                 if (data === '[DONE]') continue;
                 try {
-                  const parsed = JSON.parse(data) as { content?: string };
-                  if (parsed.content) result += parsed.content;
+                  const parsed = JSON.parse(data) as { content?: string; thinking?: boolean };
+                  if (parsed.content && !parsed.thinking) result += parsed.content;
                 } catch { /* skip */ }
               }
             }
