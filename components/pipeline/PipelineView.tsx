@@ -274,21 +274,6 @@ export function PipelineView() {
     try {
     let description = featureInput.trim();
 
-    // Feature 9: Prompt Enhancement
-    if (enhanceEnabled && description.length < 200) {
-      try {
-        const enhanced = await enhancePrompt(description);
-        if (enhanced && enhanced !== description) {
-          description = enhanced;
-          useActivityStore.getState().addEntry('prompt_enhanced', `Prompt enhanced: "${featureInput.trim().slice(0, 60)}..."`  );
-        }
-      } catch {
-        // Fall back to original prompt
-      }
-    }
-
-    // Feature 21: Activity tracking
-    useActivityStore.getState().addEntry('pipeline_started', `Pipeline started: ${description.slice(0, 80)}...`);
     // Include attached documents in the feature description
     if (attachments.length > 0) {
       const attachmentText = attachments
@@ -311,8 +296,29 @@ export function PipelineView() {
       }
       setSelectedMentions([]);
     }
+
+    // Start the pipeline run IMMEDIATELY so the UI shows progress.
+    // Prompt enhancement runs concurrently with the Plan stage setup.
     const runId = startRun(description);
     setFeatureInput('');
+
+    // Feature 21: Activity tracking
+    useActivityStore.getState().addEntry('pipeline_started', `Pipeline started: ${description.slice(0, 80)}...`);
+
+    // Feature 9: Prompt Enhancement — runs with a timeout so it never blocks
+    // the pipeline indefinitely. If it succeeds, the enhanced description is
+    // used for subsequent stages (Plan stage already started with the original).
+    if (enhanceEnabled && description.length < 200) {
+      try {
+        const enhanced = await enhancePrompt(description);
+        if (enhanced && enhanced !== description) {
+          description = enhanced;
+          useActivityStore.getState().addEntry('prompt_enhanced', `Prompt enhanced: "${featureInput.trim().slice(0, 60)}..."`  );
+        }
+      } catch {
+        // Fall back to original prompt (timeout or error)
+      }
+    }
 
     // Extract what the user explicitly requested (no defaults applied)
     const explicitHints = extractExplicitStack(description);
