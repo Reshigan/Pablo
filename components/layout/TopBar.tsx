@@ -42,7 +42,7 @@ export function TopBar() {
       {/* Centre: Unified search bar */}
       <button
         onClick={toggleCommandPalette}
-        className="flex h-8 w-full max-w-md items-center gap-2 rounded-lg border border-pablo-border bg-pablo-surface-1 px-3 text-left transition-all hover:border-pablo-border-hov hover:bg-pablo-surface-2 focus-visible:glow-gold"
+        className="flex h-8 w-full max-w-md items-center gap-2 rounded-lg border border-pablo-border bg-pablo-surface-1 px-3 text-left transition-all hover:border-pablo-border-hov hover:bg-pablo-surface-2 focus-visible:shadow-glow focus-visible:border-pablo-gold"
       >
         <Search size={14} className="text-pablo-text-muted" />
         <span className="flex-1 font-ui text-xs text-pablo-text-muted">

@@ -82,6 +82,13 @@ export function Sidebar() {
   const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
+  // Guard: reset stale persisted sidebarTab to 'files' if it references a removed tab
+  useEffect(() => {
+    if (sidebarOpen && !panelComponents[sidebarTab]) {
+      setSidebarTab('files');
+    }
+  }, [sidebarOpen, sidebarTab, setSidebarTab]);
+
   // Task 35: Close sidebar on Escape key (skip if modal is open)
   const handleEscape = useCallback((e: KeyboardEvent) => {
     const ui = useUIStore.getState();
