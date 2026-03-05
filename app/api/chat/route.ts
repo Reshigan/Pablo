@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { loggers } from '@/lib/logger';
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
 import { buildSystemPrompt } from '@/lib/domain-kb/loader';
 import { d1GetPatterns } from '@/lib/db/d1-patterns';
@@ -568,6 +570,17 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session) {
       return new Response('Unauthorized', { status: 401 });
+    }
+
+    // ARCH-01: Rate limiting
+    const clientIP = getClientIP(request.headers);
+    const rl = checkRateLimit(`chat:${clientIP}`, RATE_LIMITS.chat);
+    if (!rl.allowed) {
+      loggers.chat.warn('Rate limit exceeded', { ip: clientIP });
+      return Response.json(
+        { error: 'Rate limit exceeded. Please wait before sending more messages.' },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
     }
 
     const body = (await request.json()) as ChatRequestBody;
