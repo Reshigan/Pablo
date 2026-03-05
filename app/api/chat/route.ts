@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { loggers } from '@/lib/logger';
+import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
 import { buildSystemPrompt } from '@/lib/domain-kb/loader';
 import { d1GetPatterns } from '@/lib/db/d1-patterns';
@@ -571,6 +572,10 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return new Response('Unauthorized', { status: 401 });
     }
+
+    // ARCH-05: Body size guard
+    const sizeErr = checkBodySize(request.headers, BODY_SIZE_LIMITS.chat);
+    if (sizeErr) return sizeErr;
 
     // ARCH-01: Rate limiting
     const clientIP = getClientIP(request.headers);
