@@ -10,7 +10,9 @@ import { reviewPR } from '@/lib/agents/prReview';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
-import { loggers } from '@/lib/logger';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('review-route');
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -42,7 +44,7 @@ export async function POST(request: NextRequest) {
     const clientIP = getClientIP(request.headers);
     const rl = checkRateLimit(`review:${clientIP}`, RATE_LIMITS.chat);
     if (!rl.allowed) {
-      loggers.evaluate.warn('Review rate limit exceeded', { ip: clientIP });
+      log.warn('Review rate limit exceeded', { ip: clientIP });
       return Response.json(
         { error: 'Rate limit exceeded' },
         { status: 429, headers: rateLimitHeaders(rl) },
