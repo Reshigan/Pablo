@@ -1,82 +1,61 @@
-# Testing Pablo IDE
+# Testing Pablo IDE Locally
 
-## Overview
-Pablo is an AI-powered IDE deployed on Cloudflare Workers via OpenNext. It uses Next.js 16, NextAuth v5 for GitHub OAuth, D1 for persistence, and Ollama Cloud for AI code generation.
-
-## Production URL
-- **App**: https://pablo.vantax.co.za
-- **Login page**: https://pablo.vantax.co.za/login
-- **New session**: https://pablo.vantax.co.za/session/new (redirects to login if unauthenticated)
+## Prerequisites
+- Node.js 22+
+- `.env.local` file with required env vars (copy from `.env.example`)
 
 ## Devin Secrets Needed
-- `CLOUDFLARE_API_KEY` — Cloudflare Global API key for wrangler tail/deploy
-- `CLOUDFLARE_EMAIL` — Cloudflare account email (reshigan@vantax.co.za)
-- GitHub OAuth credentials are configured as Cloudflare Worker secrets (not needed by Devin directly)
-- `OLLAMA_API_KEY` — Ollama Cloud API key (configured as Worker secret)
+- `OLLAMA_API_KEY` — Ollama Cloud API key for LLM calls
+- `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` — GitHub OAuth App credentials (only needed for production OAuth testing)
+- `AUTH_SECRET` — NextAuth secret (auto-generated fallback in dev mode)
+- `CLOUDFLARE_API_TOKEN` — Only needed for deploy testing
 
-## Architecture Notes
+## Local Dev Login (Bypassing GitHub OAuth)
 
-### Middleware (Critical)
-- **File**: `middleware.ts`
-- The middleware CANNOT use NextAuth's `auth()` wrapper — it's incompatible with OpenNext Cloudflare Edge runtime
-- Turbopack evaluates the `auth()` lazy-init callback eagerly at module-init time, causing the bundled middleware to fail to export a callable function
-- The middleware uses cookie-based session checking instead (`authjs.session-token` / `__Secure-authjs.session-token`)
-- If you see "The Middleware file must export a function named middleware" error, it means someone re-introduced the `auth()` wrapper
-- Actual JWT validation happens server-side in API routes, not in middleware
+The GitHub OAuth App callback URL is locked to `https://pablo.vantax.co.za`, so OAuth won't work on localhost. A dev-mode Credentials provider is available instead:
 
-### Cloudflare Worker Secrets vs Vars
-- `vars` in wrangler.jsonc are available at module-init time via `process.env`
-- `secrets` (AUTH_SECRET, GITHUB_CLIENT_ID, etc.) are only available at request-time
-- Never throw errors based on missing secrets during module initialization — use console.warn instead
+1. Run `npm run dev` to start the local server at `http://localhost:3000`
+2. Navigate to `http://localhost:3000/login`
+3. Click the **"Dev Login (localhost only)"** button below the GitHub button
+4. Enter any email (default: `dev@localhost`) and click **"Sign in as Dev User"**
+5. You'll be redirected to a new session page
 
-## Testing Procedures
+### Known Limitations of Dev Login
+- **No GitHub access token**: The Files panel will show "Not authenticated. Please sign in with GitHub" because the dev session has no `accessToken`. Features requiring GitHub API access (repo browsing, file fetch, commits, PRs) will not work.
+- **Shared user ID**: All dev logins use `dev-user-1` regardless of email. Session data may be shared across dev logins.
+- **Dev login is NOT available in production**: The Credentials provider only registers when `NODE_ENV=development`, and the button only renders when `hostname === 'localhost'`.
 
-### 1. Verify Middleware (After Any Middleware Changes)
+## Testing the Pipeline / Build Feature
+
+The pipeline requires an Ollama Cloud API key. Ensure `OLLAMA_API_KEY` is set in `.env.local`.
+
+1. Log in via dev login
+2. In the hero prompt, type a feature description (e.g., "Build a todo app with React")
+3. Click **"Generate"** to start the 8-stage pipeline
+4. Monitor stages in the pipeline output panel
+5. After completion, the **Production Readiness Card** should appear showing a score
+
+## Testing Production Readiness Score Engine
+
+You can test the scoring engine directly without running the full pipeline:
+
 ```bash
-# Should return 307 redirect to /login (NOT 500)
-curl -s -w "HTTP_CODE:%{http_code}" -o /dev/null https://pablo.vantax.co.za/session/new
-
-# Should return 401 with JSON {"error":"Unauthorized"}
-curl -s https://pablo.vantax.co.za/api/sessions
-
-# Should return 200 with login page HTML
-curl -s -w "HTTP_CODE:%{http_code}" -o /dev/null https://pablo.vantax.co.za/login
+# From the Pablo repo root:
+npx tsx test-readiness-quick.ts
 ```
 
-### 2. Local Testing with Wrangler Dev
-```bash
-npx @opennextjs/cloudflare build
-npx wrangler dev --port 8788
-# Then test the same endpoints on localhost:8788
-```
+Or import and call `quickReadinessCheck()` from `lib/agents/productionReadiness.ts` with sample file data.
 
-### 3. Viewing Worker Logs
-```bash
-npx wrangler tail pablo --format json
-# Then make requests in another terminal and observe the logs
-# IMPORTANT: Kill wrangler tail before running curl tests — it pollutes stdout
-```
+## Testing on Production
 
-### 4. Git Workflow Testing (Through Pablo Frontend)
-1. Navigate to https://pablo.vantax.co.za and login with GitHub
-2. Select a repo from the file explorer sidebar
-3. Click the Git icon (source control) in the left sidebar
-4. **Create repo**: Click "Create New Repository" at the bottom of Git panel
-5. **Create branch**: Click the branch name dropdown → type new branch name → click "+ Create"
-6. **Edit a file**: Click a file in file explorer → edit in Monaco editor
-7. **Commit**: In Git panel, type commit message → click "Commit & Push"
-8. **Create PR**: Expand "Create Pull Request" → fill title/description → click "Create Pull Request"
-9. **Merge**: PR opens on GitHub in new tab → merge there (Pablo doesn't have merge UI)
+Production URL: `https://pablo.vantax.co.za`
+- Uses GitHub OAuth (works with the production callback URL)
+- Full GitHub integration (repos, files, commits)
+- Ollama Cloud API key must be set in Cloudflare Worker secrets
 
-### 5. AI Pipeline Testing
-- The Feature Factory pipeline requires Ollama Cloud API key configured as a Worker secret
-- If you see "No AI backend available" or "Stream error: no_backend", the OLLAMA_URL and OLLAMA_API_KEY Worker secrets may need to be reconfigured
-- Pipeline has 8 stages: Plan → Database → API → UI → UX Validation → Tests → Execute → Review
-- Each stage may take 1-5 minutes with the 480B model
+## Common Issues
 
-## Known Issues & Workarounds
-- **Middleware + NextAuth**: Never use `auth()` as middleware wrapper — always use plain `NextRequest` middleware with cookie checks
-- **Pipeline timeouts**: The 480B model can be slow; stage timeouts are set to 15min, first-token to 5min
-- **Wrangler tail + curl**: Running `wrangler tail` in the same shell as `curl` commands will mix JSON log output with curl results — always kill tail processes before running curl verification
-- **Deploy propagation**: After merging a PR, Cloudflare Pages deployment may take 60-120 seconds to propagate. If you see stale 500 errors, wait and retry.
-- **Session switching**: To test with a different repo, you may need to create a new session — the current session is tied to the initially selected repo
+- **"Invalid Redirect URI" on GitHub OAuth locally**: This is expected. Use the Dev Login instead.
+- **Pipeline stalls**: Check that `OLLAMA_URL` is set to `https://ollama.com` (not `api.ollama.ai` or `api.pawan.krd`)
+- **500 errors after deploy**: Check Cloudflare Worker logs; often caused by missing secrets (AUTH_SECRET, GITHUB_CLIENT_ID, etc.)
+- **Hydration mismatches**: The `isLocalhost` check uses `typeof window !== 'undefined'` which may cause SSR/client mismatch warnings — these are cosmetic only.
