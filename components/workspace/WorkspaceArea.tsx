@@ -1,6 +1,5 @@
 'use client';
 
-import { WorkspaceTabs } from './WorkspaceTabs';
 import { FileTabs } from './FileTabs';
 import { CodeEditor } from './CodeEditor';
 import { DiffViewer } from './DiffViewer';
@@ -8,6 +7,7 @@ import { DBDesigner } from './DBDesigner';
 import { APITester } from './APITester';
 import { LivePreview } from './LivePreview';
 import { PipelineView } from '@/components/pipeline/PipelineView';
+import { HeroPrompt } from '@/components/pipeline/HeroPrompt';
 import { DependencyManager } from './DependencyManager';
 import { DeployLogs } from './DeployLogs';
 import { BugScannerPanel } from './BugScannerPanel';
@@ -16,15 +16,17 @@ import { MissionControl } from './MissionControl';
 import { CostDashboard } from './CostDashboard';
 import { useUIStore } from '@/stores/ui';
 import { useEditorStore } from '@/stores/editor';
+import { usePipelineStore } from '@/stores/pipeline';
 
+/** Task 40: Show HeroPrompt when idle, PipelineView when running, Editor otherwise */
 function EditorPanel() {
   const { tabs, activeTabId } = useEditorStore();
+  const runs = usePipelineStore(s => s.runs);
   const hasOpenFile = tabs.length > 0 && activeTabId !== null;
+  const hasRuns = runs.length > 0;
 
-  if (!hasOpenFile) {
-    // Issue 1: Show PipelineView as default when no files are open
-    return <PipelineView />;
-  }
+  if (!hasOpenFile && !hasRuns) return <HeroPrompt />;
+  if (!hasOpenFile && hasRuns) return <PipelineView />;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
@@ -56,7 +58,6 @@ export function WorkspaceArea() {
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-pablo-bg">
-      <WorkspaceTabs />
       <ActivePanel />
     </div>
   );

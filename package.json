@@ -9,7 +9,9 @@
     "preview:worker": "npx wrangler dev",
     "deploy": "npx wrangler deploy",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@auth/core": "^0.41.0",
@@ -39,7 +41,10 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "^5.0.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20.19.35",
     "@types/react": "^19",
@@ -48,6 +53,7 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "vitest": "^4.0.18",
     "wrangler": "^4.69.0"
   }
 }

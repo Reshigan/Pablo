@@ -122,8 +122,9 @@ export function WorkspaceTabs() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [overflowOpen]);
 
+  /* Task 36: Pill-style tab switcher */
   return (
-    <div className="flex h-7 shrink-0 items-center border-b border-pablo-border bg-pablo-panel">
+    <div className="flex items-center gap-0.5 rounded-lg border border-pablo-border bg-pablo-surface-0 p-0.5">
       {visibleTabs.map((tab) => {
         const TabIcon = tab.icon;
         const isActive = activeWorkspaceTab === tab.id;
@@ -132,14 +133,14 @@ export function WorkspaceTabs() {
           <button
             key={tab.id}
             onClick={() => setActiveWorkspaceTab(tab.id)}
-            className={`group flex h-full items-center gap-1.5 border-r border-pablo-border px-3 font-ui text-xs transition-colors duration-100 ${
+            className={`flex items-center gap-1 rounded-md px-2.5 py-1 font-ui text-[11px] transition-all duration-100 ${
               isActive
-                ? 'bg-pablo-bg text-pablo-text border-b-2 border-b-pablo-gold'
-                : 'bg-pablo-panel text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+                ? 'bg-pablo-gold/10 text-pablo-gold shadow-sm'
+                : 'text-pablo-text-muted hover:text-pablo-text-secondary hover:bg-pablo-hover'
             }`}
           >
-            <TabIcon size={14} className={isActive ? 'text-pablo-gold' : ''} />
-            <span>{tab.label}</span>
+            <TabIcon size={13} />
+            <span className="hidden sm:inline">{tab.label}</span>
             <TabBadge tabId={tab.id} />
           </button>
         );
@@ -150,14 +151,14 @@ export function WorkspaceTabs() {
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setOverflowOpen(!overflowOpen)}
-            className="flex h-full items-center gap-1 px-2 font-ui text-xs text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
+            className="flex items-center rounded-md px-1.5 py-1 text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
             aria-label="More tabs"
           >
             <MoreHorizontal size={14} />
           </button>
 
           {overflowOpen && (
-            <div className="absolute left-0 top-full z-50 mt-0.5 w-44 rounded-md border border-pablo-border bg-pablo-panel py-1 shadow-lg">
+            <div className="absolute right-0 top-full z-50 mt-1 w-44 rounded-lg border border-pablo-border bg-pablo-surface-2 py-1 shadow-elevated animate-slide-in">
               {overflowTabs.map((tab) => {
                 const TabIcon = tab.icon;
                 return (
