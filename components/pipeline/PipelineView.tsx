@@ -150,7 +150,7 @@ async function runStageWithChat(
           if (!line.startsWith('data: ')) continue;
           const payload = line.slice(6).trim();
           if (payload === '[DONE]') continue;
-          let parsed: { content?: string; tokens?: number; eval_count?: number; error?: string };
+          let parsed: { content?: string; tokens?: number; eval_count?: number; error?: string; thinking?: boolean };
           try {
             parsed = JSON.parse(payload);
           } catch {
@@ -161,7 +161,12 @@ async function runStageWithChat(
             throw new Error(`Stream error: ${parsed.error}`);
           }
           if (parsed.content) {
-            output += parsed.content;
+            // Thinking tokens keep the stream alive but are not part of
+            // the final stage output (the model's reasoning is internal).
+            // Only append actual content (non-thinking) to the output.
+            if (!parsed.thinking) {
+              output += parsed.content;
+            }
             if (!receivedFirstToken) {
               receivedFirstToken = true;
               resetIdleTimer(); // switch to shorter idle timeout now that tokens are flowing

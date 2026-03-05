@@ -228,18 +228,25 @@ async function tryExternalAPIStreaming(
               } else {
                 try {
                   const chunk = JSON.parse(line) as {
-                    message?: { content?: string };
+                    message?: { content?: string; thinking?: string };
                     done?: boolean;
                     model?: string;
                     eval_count?: number;
                     total_duration?: number;
                   };
+                  // Merge content + thinking: deepseek-v3.2 streams reasoning
+                  // in `message.thinking` with empty `message.content`, then
+                  // switches to `message.content` for the final answer.
+                  const textContent = chunk.message?.content ?? '';
+                  const thinkingContent = chunk.message?.thinking ?? '';
+                  const mergedContent = textContent || thinkingContent;
                   const sseData = JSON.stringify({
-                    content: chunk.message?.content ?? '',
+                    content: mergedContent,
                     done: chunk.done ?? false,
                     model: chunk.model ?? model,
                     eval_count: chunk.eval_count,
                     total_duration: chunk.total_duration,
+                    ...(thinkingContent && !textContent ? { thinking: true } : {}),
                   });
                   controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
                   if (chunk.done) {
