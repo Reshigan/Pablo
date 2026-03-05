@@ -277,7 +277,7 @@ export function ProductionReadinessCard({ score, onIterate, isEvaluating }: Prod
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-pablo-gold/30 bg-pablo-gold-bg px-4 py-2 font-ui text-xs font-medium text-pablo-gold transition-colors hover:bg-pablo-gold/20 disabled:opacity-50"
             >
               <RotateCcw size={13} />
-              Iterate with {criticalCount + majorCount} fix suggestions
+              Iterate with {score.issues.length} fix suggestions
             </button>
           )}
 

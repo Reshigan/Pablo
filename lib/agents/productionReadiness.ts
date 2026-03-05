@@ -371,7 +371,7 @@ async function llmDeepReview(
         score: typeof val.score === 'number' ? Math.max(0, Math.min(100, val.score)) : 50,
         issues: (val.issues || []).map((iss) => ({
           id: nextId(),
-          severity: (iss.severity as ReadinessSeverity) || 'minor',
+          severity: (['critical', 'major', 'minor', 'suggestion'].includes(iss.severity ?? '') ? iss.severity as ReadinessSeverity : 'minor'),
           category: cat,
           file: iss.file || 'unknown',
           line: typeof iss.line === 'number' ? iss.line : undefined,
