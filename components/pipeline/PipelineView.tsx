@@ -913,6 +913,7 @@ export function PipelineView() {
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
     setIsBuilding(true); // Immediately prevent double-clicks
+    try {
     let description = featureInput.trim();
 
     // Feature 9: Prompt Enhancement
@@ -1130,8 +1131,10 @@ export function PipelineView() {
     } catch {
       completeRun(runId, 'failed');
     } finally {
-      setIsBuilding(false);
       abortRef.current = null;
+    }
+    } finally {
+      setIsBuilding(false);
     }
   }, [featureInput, isBuilding, attachments, enhanceEnabled, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
 
