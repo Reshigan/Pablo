@@ -1,19 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { Fragment, useEffect, useCallback } from 'react';
 import {
   Files,
   Search,
   GitBranch,
   Brain,
-  BarChart3,
-  Plug,
   LayoutList,
-  Activity,
-  History,
   Flag,
   KeyRound,
-  BookOpen,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
@@ -22,11 +18,7 @@ import { FileExplorer } from '@/components/sidebar/FileExplorer';
 import { SearchPanel } from '@/components/sidebar/SearchPanel';
 import { GitPanel } from '@/components/sidebar/GitPanel';
 import { MemoryPanel } from '@/components/sidebar/MemoryPanel';
-import { MetricsPanel } from '@/components/sidebar/MetricsPanel';
-import { MCPPanel } from '@/components/sidebar/MCPPanel';
 import { SessionsPanel } from '@/components/sidebar/SessionsPanel';
-import { ActivityPanel } from '@/components/sidebar/ActivityPanel';
-import { PromptHistoryPanel } from '@/components/sidebar/PromptHistoryPanel';
 import { CheckpointPanel } from '@/components/sidebar/CheckpointPanel';
 import { SecretsPanel } from '@/components/sidebar/SecretsPanel';
 
@@ -37,22 +29,18 @@ interface SidebarTabConfig {
   group: 'core' | 'ai' | 'project';
 }
 
-// Issue 10: Reordered by frequency, grouped into Core/AI/Project
+// Task 35: Reduced to 7 primary tabs — Metrics, MCP, Activity, History moved to Settings
 const tabs: SidebarTabConfig[] = [
-  // Core
-  { id: 'files', icon: Files, label: 'File Explorer', group: 'core' },
+  // Core (daily use)
+  { id: 'files', icon: Files, label: 'Files', group: 'core' },
   { id: 'search', icon: Search, label: 'Search', group: 'core' },
-  { id: 'git', icon: GitBranch, label: 'Source Control', group: 'core' },
+  { id: 'git', icon: GitBranch, label: 'Git', group: 'core' },
   // AI
-  { id: 'memory', icon: Brain, label: 'Self-Learning', group: 'ai' },
   { id: 'sessions', icon: LayoutList, label: 'Sessions', group: 'ai' },
-  { id: 'history', icon: BookOpen, label: 'Prompt History', group: 'ai' },
+  { id: 'memory', icon: Brain, label: 'Memory', group: 'ai' },
   // Project
-  { id: 'checkpoints', icon: Flag, label: 'Checkpoints', group: 'project' },
-  { id: 'activity', icon: Activity, label: 'Activity', group: 'project' },
   { id: 'secrets', icon: KeyRound, label: 'Secrets', group: 'project' },
-  { id: 'metrics', icon: BarChart3, label: 'Metrics', group: 'project' },
-  { id: 'mcp', icon: Plug, label: 'MCP Servers', group: 'project' },
+  { id: 'checkpoints', icon: Flag, label: 'Checkpoints', group: 'project' },
 ];
 
 function SidebarTabIcon({ tab, isActive, onClick, badge }: { tab: SidebarTabConfig; isActive: boolean; onClick: () => void; badge?: number }) {
@@ -60,18 +48,18 @@ function SidebarTabIcon({ tab, isActive, onClick, badge }: { tab: SidebarTabConf
   return (
     <button
       onClick={onClick}
-      className={`relative flex h-10 w-full items-center justify-center transition-colors duration-150 hover:bg-pablo-hover ${
-        isActive ? 'text-pablo-text' : 'text-pablo-text-muted hover:text-pablo-text-dim'
+      className={`relative flex h-9 w-full items-center justify-center transition-colors duration-150 hover:bg-pablo-hover ${
+        isActive ? 'text-pablo-gold' : 'text-pablo-text-muted hover:text-pablo-text-dim'
       }`}
       aria-label={tab.label}
       title={tab.label}
     >
       {isActive && (
-        <div className="absolute left-0 top-1 bottom-1 w-[3px] rounded-r bg-pablo-gold" />
+        <div className="absolute left-0 top-1 bottom-1 w-[2px] rounded-r bg-pablo-gold" />
       )}
-      <TabIcon size={20} />
+      <TabIcon size={18} />
       {badge != null && badge > 0 && (
-        <span className="absolute right-1 top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-pablo-gold px-0.5 font-ui text-[9px] font-bold text-pablo-bg">
+        <span className="absolute right-0.5 top-0.5 flex h-3.5 min-w-[14px] items-center justify-center rounded-full bg-pablo-gold px-0.5 font-ui text-[8px] font-bold text-pablo-bg">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -79,86 +67,90 @@ function SidebarTabIcon({ tab, isActive, onClick, badge }: { tab: SidebarTabConf
   );
 }
 
-const panelComponents: Record<SidebarTab, React.ComponentType> = {
+const panelComponents: Partial<Record<SidebarTab, React.ComponentType>> = {
   sessions: SessionsPanel,
   files: FileExplorer,
   search: SearchPanel,
   git: GitPanel,
-  activity: ActivityPanel,
-  history: PromptHistoryPanel,
   checkpoints: CheckpointPanel,
   secrets: SecretsPanel,
   memory: MemoryPanel,
-  metrics: MetricsPanel,
-  mcp: MCPPanel,
 };
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarTab, setSidebarTab, sidebarWidth, toggleSidebar } = useUIStore();
+  const { sidebarOpen, sidebarTab, setSidebarTab, toggleSidebar } = useUIStore();
   const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
-  // UX-28: On mobile (<768px), render sidebar as an overlay instead of inline
-  // Use useState + useEffect to avoid SSR hydration mismatch
-  const [isMobile, setIsMobile] = useState(false);
+  // Task 35: Close sidebar on Escape key
+  const handleEscape = useCallback((e: KeyboardEvent) => {
+    if (e.key === 'Escape' && sidebarOpen) toggleSidebar();
+  }, [sidebarOpen, toggleSidebar]);
+
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
-    check();
-    window.addEventListener('resize', check);
-    return () => window.removeEventListener('resize', check);
-  }, []);
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [handleEscape]);
 
   return (
     <>
-      {/* UX-28: Backdrop overlay on mobile when sidebar is expanded */}
-      {isMobile && sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50"
-          onClick={toggleSidebar}
-          aria-label="Close sidebar"
-        />
-      )}
-      <aside
-        className={`flex h-full shrink-0 border-r border-pablo-border bg-pablo-panel ${
-          isMobile && sidebarOpen ? 'fixed left-0 top-[44px] bottom-[28px] z-50' : ''
-        }`}
-        style={{ width: sidebarOpen ? sidebarWidth : 48 }}
-        role="complementary"
-        aria-label="Sidebar"
-      >
-      {/* Icon strip - always visible (Issue 10: grouped with dividers) */}
-      <div className="flex w-12 shrink-0 flex-col border-r border-pablo-border bg-pablo-panel pt-1">
-        {tabs.map((tab, i) => (
-          <div key={tab.id}>
-            {/* Group divider between core/ai/project */}
-            {i > 0 && tabs[i - 1].group !== tab.group && (
-              <div className="mx-2 my-1 h-px bg-pablo-border" />
-            )}
-            <SidebarTabIcon
-              tab={tab}
-              isActive={sidebarTab === tab.id}
-              onClick={() => setSidebarTab(tab.id)}
-              badge={tab.id === 'git' ? dirtyCount : undefined}
-            />
-          </div>
-        ))}
-      </div>
-
-      {/* Panel content - visible when sidebar is expanded */}
-      {sidebarOpen && (
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Panel header */}
-          <div className="flex h-9 shrink-0 items-center px-3 font-ui text-xs font-semibold uppercase tracking-wider text-pablo-text-dim">
-            {tabs.find((t) => t.id === sidebarTab)?.label}
-          </div>
-
-          {/* Panel content */}
-          <div className="flex-1 overflow-y-auto">
-            <ActivePanel />
-          </div>
+      {/* Task 35: Icon rail — always visible, 44px */}
+      <aside className="relative z-30 flex w-11 shrink-0 flex-col border-r border-pablo-border bg-pablo-surface-0">
+        <div className="flex flex-col gap-0.5 pt-2">
+          {tabs.map((tab, i) => (
+            <Fragment key={tab.id}>
+              {i > 0 && tabs[i - 1].group !== tab.group && (
+                <div className="mx-2 my-1.5 h-px bg-pablo-border" />
+              )}
+              <SidebarTabIcon
+                tab={tab}
+                isActive={sidebarOpen && sidebarTab === tab.id}
+                onClick={() => {
+                  if (sidebarOpen && sidebarTab === tab.id) {
+                    toggleSidebar(); // Close if clicking active tab
+                  } else {
+                    setSidebarTab(tab.id);
+                    if (!sidebarOpen) toggleSidebar();
+                  }
+                }}
+                badge={tab.id === 'git' ? dirtyCount : undefined}
+              />
+            </Fragment>
+          ))}
         </div>
-      )}
       </aside>
+
+      {/* Task 35: Panel overlay — floats over workspace */}
+      {sidebarOpen && (
+        <>
+          {/* Backdrop — click to close */}
+          <div
+            className="fixed inset-0 z-30 bg-black/20"
+            onClick={toggleSidebar}
+          />
+          <div
+            className="fixed left-11 top-12 bottom-6 z-40 w-72 border-r border-pablo-border bg-pablo-surface-1 shadow-elevated panel-transition animate-slide-in overflow-hidden flex flex-col"
+            style={{ borderRadius: '0 12px 12px 0' }}
+          >
+            {/* Panel header */}
+            <div className="flex h-10 shrink-0 items-center justify-between border-b border-pablo-border px-3">
+              <span className="font-ui text-xs font-semibold text-pablo-text-secondary uppercase tracking-wider">
+                {tabs.find(t => t.id === sidebarTab)?.label}
+              </span>
+              <button
+                onClick={toggleSidebar}
+                className="flex h-6 w-6 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text"
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {/* Panel content */}
+            <div className="flex-1 overflow-y-auto">
+              {ActivePanel && <ActivePanel />}
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

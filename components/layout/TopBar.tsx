@@ -10,6 +10,7 @@ import {
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { useUIStore } from '@/stores/ui';
+import { WorkspaceTabs } from '@/components/workspace/WorkspaceTabs';
 
 export function TopBar() {
   const { toggleCommandPalette, toggleSettings } = useUIStore();
@@ -51,6 +52,11 @@ export function TopBar() {
           ⌘K
         </kbd>
       </button>
+
+      {/* Task 36: Pill tab switcher — right of search */}
+      <div className="hidden md:flex">
+        <WorkspaceTabs />
+      </div>
 
       {/* Right: Actions */}
       <div className="flex items-center gap-1 w-40 justify-end">
