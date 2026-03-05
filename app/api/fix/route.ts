@@ -4,6 +4,7 @@ import { runIncrementalPipeline, detectIncrementalMode } from '@/lib/agents/incr
 import type { EnvConfig } from '@/lib/agents/modelRouter';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { loggers } from '@/lib/logger';
+import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
 
 /**
  * POST /api/fix — Server-side incremental fix pipeline.
@@ -40,6 +41,10 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return new Response('Unauthorized', { status: 401 });
   }
+
+  // ARCH-05: Body size guard
+  const sizeErr = checkBodySize(req.headers, BODY_SIZE_LIMITS.code);
+  if (sizeErr) return sizeErr;
 
   // ARCH-01: Rate limiting
   const clientIP = getClientIP(req.headers);

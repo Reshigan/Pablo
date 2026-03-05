@@ -21,6 +21,7 @@ import {
 import type { EnvConfig } from '@/lib/agents/modelRouter';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { createLogger } from '@/lib/logger';
+import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
 
 const log = createLogger('orchestrate-route');
 
@@ -49,6 +50,10 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return new Response('Unauthorized', { status: 401 });
     }
+
+    // ARCH-05: Body size guard
+    const sizeErr = checkBodySize(request.headers, BODY_SIZE_LIMITS.orchestrate);
+    if (sizeErr) return sizeErr;
 
     // ARCH-01: Rate limiting — orchestration is expensive
     const clientIP = getClientIP(request.headers);
