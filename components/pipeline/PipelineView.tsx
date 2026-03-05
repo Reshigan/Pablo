@@ -31,6 +31,7 @@ import {
 import { useAgentStore } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
+import { useUIStore } from '@/stores/ui';
 import { useToastStore, toast, toastSuccess, toastError } from '@/stores/toast';
 import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
@@ -432,6 +433,9 @@ export function PipelineView() {
               message: `${parsedFiles.length} file(s) ready for review in Diff tab`,
               duration: 5000,
             });
+
+            // Auto-navigate user to Diff tab so generated files are visible immediately
+            useUIStore.getState().setActiveWorkspaceTab('diff');
 
             // Production Readiness Score — evaluate generated code quality
             try {
