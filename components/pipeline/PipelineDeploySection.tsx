@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useEditorStore } from '@/stores/editor';
 import { parseGeneratedFiles } from '@/lib/code-parser';
+import { toastSuccess, toastError } from '@/stores/toast';
 import type { PipelineRun } from '@/stores/pipeline';
 
 export function PipelineDeploySection({ run }: { run: PipelineRun }) {
@@ -81,9 +82,12 @@ export function PipelineDeploySection({ run }: { run: PipelineRun }) {
       }
       setDeployUrl(url);
       setDeployState('deployed');
+      toastSuccess('Deploy successful', url);
     } catch (err) {
-      setDeployError(err instanceof Error ? err.message : 'Deploy failed');
+      const errMsg = err instanceof Error ? err.message : 'Deploy failed';
+      setDeployError(errMsg);
       setDeployState('error');
+      toastError('Deploy failed', errMsg);
     }
   };
 
