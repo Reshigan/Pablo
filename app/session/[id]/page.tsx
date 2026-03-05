@@ -11,6 +11,7 @@ import { CommandPalette } from '@/components/modals/CommandPalette';
 import { SettingsModal } from '@/components/modals/SettingsModal';
 import { WelcomeModal } from '@/components/modals/WelcomeModal';
 import { ToastContainer } from '@/components/shared/ToastContainer';
+import { MobileTabBar } from '@/components/layout/MobileTabBar';
 import { ErrorBoundary } from '@/components/shared/ErrorBoundary';
 import { ActivityIndicator } from '@/components/shared/ActivityIndicator';
 import { useUIStore, type WorkspaceTab } from '@/stores/ui';
@@ -32,6 +33,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   const {
     chatOpen,
     chatWidth,
+    mobileMode,
     toggleSidebar,
     toggleChat,
     toggleTerminal,
@@ -40,15 +42,27 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     setActiveWorkspaceTab,
   } = useUIStore();
 
-  // UX-07: Auto-collapse sidebar/chat on narrow viewports
+  // UX-07 + Task 30: Responsive breakpoints
   useEffect(() => {
     function handleResize() {
       const w = window.innerWidth;
+      const state = useUIStore.getState();
+
       if (w < 768) {
-        // Mobile: collapse both panels
-        const state = useUIStore.getState();
+        // Mobile: collapse both panels, set mobileMode
+        if (!state.mobileMode) state.setMobileMode(true);
+        if (state.tabletMode) state.setTabletMode(false);
         if (state.sidebarOpen) state.toggleSidebar();
         if (state.chatOpen) state.toggleChat();
+      } else if (w < 1024) {
+        // Tablet: collapse sidebar, keep chat
+        if (state.mobileMode) state.setMobileMode(false);
+        if (!state.tabletMode) state.setTabletMode(true);
+        if (state.sidebarOpen) state.toggleSidebar();
+      } else {
+        // Desktop
+        if (state.mobileMode) state.setMobileMode(false);
+        if (state.tabletMode) state.setTabletMode(false);
       }
     }
     handleResize(); // Check on mount
@@ -186,7 +200,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
+    <div className={`flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg ${mobileMode ? 'pb-14' : ''}`}>
       {/* Top Bar */}
       <TopBar />
 
@@ -238,14 +252,17 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       {/* Task 38: Activity indicator — floating status pill */}
       <ActivityIndicator />
 
-      {/* Status Bar */}
-      <StatusBar />
+      {/* Status Bar — hidden on mobile since MobileTabBar replaces it */}
+      {!mobileMode && <StatusBar />}
 
       {/* Modals & Overlays */}
       <CommandPalette />
       <SettingsModal />
       <WelcomeModal />
       <ToastContainer />
+
+      {/* Task 30: Mobile bottom tab bar */}
+      <MobileTabBar />
     </div>
   );
 }

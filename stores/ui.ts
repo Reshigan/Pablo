@@ -61,6 +61,10 @@ interface UIState {
   // Auto-preview trigger
   autoStartPreview: boolean;
 
+  // Mobile responsive (Task 30)
+  mobileMode: boolean;
+  tabletMode: boolean;
+
   // Actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
@@ -72,6 +76,8 @@ interface UIState {
   toggleCommandPalette: () => void;
   toggleSettings: () => void;
   setAutoStartPreview: (v: boolean) => void;
+  setMobileMode: (v: boolean) => void;
+  setTabletMode: (v: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -98,6 +104,10 @@ export const useUIStore = create<UIState>()(
       // Auto-preview
       autoStartPreview: false,
 
+      // Mobile responsive (Task 30)
+      mobileMode: false,
+      tabletMode: false,
+
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -111,6 +121,8 @@ export const useUIStore = create<UIState>()(
       toggleCommandPalette: () => set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),
       toggleSettings: () => set((state) => ({ settingsOpen: !state.settingsOpen })),
       setAutoStartPreview: (v) => set({ autoStartPreview: v }),
+      setMobileMode: (v) => set({ mobileMode: v }),
+      setTabletMode: (v) => set({ tabletMode: v }),
     }),
     {
       name: 'pablo-ui-settings',
