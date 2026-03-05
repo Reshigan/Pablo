@@ -198,6 +198,7 @@ async function tryExternalAPIStreaming(
                 if (!trimmed.startsWith('data: ')) continue;
                 const data = trimmed.slice(6);
                 if (data === '[DONE]') {
+                  clearTimeout(timeoutId);
                   controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                   controller.close();
                   return;
@@ -222,6 +223,7 @@ async function tryExternalAPIStreaming(
                   });
                   controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
                   if (isDone) {
+                    clearTimeout(timeoutId);
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                     controller.close();
                     return;
@@ -254,6 +256,7 @@ async function tryExternalAPIStreaming(
                   });
                   controller.enqueue(encoder.encode(`data: ${sseData}\n\n`));
                   if (chunk.done) {
+                    clearTimeout(timeoutId);
                     controller.enqueue(encoder.encode('data: [DONE]\n\n'));
                     controller.close();
                     return;
@@ -264,11 +267,13 @@ async function tryExternalAPIStreaming(
               }
             }
           }
+          clearTimeout(timeoutId);
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch (error) {
           // Graceful stream error: send error SSE event instead of killing the stream
           // This lets the client detect the failure and retry the stage
+          clearTimeout(timeoutId);
           try {
             const errMsg = error instanceof Error ? error.message : 'Stream interrupted';
             const errData = JSON.stringify({ content: '', done: true, error: errMsg });
@@ -288,10 +293,9 @@ async function tryExternalAPIStreaming(
     });
   } catch (err) {
     // BUG-04: Log external API failure
+    clearTimeout(timeoutId);
     console.warn('[tryExternalAPI] Request failed:', err instanceof Error ? err.message : err);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
