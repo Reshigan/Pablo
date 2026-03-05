@@ -49,7 +49,7 @@ import {
 import { useAgentStore, type AgentPhase, type AgentRunState } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
-import { useToastStore, toast } from '@/stores/toast';
+import { useToastStore, toast, toastSuccess, toastError } from '@/stores/toast';
 import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
@@ -296,9 +296,12 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
                   }
                   setDeployUrl(url);
                   setDeployState('deployed');
+                  toastSuccess('Deploy successful', url);
                 } catch (err) {
-                  setDeployError(err instanceof Error ? err.message : 'Deploy failed');
+                  const deployErrMsg = err instanceof Error ? err.message : 'Deploy failed';
+                  setDeployError(deployErrMsg);
                   setDeployState('error');
+                  toastError('Deploy failed', deployErrMsg);
                 }
               }}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-pablo-green/20 px-4 py-2 font-ui text-xs font-medium text-pablo-green transition-colors hover:bg-pablo-green/30"

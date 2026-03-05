@@ -25,6 +25,7 @@ const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }>
 export interface LLMCallRecord {
   id: string;
   sessionId?: string;
+  userId?: string;
   model: string;
   tokensIn: number;
   tokensOut: number;
@@ -59,18 +60,77 @@ const DEFAULT_DAILY_BUDGET_USD = 5.0;
  * ARCH-03: Check if user has exceeded their daily budget.
  * Returns { allowed: boolean, spent: number, budget: number }.
  */
-export async function checkDailyBudget(_userId?: string): Promise<{ allowed: boolean; spent: number; budget: number }> {
-  const budget = parseFloat(process.env.DAILY_BUDGET_USD || '') || DEFAULT_DAILY_BUDGET_USD;
+export async function checkDailyBudget(userId?: string): Promise<{ allowed: boolean; spent: number; budget: number }> {
   const db = await getDBAsync();
-  if (!db) return { allowed: true, spent: 0, budget };
+  const defaultBudget = parseFloat(process.env.DAILY_BUDGET_USD || '') || DEFAULT_DAILY_BUDGET_USD;
+  if (!db) return { allowed: true, spent: 0, budget: defaultBudget };
 
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const row = await db.prepare(
-    `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
-  ).bind(today).first<{ spent: number }>();
+
+  // ARCH-03: Check per-user budget from user_limits table if user is known
+  let budget = defaultBudget;
+  if (userId) {
+    try {
+      const userRow = await db.prepare(
+        `SELECT daily_budget_usd, total_spent_today_usd, last_reset FROM user_limits WHERE user_id = ?`
+      ).bind(userId).first<{ daily_budget_usd: number; total_spent_today_usd: number; last_reset: string }>();
+
+      if (userRow) {
+        budget = userRow.daily_budget_usd;
+        // Reset counter if last_reset is before today
+        const lastResetDate = userRow.last_reset?.slice(0, 10);
+        if (lastResetDate && lastResetDate < today) {
+          await db.prepare(
+            `UPDATE user_limits SET total_spent_today_usd = 0, last_reset = datetime('now') WHERE user_id = ?`
+          ).bind(userId).run();
+        }
+      }
+    } catch {
+      // user_limits table may not exist yet — fall through to aggregation
+    }
+  }
+
+  // Aggregate today's spend from llm_calls — filter by user if known
+  const row = userId
+    ? await db.prepare(
+        `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ? AND user_id = ?`
+      ).bind(today, userId).first<{ spent: number }>()
+    : await db.prepare(
+        `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
+      ).bind(today).first<{ spent: number }>();
 
   const spent = row?.spent || 0;
   return { allowed: spent < budget, spent, budget };
+}
+
+/**
+ * ARCH-03: Get or create user limit record.
+ */
+export async function d1GetUserLimit(userId: string): Promise<{ dailyBudgetUsd: number; totalSpentTodayUsd: number } | null> {
+  const db = await getDBAsync();
+  if (!db) return null;
+  try {
+    const row = await db.prepare(
+      `SELECT daily_budget_usd, total_spent_today_usd FROM user_limits WHERE user_id = ?`
+    ).bind(userId).first<{ daily_budget_usd: number; total_spent_today_usd: number }>();
+    if (!row) return null;
+    return { dailyBudgetUsd: row.daily_budget_usd, totalSpentTodayUsd: row.total_spent_today_usd };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ARCH-03: Upsert user limit.
+ */
+export async function d1UpsertUserLimit(userId: string, dailyBudgetUsd: number): Promise<void> {
+  const db = await getDBAsync();
+  if (!db) return;
+  await db.prepare(
+    `INSERT INTO user_limits (user_id, daily_budget_usd, total_spent_today_usd, last_reset)
+     VALUES (?, ?, 0, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET daily_budget_usd = excluded.daily_budget_usd`
+  ).bind(userId, dailyBudgetUsd).run();
 }
 
 /**
@@ -84,11 +144,12 @@ export async function d1LogLLMCall(record: Omit<LLMCallRecord, 'id' | 'createdAt
   const costUsd = record.costUsd || estimateCost(record.model, record.tokensIn, record.tokensOut);
 
   await db.prepare(
-    `INSERT INTO llm_calls (id, session_id, model, tokens_in, tokens_out, duration_ms, cost_usd, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO llm_calls (id, session_id, user_id, model, tokens_in, tokens_out, duration_ms, cost_usd, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     record.sessionId || null,
+    record.userId || null,
     record.model,
     record.tokensIn,
     record.tokensOut,

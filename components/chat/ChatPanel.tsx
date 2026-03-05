@@ -427,13 +427,18 @@ export function ChatPanel() {
             // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
             if (parsed.error) {
               if (parsed.error === 'no_backend') {
-                const msg =
-                  parsed.content ||
-                  'No AI backend configured. Go to Settings and configure OLLAMA_URL and OLLAMA_API_KEY.';
-                setError(msg);
+                setError('No AI backend configured');
                 updateMessage(assistantId, {
                   isStreaming: false,
-                  content: `Error: ${msg}`,
+                  content: [
+                    '### No AI Backend Configured\n',
+                    'Pablo needs an AI backend to generate responses. To fix this:\n',
+                    '1. Open **Settings** (gear icon in sidebar)',
+                    '2. Go to the **AI Models** tab',
+                    '3. Enter your **Ollama Cloud** endpoint and API key',
+                    '4. Or set `OLLAMA_URL` and `OLLAMA_API_KEY` as Cloudflare Worker secrets\n',
+                    '> Need an API key? Visit [ollama.com](https://ollama.com) to get started.',
+                  ].join('\n'),
                 });
                 streamDone = true;
                 break;
@@ -466,6 +471,8 @@ export function ChatPanel() {
             if (parsed.done) {
               if (parsed.eval_count) {
                 addTokens(parsed.eval_count);
+                // Task 25: Store token count and model on assistant message
+                updateMessage(assistantId, { tokens: parsed.eval_count, model: parsed.model });
               }
               // Reset pipeline state when done
               setPipeline(prev => prev.active ? { ...prev, active: false } : prev);
@@ -1255,6 +1262,20 @@ export function ChatPanel() {
                         <span className="inline-block h-3 w-1.5 animate-pulse-gold bg-pablo-gold ml-0.5" />
                       )}
                     </div>
+                    {/* Task 25: Token/cost/model display per assistant message */}
+                    {msg.role === 'assistant' && !msg.isStreaming && (msg.tokens || msg.model) && (
+                      <div className="mt-1.5 flex items-center gap-2 border-t border-pablo-border/30 pt-1">
+                        {msg.model && (
+                          <span className="font-code text-[9px] text-pablo-text-muted">{msg.model}</span>
+                        )}
+                        {msg.tokens && msg.tokens > 0 && (
+                          <span className="font-code text-[9px] text-pablo-text-muted">{msg.tokens} tokens</span>
+                        )}
+                        {msg.tokens && msg.tokens > 0 && (
+                          <span className="font-code text-[9px] text-pablo-text-muted">${(msg.tokens / 1_000_000 * 0.15).toFixed(4)}</span>
+                        )}
+                      </div>
+                    )}
                 </div>
                 {msg.role === 'user' && (
                   <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-pablo-active">
