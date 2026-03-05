@@ -222,10 +222,13 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
           className="fixed right-0 top-12 bottom-6 z-30 flex flex-col border-l border-pablo-border bg-pablo-surface-2/95 backdrop-blur-sm shadow-elevated"
           style={{ width: chatWidth }}
         >
-          <PanelResizer
-            direction="horizontal"
-            onResize={(delta) => setChatWidth(prev => prev - delta)}
-          />
+          {/* Absolutely positioned left-edge resize handle */}
+          <div className="absolute left-0 top-0 bottom-0 z-10">
+            <PanelResizer
+              direction="horizontal"
+              onResize={(delta) => setChatWidth(prev => prev - delta)}
+            />
+          </div>
           <ErrorBoundary name="Chat">
             <ChatPanel />
           </ErrorBoundary>

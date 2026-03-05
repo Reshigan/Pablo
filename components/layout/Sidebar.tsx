@@ -82,9 +82,10 @@ export function Sidebar() {
   const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
-  // Task 35: Close sidebar on Escape key
+  // Task 35: Close sidebar on Escape key (skip if modal is open)
   const handleEscape = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape' && sidebarOpen) toggleSidebar();
+    const ui = useUIStore.getState();
+    if (e.key === 'Escape' && sidebarOpen && !ui.commandPaletteOpen && !ui.settingsOpen) toggleSidebar();
   }, [sidebarOpen, toggleSidebar]);
 
   useEffect(() => {

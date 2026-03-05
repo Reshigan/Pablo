@@ -49,7 +49,7 @@ export function TopBar() {
           Search or ask Pablo...
         </span>
         <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1.5 py-0.5 font-code text-[10px] text-pablo-text-muted">
-          ⌘K
+          ⌘⇧P
         </kbd>
       </button>
 

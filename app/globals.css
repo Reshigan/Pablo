@@ -194,6 +194,7 @@ html, body {
 
 .resize-handle-horizontal {
   width: 4px;
+  height: 100%;
   cursor: col-resize;
 }
 
