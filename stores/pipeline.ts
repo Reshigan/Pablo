@@ -205,23 +205,28 @@ export function resolveTechStack(
 
 // ─── Pipeline Stages ─────────────────────────────────────────────────────────
 
+// Model selection: Use models that are reliably responsive on Ollama Cloud.
+// The 480B/671B models (qwen3-coder:480b, deepseek-v3.2) frequently queue for
+// 10+ minutes on Ollama Cloud, causing pipelines to stall. Use fast, reliable
+// models as primary and let the server-side handlePipelineStage() fallback chain
+// try larger models if the primary fails.
 export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
-  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'deepseek-v3.2' },
-  { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'qwen3-coder:480b' },
-  { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'qwen3-coder:480b' },
-  { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'qwen3-coder:480b' },
-  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'deepseek-v3.2' },
-  { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'qwen3-coder:480b' },
-  { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'qwen3-coder:480b' },
-  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'deepseek-v3.2' },
+  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'devstral-2:123b' },
+  { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'devstral-2:123b' },
+  { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'devstral-2:123b' },
+  { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'devstral-2:123b' },
+  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'gpt-oss:120b' },
+  { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'devstral-2:123b' },
+  { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'devstral-2:123b' },
+  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'gpt-oss:120b' },
 ];
 
 // ─── Incremental Pipeline Stages ────────────────────────────────────────────
 
 export const INCREMENTAL_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
-  { id: 'analyze', label: 'Analyze', description: 'Analyze codebase and find relevant files', model: 'deepseek-v3.2' },
-  { id: 'fix', label: 'Fix', description: 'Generate targeted fixes for identified issues', model: 'qwen3-coder:480b' },
-  { id: 'implement', label: 'Implement', description: 'Implement new code changes', model: 'qwen3-coder:480b' },
+  { id: 'analyze', label: 'Analyze', description: 'Analyze codebase and find relevant files', model: 'gpt-oss:120b' },
+  { id: 'fix', label: 'Fix', description: 'Generate targeted fixes for identified issues', model: 'devstral-2:123b' },
+  { id: 'implement', label: 'Implement', description: 'Implement new code changes', model: 'devstral-2:123b' },
 ];
 
 /**

@@ -53,16 +53,16 @@ describe('classifyTask', () => {
 });
 
 describe('routeTask', () => {
-  it('routes generate tasks to Qwen Coder primary', () => {
+  it('routes generate tasks to Devstral primary', () => {
     const decision = routeTask('Build a SaaS dashboard system');
     expect(decision.task_type).toBe('generate');
-    expect(decision.primary.model).toContain('qwen');
+    expect(decision.primary.model).toContain('devstral');
   });
 
-  it('routes plan tasks to DeepSeek primary', () => {
+  it('routes plan tasks to Devstral primary', () => {
     const decision = routeTask('Plan the architecture');
     expect(decision.task_type).toBe('plan');
-    expect(decision.primary.model).toContain('deepseek');
+    expect(decision.primary.model).toContain('devstral');
   });
 
   it('routes chat tasks to GPT-OSS primary', () => {
