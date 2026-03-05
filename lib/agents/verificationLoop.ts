@@ -11,8 +11,6 @@
  *   7. Return verified files + test results
  */
 
-import type { EnvConfig } from './modelRouter';
-import { callModel } from './modelRouter';
 import { parseGeneratedFiles } from './agentEngine';
 
 export interface VerificationResult {
@@ -29,6 +27,8 @@ export interface VerificationCallbacks {
   onOutput: (output: string) => void;
   writeFiles: (files: Array<{ path: string; content: string }>) => Promise<void>;
   runCommand: (cmd: string, args: string[]) => Promise<{ output: string; exitCode: number }>;
+  /** LLM callback — routes the fix request through the appropriate backend (e.g. /api/chat). */
+  callLLM: (prompt: string) => Promise<string>;
 }
 
 const FIX_PROMPT = `You are fixing build/test errors in generated code.
@@ -47,11 +47,10 @@ Only output files that need changes. Every file must be complete (not just the c
  */
 export async function runVerificationLoop(
   files: Array<{ path: string; content: string; language: string }>,
-  env: EnvConfig,
   callbacks: VerificationCallbacks,
   maxAttempts: number = 3,
 ): Promise<VerificationResult> {
-  let currentFiles = [...files];
+  const currentFiles = [...files];
   let attempt = 0;
   let buildOutput = '';
   let testOutput = '';
@@ -125,20 +124,9 @@ export async function runVerificationLoop(
       .replace('{file_contents}', fileContents);
 
     try {
-      const fixResult = await callModel({
-        model: {
-          provider: 'ollama_cloud',
-          model: 'qwen2.5-coder:32b',
-          description: 'Fix generation',
-          max_tokens: 16384,
-          temperature: 0.1,
-          estimated_speed: '40-80 TPS',
-        },
-        systemPrompt: 'You are a code fixer. Output ONLY the corrected files as markdown code blocks with filenames.',
-        userMessage: prompt,
-      }, env);
+      const fixContent = await callbacks.callLLM(prompt);
 
-      const fixedFiles = parseGeneratedFiles(fixResult.content);
+      const fixedFiles = parseGeneratedFiles(fixContent);
 
       // Apply fixes — replace only the files that were fixed
       for (const fixed of fixedFiles) {

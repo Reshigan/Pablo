@@ -411,12 +411,7 @@ export function LivePreview() {
 
       const files = previewFiles.map(f => ({ path: f.path, content: f.content, language: f.language }));
 
-      // EnvConfig is not needed client-side — the verification loop calls
-      // callModel which uses server env via the API route. Pass empty config
-      // since the LLM call goes through /api/chat server-side.
-      const env = {};
-
-      const result = await runVerificationLoop(files, env, {
+      const result = await runVerificationLoop(files, {
         onStatusChange: (status) => {
           appendLog(`[Verify] ${status}\n`);
         },
@@ -434,6 +429,42 @@ export function LivePreview() {
             output += data;
           });
           return { output, exitCode };
+        },
+        callLLM: async (prompt: string) => {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: prompt }],
+              mode: 'pipeline-stage',
+              model: 'qwen2.5-coder:32b',
+              max_tokens: 16384,
+            }),
+          });
+          if (!response.ok) throw new Error(`LLM API error: ${response.status}`);
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error('No response body');
+          const decoder = new TextDecoder();
+          let result = '';
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() ?? '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(data) as { content?: string };
+                  if (parsed.content) result += parsed.content;
+                } catch { /* skip */ }
+              }
+            }
+          }
+          return result;
         },
       }, 3);
 
