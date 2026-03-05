@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { checkDailyBudget } from '@/lib/db/d1-costs';
 import { loggers } from '@/lib/logger';
 import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
 import { generateAndValidate, type ProgressCallback } from '@/lib/agents/multiTurnGenerator';
@@ -595,6 +596,20 @@ export async function POST(request: NextRequest) {
 
     // SEC-05: never let the client override the API key or URL — always use server env
     const env = await getEnvConfig();
+
+    // ARCH-03: Cost budget check — block if user exceeded daily limit
+    const userId = session.user?.email || session.user?.name || 'anon';
+    try {
+      const budget = await checkDailyBudget(userId);
+      if (!budget.allowed) {
+        return Response.json(
+          { error: `Daily usage limit reached ($${budget.budget.toFixed(2)}). Spent: $${budget.spent.toFixed(4)}. Your limit resets at midnight UTC.` },
+          { status: 429 },
+        );
+      }
+    } catch {
+      // Cost check failure should not block the request
+    }
 
     // Get the last user message
     const lastUserMessage = [...messages].reverse().find(m => m.role === 'user')?.content || '';

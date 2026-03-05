@@ -1,12 +1,13 @@
 'use client';
 
-import { Loader2 } from 'lucide-react';
+import { Loader2, Save } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useRepoStore } from '@/stores/repo';
 import { useEditorStore } from '@/stores/editor';
 import { useChatStore } from '@/stores/chat';
 import { useBackgroundTaskStore } from '@/stores/backgroundTasks';
 import { usePipelineStore } from '@/stores/pipeline';
+import { useSessionStore } from '@/stores/session';
 
 export function StatusBar() {
   const [collapsed, setCollapsed] = useState(false);
@@ -21,6 +22,16 @@ export function StatusBar() {
   const activeStage = useMemo(() => activeRun?.stages.find((s: { status: string }) => s.status === 'running'), [activeRun]);
   const completedStages = useMemo(() => activeRun?.stages.filter((s: { status: string }) => s.status === 'completed').length ?? 0, [activeRun]);
   const totalStages = activeRun?.stages.length ?? 0;
+
+  // Task 24: Auto-save indicator
+  const isSaving = useSessionStore(s => s.isSaving);
+  const lastSavedAt = useSessionStore(s => s.lastSavedAt);
+  const saveLabel = useMemo(() => {
+    if (isSaving) return 'Saving...';
+    if (!lastSavedAt) return '';
+    const d = new Date(lastSavedAt);
+    return `Saved ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }, [isSaving, lastSavedAt]);
 
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const language = activeTab?.language ?? '—';
@@ -89,6 +100,21 @@ export function StatusBar() {
 
         {/* Tokens */}
         <span>Tokens: {tokenDisplay}/${cost}</span>
+
+        {/* Task 24: Auto-save indicator */}
+        {saveLabel && (
+          <>
+            <span className="text-pablo-border">|</span>
+            <div className="flex items-center gap-1">
+              {isSaving ? (
+                <Loader2 size={10} className="animate-spin text-pablo-gold" />
+              ) : (
+                <Save size={10} className="text-pablo-green" />
+              )}
+              <span className={isSaving ? 'text-pablo-gold' : 'text-pablo-green'}>{saveLabel}</span>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Right section */}
