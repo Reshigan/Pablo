@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { d1ListSecrets, d1UpsertSecret, d1DeleteSecret } from '@/lib/db/d1-secrets';
+import { d1ListSecrets, d1UpsertSecret, d1DeleteSecret, d1GetSecretById } from '@/lib/db/d1-secrets';
 import { verifySessionOwnership } from '@/lib/db/ownership';
 
 /**
@@ -77,9 +77,19 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    // SEC-01: look up secret to verify ownership before deleting
+    const secret = await d1GetSecretById(id);
+    if (!secret) {
+      return NextResponse.json({ error: 'Secret not found' }, { status: 404 });
+    }
+    if (secret.sessionId) {
+      await verifySessionOwnership(secret.sessionId);
+    }
+
     const deleted = await d1DeleteSecret(id);
     return NextResponse.json({ deleted });
   } catch (err) {
+    if (err instanceof Response) return err;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to delete secret' },
       { status: 500 },

@@ -72,6 +72,23 @@ export interface D1Secret {
 }
 
 /**
+ * Get a single secret by ID (for ownership verification).
+ */
+export async function d1GetSecretById(id: string): Promise<D1Secret | null> {
+  const d1 = await getD1();
+  if (d1) {
+    const rows = await d1
+      .select()
+      .from(secrets)
+      .where(eq(secrets.id, id));
+    if (rows.length === 0) return null;
+    const row = rows[0] as unknown as D1Secret;
+    return { ...row, value: await decryptValue(row.value) };
+  }
+  return null;
+}
+
+/**
  * List all secrets for a session from D1.
  */
 export async function d1ListSecrets(sessionId: string): Promise<D1Secret[]> {

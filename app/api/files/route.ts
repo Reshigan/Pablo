@@ -100,13 +100,14 @@ export async function PATCH(request: NextRequest) {
       content: string;
     };
 
-    // SEC-01: verify session ownership if sessionId is provided
-    if (body.sessionId) {
-      await verifySessionOwnership(body.sessionId);
+    // SEC-01: sessionId is required for ownership verification
+    if (!body.sessionId) {
+      return Response.json({ error: 'sessionId is required for PATCH' }, { status: 400 });
     }
+    await verifySessionOwnership(body.sessionId);
 
     let fileId = body.id;
-    if (!fileId && body.sessionId && body.path) {
+    if (!fileId && body.path) {
       const found = await d1GetFileByPath(body.sessionId, body.path);
       if (found) fileId = found.id;
     }

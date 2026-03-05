@@ -38,14 +38,13 @@ async function getCloudflareEnv(): Promise<CloudflareEnv> {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     accountId = cfEnv.CF_ACCOUNT_ID || '';
-    // Prefer new CF_API_TOKEN, fall back to legacy CF_API_KEY
-    apiToken = cfEnv.CF_API_TOKEN || cfEnv.CF_API_KEY || '';
+    apiToken = cfEnv.CF_API_TOKEN || '';
   } catch {
     // Not in Cloudflare Worker
   }
 
   accountId = accountId || process.env.CF_ACCOUNT_ID || '';
-  apiToken = apiToken || process.env.CF_API_TOKEN || process.env.CF_API_KEY || '';
+  apiToken = apiToken || process.env.CF_API_TOKEN || '';
 
   return { accountId, apiToken };
 }
@@ -247,7 +246,7 @@ export async function POST(request: NextRequest) {
 
   if (!accountId || !apiToken) {
     return Response.json({
-      error: 'Cloudflare credentials not configured. Set CF_ACCOUNT_ID and CF_API_TOKEN.',
+      error: 'Cloudflare credentials not configured. Set CF_ACCOUNT_ID and CF_API_TOKEN (scoped API token, not global API key).',
     }, { status: 400 });
   }
 
