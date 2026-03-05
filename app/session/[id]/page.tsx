@@ -34,6 +34,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     chatOpen,
     chatWidth,
     sidebarWidth,
+    mobileMode,
     toggleSidebar,
     toggleChat,
     toggleTerminal,
@@ -201,7 +202,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
+    <div className={`flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg ${mobileMode ? 'pb-14' : ''}`}>
       {/* Top Bar */}
       <TopBar agentStatus="idle" />
 
@@ -248,8 +249,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         )}
       </div>
 
-      {/* Status Bar */}
-      <StatusBar />
+      {/* Status Bar — hidden on mobile since MobileTabBar replaces it */}
+      {!mobileMode && <StatusBar />}
 
       {/* Modals & Overlays */}
       <CommandPalette />

@@ -72,8 +72,6 @@ const FIRST_TOKEN_TIMEOUT_MS = 300_000;  // 5 min (was 3 min — 480B needs more
 /** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort.
  *  480B can pause between chunks while generating complex logic. */
 const STREAM_IDLE_TIMEOUT_MS = 180_000;  // 3 min (was 2 min — allows pauses between chunks)
-/** Max chars kept per previous-stage summary to prevent prompt bloat */
-const MAX_PREV_OUTPUT_CHARS = 4000;
 /** Number of retries per stage before marking as failed */
 const MAX_STAGE_RETRIES = 3;
 
