@@ -254,7 +254,7 @@ export function selectStages(mode: PipelineMode): PipelineStage[] {
  */
 export function getStageMetadata(stageId: PipelineStage): { label: string; description: string; model: string } {
   const all = [...PIPELINE_STAGES, ...INCREMENTAL_STAGES];
-  return all.find((s) => s.id === stageId) ?? { label: stageId, description: '', model: 'deepseek-v3.2' };
+  return all.find((s) => s.id === stageId) ?? { label: stageId, description: '', model: 'devstral-2:123b' };
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────
