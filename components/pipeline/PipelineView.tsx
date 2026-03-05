@@ -376,7 +376,8 @@ export function PipelineView() {
               if (seenFiles.has(file.filename)) {
                 // Update existing diff with newer content from later stage
                 const existingDiff = editorStore.pendingDiffs.find(d => d.filename === file.filename);
-                if (existingDiff) {
+                if (existingDiff && existingDiff.status === 'pending') {
+                  // Still pending — upsert in place
                   editorStore.addDiff({
                     fileId: existingDiff.fileId,
                     filename: file.filename,
@@ -384,6 +385,19 @@ export function PipelineView() {
                     oldContent: existingDiff.oldContent ?? '',
                     newContent: file.content,
                   });
+                } else if (existingDiff && existingDiff.status !== 'pending') {
+                  // User already accepted/rejected — create a NEW diff entry
+                  // using current tab content as oldContent (earlier version was applied)
+                  const currentTab = editorStore.tabs.find(t => t.path === file.filename);
+                  const freshId = generateId('diff');
+                  editorStore.addDiff({
+                    fileId: freshId,
+                    filename: file.filename,
+                    language: file.language,
+                    oldContent: currentTab?.content ?? '',
+                    newContent: file.content,
+                  });
+                  newFileCount++;
                 }
               } else {
                 seenFiles.add(file.filename);
@@ -537,8 +551,10 @@ export function PipelineView() {
           } catch {
             // Non-blocking
           }
+        }
 
-          // Persist pipeline run to DB
+        // Persist pipeline run to DB — always, regardless of whether files were parsed
+        if (completedRun) {
           try {
             const db = getDB();
             db.createPipelineRun({
