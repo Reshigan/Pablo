@@ -481,6 +481,7 @@ export function LivePreview() {
       // Apply any fixed files back to editor as diffs
       if (result.fixAttempts > 0) {
         const editorStore = useEditorStore.getState();
+        let diffsAdded = 0;
         for (const fixed of result.files) {
           const original = previewFiles.find(f => f.path === fixed.path);
           if (original && original.content !== fixed.content) {
@@ -491,9 +492,10 @@ export function LivePreview() {
               oldContent: original.content,
               newContent: fixed.content,
             });
+            diffsAdded++;
           }
         }
-        if (result.fixAttempts > 0) {
+        if (diffsAdded > 0) {
           toast('Verify', 'Fixed files ready for review in Diff tab');
         }
       }
