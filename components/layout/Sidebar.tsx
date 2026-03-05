@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import {
   Files,
   Search,
@@ -98,7 +99,14 @@ export function Sidebar() {
   const ActivePanel = panelComponents[sidebarTab];
 
   // UX-28: On mobile (<768px), render sidebar as an overlay instead of inline
-  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+  // Use useState + useEffect to avoid SSR hydration mismatch
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   return (
     <>
