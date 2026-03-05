@@ -124,8 +124,8 @@ export async function POST(request: NextRequest) {
                 await savePatterns(patterns);
               }
             }
-          } catch {
-            // Non-blocking
+          } catch (patternErr) {
+            log.warn('Pattern extraction failed (non-blocking)', { error: patternErr instanceof Error ? patternErr.message : String(patternErr) });
           }
         }
 

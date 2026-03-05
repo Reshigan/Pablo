@@ -6,6 +6,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { d1GetCostSummary, d1LogLLMCall } from '@/lib/db/d1-costs';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 export async function GET(request: NextRequest) {
   try {
@@ -43,6 +44,11 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: 'model is required' }, { status: 400 });
     }
 
+    // SEC-01: verify session ownership if sessionId is provided
+    if (body.sessionId) {
+      await verifySessionOwnership(body.sessionId);
+    }
+
     await d1LogLLMCall({
       sessionId: body.sessionId,
       model: body.model,
@@ -55,6 +61,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ ok: true });
   } catch (error) {
+    if (error instanceof Response) return error;
     return Response.json(
       { error: error instanceof Error ? error.message : 'Internal error' },
       { status: 500 },
