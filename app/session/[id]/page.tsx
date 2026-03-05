@@ -190,7 +190,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
   return (
     <div className="flex h-screen w-screen flex-col overflow-hidden bg-pablo-bg">
       {/* Top Bar */}
-      <TopBar agentStatus="idle" />
+      <TopBar />
 
       {/* UX-14: ContextBar removed — repo/branch info now in StatusBar */}
 
