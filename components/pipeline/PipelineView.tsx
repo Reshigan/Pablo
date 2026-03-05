@@ -253,7 +253,15 @@ function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void })
                     .filter(s => s.output && s.status === 'completed')
                     .map(s => s.output)
                     .join('\n\n');
-                  const parsedFiles = parseGeneratedFiles(allOutput);
+                  let parsedFiles = parseGeneratedFiles(allOutput);
+
+                  // Fall back to editor tabs if code parser couldn't extract files
+                  if (parsedFiles.length === 0) {
+                    const editorTabs = useEditorStore.getState().tabs;
+                    parsedFiles = editorTabs
+                      .filter(t => t.content && t.content.trim().length > 0)
+                      .map(t => ({ filename: t.path, language: t.language || 'plaintext', content: t.content }));
+                  }
 
                   if (parsedFiles.length === 0) {
                     throw new Error('No code files found in pipeline output');
@@ -904,6 +912,8 @@ export function PipelineView() {
 
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
+    setIsBuilding(true); // Immediately prevent double-clicks
+    try {
     let description = featureInput.trim();
 
     // Feature 9: Prompt Enhancement
@@ -945,7 +955,6 @@ export function PipelineView() {
     }
     const runId = startRun(description);
     setFeatureInput('');
-    setIsBuilding(true);
 
     // Extract what the user explicitly requested (no defaults applied)
     const explicitHints = extractExplicitStack(description);
@@ -1122,8 +1131,10 @@ export function PipelineView() {
     } catch {
       completeRun(runId, 'failed');
     } finally {
-      setIsBuilding(false);
       abortRef.current = null;
+    }
+    } finally {
+      setIsBuilding(false);
     }
   }, [featureInput, isBuilding, attachments, enhanceEnabled, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
 
