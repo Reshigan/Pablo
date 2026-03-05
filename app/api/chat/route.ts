@@ -146,7 +146,7 @@ async function tryExternalAPIStreaming(
           body: JSON.stringify({ model, messages, stream: true, temperature, max_tokens }),
           signal: controller.signal,
         })
-      : await fetch(`${apiUrl.replace(/\/$/, '')}/chat`, {
+      : await fetch(`${apiUrl.replace(/\/$/, '')}${apiUrl.includes('/api') ? '' : '/api'}/chat`, {
           method: 'POST',
           headers: reqHeaders,
           body: JSON.stringify({

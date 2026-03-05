@@ -324,7 +324,7 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
     };
   }
 
-  response = await fetch(`${OLLAMA_URL}/chat`, {
+  response = await fetch(`${OLLAMA_URL}${OLLAMA_URL.includes('/api') ? '' : '/api'}/chat`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
