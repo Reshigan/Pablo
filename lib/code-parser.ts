@@ -7,6 +7,7 @@
  * 3. **filename.ext** or `filename.ext` followed by code block
  * 4. File: filename.ext or Filename: filename.ext followed by code block
  * 5. // filename.ext or # filename.ext comment at start of code block
+ * 6. ```lang filename.ext  (space-separated language and filename — common LLM format)
  *
  * Returns an array of { filename, language, content } objects.
  */
@@ -63,7 +64,11 @@ function looksLikeFilePath(str: string): boolean {
 
 /** Clean a filename from markdown formatting */
 function cleanFilename(raw: string): string {
-  return raw.replace(/[`*"']/g, '').replace(/^\.?\//, '').trim();
+  return raw
+    .replace(/[`*"']/g, '')
+    .replace(/^\.?\//, '')
+    .trim()
+    .replace(/[),:;\]]+$/g, '');
 }
 
 /** Extract code block content starting after the opening fence */
@@ -126,6 +131,29 @@ export function parseGeneratedFiles(markdown: string): ParsedFile[] {
       }
       i = endIndex;
       continue;
+    }
+
+    // Pattern 2b: ```lang filename.ext (space-separated — most common LLM output)
+    // e.g. ```tsx src/components/Dashboard.tsx or ```toml wrangler.toml
+    const fenceSpaceMatch = line.match(/^```(\w+)\s+(.+)$/);
+    if (fenceSpaceMatch) {
+      const language = fenceSpaceMatch[1];
+      // Take the first whitespace-delimited token as the filename, ignore trailing descriptions
+      const rawFile = fenceSpaceMatch[2].trim().split(/\s+/)[0];
+      const filename = cleanFilename(rawFile);
+      if (looksLikeFilePath(filename)) {
+        const { contentLines, endIndex } = extractCodeBlock(lines, i);
+        if (contentLines.length > 0 && !seen.has(filename)) {
+          seen.add(filename);
+          files.push({
+            filename,
+            language: language || langFromExt(filename),
+            content: contentLines.join('\n'),
+          });
+        }
+        i = endIndex;
+        continue;
+      }
     }
 
     // Pattern 3: **filename.ext** or `filename.ext` followed by code block
