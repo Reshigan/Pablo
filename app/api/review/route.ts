@@ -8,6 +8,9 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { reviewPR } from '@/lib/agents/prReview';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
+import { loggers } from '@/lib/logger';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -30,6 +33,21 @@ export async function POST(request: NextRequest) {
   try {
     const session = await auth();
     if (!session) return new Response('Unauthorized', { status: 401 });
+
+    // ARCH-05: Body size guard
+    const sizeErr = checkBodySize(request.headers, BODY_SIZE_LIMITS.code);
+    if (sizeErr) return sizeErr;
+
+    // ARCH-01: Rate limiting
+    const clientIP = getClientIP(request.headers);
+    const rl = checkRateLimit(`review:${clientIP}`, RATE_LIMITS.chat);
+    if (!rl.allowed) {
+      loggers.evaluate.warn('Review rate limit exceeded', { ip: clientIP });
+      return Response.json(
+        { error: 'Rate limit exceeded' },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
+    }
 
     const body = await request.json() as {
       diff: string;

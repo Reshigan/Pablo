@@ -8,6 +8,11 @@ import {
 } from '@/lib/agents/agentEngine';
 import { getRelevantPatterns, extractPatterns, savePatterns } from '@/lib/agents/memorySystem';
 import { formatPatternsForPrompt } from '@/lib/agents/memorySystem';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('agent-route');
 
 /**
  * Get environment config from Cloudflare Worker context or process.env
@@ -54,6 +59,21 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session) {
     return new Response('Unauthorized', { status: 401 });
+  }
+
+  // ARCH-05: Body size guard
+  const sizeErr = checkBodySize(request.headers, BODY_SIZE_LIMITS.code);
+  if (sizeErr) return sizeErr;
+
+  // ARCH-01: Rate limiting
+  const clientIP = getClientIP(request.headers);
+  const rl = checkRateLimit(`agent:${clientIP}`, RATE_LIMITS.chat);
+  if (!rl.allowed) {
+    log.warn('Agent rate limit exceeded', { ip: clientIP });
+    return Response.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
   }
 
   const body = (await request.json()) as AgentRequestBody;
