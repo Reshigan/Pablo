@@ -47,6 +47,7 @@ import { PipelineOutputPanel } from './PipelineOutputPanel';
 import { PipelineDeploySection } from './PipelineDeploySection';
 import { AgentRunCard } from './AgentRunCard';
 import { buildStagePrompt } from './stagePrompts';
+import { HeroPrompt } from './HeroPrompt';
 
 
 // ─── RunCard (uses extracted sub-components) ───────────────────────────
@@ -670,6 +671,7 @@ export function PipelineView() {
               <Sparkles size={14} />
             </button>
             <button
+              data-testid="pipeline-start"
               onClick={handleStart}
               disabled={!featureInput.trim() || isBuilding}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"
@@ -758,18 +760,14 @@ export function PipelineView() {
       {/* Pipeline Runs list */}
       <div className="flex-1 overflow-y-auto p-3">
         {runs.length === 0 && agentStore.runs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-8 text-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-pablo-gold/10">
-              <Play size={24} className="text-pablo-gold" />
-            </div>
-            <p className="font-ui text-xs font-medium text-pablo-text-dim">
-              Feature Factory Pipeline
-            </p>
-            <p className="max-w-xs font-ui text-[11px] text-pablo-text-muted leading-relaxed">
-              Describe a feature and Pablo will plan, implement, test, and review it
-              automatically through an 8-stage pipeline.
-            </p>
-          </div>
+          <HeroPrompt onSelectTemplate={(prompt) => {
+            setFeatureInput(prompt);
+            // Auto-start the pipeline with the selected template
+            setTimeout(() => {
+              const startBtn = document.querySelector<HTMLButtonElement>('[data-testid="pipeline-start"]');
+              if (startBtn) startBtn.click();
+            }, 100);
+          }} />
         ) : (
           <div className="flex flex-col gap-3">
             {runs.map((run) => (
