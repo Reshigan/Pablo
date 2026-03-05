@@ -16,6 +16,8 @@ interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
   isStreaming?: boolean;
+  tokens?: number;
+  model?: string;
 }
 
 interface MessageBubbleProps {
@@ -71,6 +73,20 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           )}
           {message.isStreaming && <StreamingIndicator />}
         </div>
+        {/* Task 25: Token/cost/model display per assistant message */}
+        {message.role === 'assistant' && !message.isStreaming && (message.tokens || message.model) && (
+          <div className="mt-1.5 flex items-center gap-2 border-t border-pablo-border/30 pt-1">
+            {message.model && (
+              <span className="font-code text-[9px] text-pablo-text-muted">{message.model}</span>
+            )}
+            {message.tokens != null && message.tokens > 0 && (
+              <span className="font-code text-[9px] text-pablo-text-muted">{message.tokens} tokens</span>
+            )}
+            {message.tokens != null && message.tokens > 0 && (
+              <span className="font-code text-[9px] text-pablo-text-muted">${(message.tokens / 1_000_000 * 0.15).toFixed(4)}</span>
+            )}
+          </div>
+        )}
       </div>
       {message.role === 'user' && (
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-pablo-active">
