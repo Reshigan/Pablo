@@ -126,7 +126,7 @@ export function Sidebar() {
         <>
           {/* Backdrop — click to close */}
           <div
-            className="fixed inset-0 z-30 bg-black/20"
+            className="fixed inset-0 z-20 bg-black/20"
             onClick={toggleSidebar}
           />
           <div
