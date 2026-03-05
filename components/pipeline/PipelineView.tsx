@@ -73,14 +73,13 @@ function RunCard({ run, onCancel, onIterate }: { run: PipelineRun; onCancel?: ()
 
 
 /** Max time (ms) for a single pipeline stage before aborting.
- *  480B models on Ollama Cloud can take 5-10 min for complex enterprise code. */
-const STAGE_TIMEOUT_MS = 900_000;   // 15 min (was 8 min — too short for complex UI/API stages)
+ *  Using fast 120B models now — they respond in seconds, not minutes. */
+const STAGE_TIMEOUT_MS = 300_000;   // 5 min — plenty for devstral-2:123b / gpt-oss:120b
 /** Max time (ms) to wait for the very first SSE token.
- *  Large models need time to process long prompts with context from prior stages. */
-const FIRST_TOKEN_TIMEOUT_MS = 300_000;  // 5 min (was 3 min — 480B needs more prompt processing time)
-/** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort.
- *  480B can pause between chunks while generating complex logic. */
-const STREAM_IDLE_TIMEOUT_MS = 180_000;  // 3 min (was 2 min — allows pauses between chunks)
+ *  Fast models typically respond within 10-30 seconds. */
+const FIRST_TOKEN_TIMEOUT_MS = 120_000;  // 2 min — generous for 120B models
+/** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort. */
+const STREAM_IDLE_TIMEOUT_MS = 120_000;  // 2 min — fast models stream continuously
 /** Number of retries per stage before marking as failed */
 const MAX_STAGE_RETRIES = 3;
 

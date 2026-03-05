@@ -17,6 +17,7 @@ async function getDBAsync(): Promise<D1Database | null> {
 
 // Pricing per 1M tokens (approximate for Ollama Cloud)
 const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
+  'devstral-2:123b':   { inputPer1M: 0.15, outputPer1M: 0.30 },
   'qwen3-coder:480b':  { inputPer1M: 0.30, outputPer1M: 0.60 },
   'deepseek-v3.2':     { inputPer1M: 0.14, outputPer1M: 0.28 },
   'gpt-oss:120b':      { inputPer1M: 0.10, outputPer1M: 0.20 },

@@ -461,24 +461,29 @@ Rules:
 
   // Resolve model name: map legacy names to actual Ollama Cloud models
   const MODEL_ALIASES: Record<string, string> = {
-    'deepseek-r1': 'deepseek-v3.2',
-    'qwen3-coder-next': 'qwen3-coder:480b',
+    'deepseek-r1': 'devstral-2:123b',
+    'qwen3-coder-next': 'devstral-2:123b',
+    // Legacy aliases — redirect to fast models since 480B/671B queue for 10+ min
+    'deepseek-v3.2': 'devstral-2:123b',
+    'qwen3-coder:480b': 'devstral-2:123b',
   };
   const resolvedModel = modelOverride ? (MODEL_ALIASES[modelOverride] || modelOverride) : undefined;
 
+  // Fallback chain: fast models first, then larger models.
+  // devstral-2:123b and gpt-oss:120b respond in seconds on Ollama Cloud.
+  // The 480B/671B models frequently queue for 10+ minutes.
   const modelsToTry = [
     ...(resolvedModel ? [resolvedModel] : []),
-    'qwen3-coder:480b',
+    'devstral-2:123b',
     'gpt-oss:120b',
   ];
+  // De-duplicate in case resolvedModel is already in the fallback list
+  const uniqueModels = [...new Set(modelsToTry)];
 
-  // Pipeline stages use 480B models that can take 2-5+ min for the first token.
-  // The client already has its own timeouts (FIRST_TOKEN_TIMEOUT_MS = 5 min,
-  // STAGE_TIMEOUT_MS = 15 min), so the server timeout must be at least as long
-  // to avoid killing the connection before the client decides to abort.
-  const PIPELINE_TIMEOUT_MS = 900_000; // 15 min — matches client STAGE_TIMEOUT_MS
+  // Use a reasonable timeout — these models respond quickly (seconds, not minutes)
+  const PIPELINE_TIMEOUT_MS = 300_000; // 5 min — plenty for 120B models
 
-  for (const model of modelsToTry) {
+  for (const model of uniqueModels) {
     const response = await tryExternalAPIStreaming(enhancedMessages, model, 0.2, 16384, env, PIPELINE_TIMEOUT_MS);
     if (response) return response;
   }
@@ -698,8 +703,7 @@ export async function GET() {
     ],
     provider: 'Ollama Cloud (ollama.com)',
     models: {
-      reasoning: 'deepseek-v3.2',
-      code_generation: 'qwen3-coder:480b',
+      code_generation: 'devstral-2:123b',
       fast_chat: 'gpt-oss:120b',
     },
   });

@@ -33,22 +33,17 @@ export interface RouteDecision {
 }
 
 // Model definitions — Ollama Cloud only (hosted at ollama.com)
+// NOTE: The 480B/671B models (qwen3-coder:480b, deepseek-v3.2) frequently
+// queue for 10+ minutes on Ollama Cloud, making them unusable for interactive
+// pipelines. Use devstral-2:123b and gpt-oss:120b which respond in seconds.
 const MODELS = {
-  ollama_qwen_coder: {
+  ollama_devstral: {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3-coder:480b',
-    description: 'Qwen3-Coder 480B - frontier coding agent',
+    model: 'devstral-2:123b',
+    description: 'Devstral-2 123B - fast, high-quality code generation',
     max_tokens: 16384,
     temperature: 0.1,
-    estimated_speed: '30-100 TPS',
-  },
-  ollama_deepseek_r1: {
-    provider: 'ollama_cloud' as const,
-    model: 'deepseek-v3.2',
-    description: 'DeepSeek V3.2 - deep reasoning, complex planning',
-    max_tokens: 16384,
-    temperature: 0.2,
-    estimated_speed: '20-50 TPS',
+    estimated_speed: '40-100 TPS',
   },
   ollama_gpt_oss: {
     provider: 'ollama_cloud' as const,
@@ -60,67 +55,67 @@ const MODELS = {
   },
 };
 
-// Routing table
+// Routing table — uses fast, reliable models that respond in seconds
 const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   plan: {
     task_type: 'plan',
-    primary: MODELS.ollama_deepseek_r1,
+    primary: MODELS.ollama_devstral,
     fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Planning requires deep reasoning. DeepSeek V3.2 primary, GPT-OSS fallback.',
+    reasoning: 'Planning via Devstral-2 123B. GPT-OSS fallback.',
   },
   decompose: {
     task_type: 'decompose',
-    primary: MODELS.ollama_deepseek_r1,
+    primary: MODELS.ollama_devstral,
     fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Decomposition needs the same deep reasoning as planning.',
+    reasoning: 'Decomposition via Devstral-2. GPT-OSS fallback.',
   },
   generate: {
     task_type: 'generate',
-    primary: MODELS.ollama_qwen_coder,
+    primary: MODELS.ollama_devstral,
     fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Code generation needs frontier quality. Qwen3-Coder primary, GPT-OSS fallback.',
+    reasoning: 'Code generation via Devstral-2 123B. GPT-OSS fallback.',
   },
   fix: {
     task_type: 'fix',
-    primary: MODELS.ollama_qwen_coder,
+    primary: MODELS.ollama_devstral,
     fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Fixing code requires the same quality as generating it.',
+    reasoning: 'Fixing code via Devstral-2. GPT-OSS fallback.',
   },
   test: {
     task_type: 'test',
-    primary: MODELS.ollama_qwen_coder,
+    primary: MODELS.ollama_devstral,
     fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Test generation via Qwen3-Coder on Ollama Cloud.',
+    reasoning: 'Test generation via Devstral-2. GPT-OSS fallback.',
   },
   review: {
     task_type: 'review',
-    primary: MODELS.ollama_deepseek_r1,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Review needs reasoning. DeepSeek V3.2 primary, GPT-OSS fallback.',
+    primary: MODELS.ollama_gpt_oss,
+    fallback: MODELS.ollama_devstral,
+    reasoning: 'Review via GPT-OSS. Devstral-2 fallback.',
   },
   explain: {
     task_type: 'explain',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_qwen_coder,
-    reasoning: 'Explanations via GPT-OSS. Qwen3-Coder fallback.',
+    fallback: MODELS.ollama_devstral,
+    reasoning: 'Explanations via GPT-OSS. Devstral-2 fallback.',
   },
   chat: {
     task_type: 'chat',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_qwen_coder,
-    reasoning: 'General chat via GPT-OSS. Qwen3-Coder fallback.',
+    fallback: MODELS.ollama_devstral,
+    reasoning: 'General chat via GPT-OSS. Devstral-2 fallback.',
   },
   seed_data: {
     task_type: 'seed_data',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_qwen_coder,
-    reasoning: 'Seed data via GPT-OSS. Qwen3-Coder fallback.',
+    fallback: MODELS.ollama_devstral,
+    reasoning: 'Seed data via GPT-OSS. Devstral-2 fallback.',
   },
   document: {
     task_type: 'document',
     primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_qwen_coder,
-    reasoning: 'Documentation via GPT-OSS. Qwen3-Coder fallback.',
+    fallback: MODELS.ollama_devstral,
+    reasoning: 'Documentation via GPT-OSS. Devstral-2 fallback.',
   },
 };
 
