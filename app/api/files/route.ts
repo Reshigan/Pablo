@@ -4,6 +4,7 @@ import {
   d1CreateFile,
   d1GetFilesBySession,
   d1GetFileByPath,
+  d1GetFileById,
   d1UpdateFile,
 } from '@/lib/db/d1-files';
 import { verifySessionOwnership } from '@/lib/db/ownership';
@@ -114,6 +115,14 @@ export async function PATCH(request: NextRequest) {
 
     if (!fileId) {
       return Response.json({ error: 'File not found' }, { status: 404 });
+    }
+
+    // SEC-01: verify file belongs to the claimed session (prevents IDOR)
+    if (body.id) {
+      const file = await d1GetFileById(body.id);
+      if (!file || file.sessionId !== body.sessionId) {
+        return Response.json({ error: 'File not found in this session' }, { status: 403 });
+      }
     }
 
     const updated = await d1UpdateFile(fileId, { content: body.content });

@@ -83,7 +83,8 @@ export async function d1GetSecretById(id: string): Promise<D1Secret | null> {
       .where(eq(secrets.id, id));
     if (rows.length === 0) return null;
     const row = rows[0] as unknown as D1Secret;
-    return { ...row, value: await decryptValue(row.value) };
+    // Skip decryption — this function is only used for ownership verification
+    return { ...row, value: '[redacted]' };
   }
   return null;
 }

@@ -65,6 +65,18 @@ export async function d1CreateFile(data: {
   };
 }
 
+/**
+ * Get a single file by ID (for ownership verification).
+ */
+export async function d1GetFileById(id: string): Promise<D1File | null> {
+  const d1 = await getD1();
+  if (d1) {
+    const rows = await d1.select().from(files).where(eq(files.id, id));
+    return rows.length > 0 ? (rows[0] as unknown as D1File) : null;
+  }
+  return null;
+}
+
 export async function d1GetFilesBySession(sessionId: string): Promise<D1File[]> {
   const d1 = await getD1();
   if (d1) {
