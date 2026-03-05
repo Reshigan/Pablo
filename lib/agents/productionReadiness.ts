@@ -146,7 +146,7 @@ function staticChecks(
       }
 
       // fetch without error handling
-      if (/\bfetch\s*\(/.test(line) && !file.content.slice(Math.max(0, i - 5), i + 10).includes('catch') && !file.content.slice(Math.max(0, i - 5), i + 10).includes('try')) {
+      if (/\bfetch\s*\(/.test(line)) {
         // Only flag if it's clearly not in a try/catch (rough heuristic)
         const surroundingContext = lines.slice(Math.max(0, i - 3), i + 5).join('\n');
         if (!surroundingContext.includes('try') && !surroundingContext.includes('catch') && !surroundingContext.includes('.catch')) {
@@ -215,7 +215,7 @@ function staticChecks(
         });
       }
 
-      if (/placeholder|lorem ipsum|not implemented/i.test(line) && !line.trim().startsWith('//') && !line.trim().startsWith('*')) {
+      if (/(?:lorem ipsum|not implemented)/i.test(line) && !line.trim().startsWith('//') && !line.trim().startsWith('*')) {
         issues.push({
           id: nextId(), severity: 'minor', category: 'completeness',
           file: file.path, line: lineNum,
