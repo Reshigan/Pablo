@@ -12,7 +12,16 @@ import { generateId } from './queries';
 // ─── SEC-02: AES-256-GCM encryption helpers ──────────────────────────────────
 
 function getEncryptionKey(): string {
-  return process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET || 'dev-only-key-not-for-production';
+  const key = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!key) {
+    // SEC-03: In production, refuse to encrypt/decrypt with a weak default key.
+    // Local dev can set AUTH_SECRET in .env to use encryption.
+    if (process.env.ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production') {
+      throw new Error('AUTH_SECRET is required for encryption in production');
+    }
+    return 'dev-only-key-not-for-production';
+  }
+  return key;
 }
 
 async function deriveKey(password: string): Promise<CryptoKey> {

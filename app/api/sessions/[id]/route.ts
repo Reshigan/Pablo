@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { d1GetSession, d1UpdateSession, d1DeleteSession } from '@/lib/db/d1-sessions';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 /**
  * GET /api/sessions/:id - Get a single session with full snapshot
@@ -17,6 +18,9 @@ export async function GET(
   const { id } = await params;
 
   try {
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
+
     const found = await d1GetSession(id);
     if (!found) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
@@ -32,6 +36,7 @@ export async function GET(
 
     return Response.json({ ...found, snapshot });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Failed to get session:', err);
     return Response.json({ error: 'Failed to get session' }, { status: 500 });
   }
@@ -55,6 +60,9 @@ export async function POST(
   const { id } = await params;
 
   try {
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
+
     // Parse body — sendBeacon sends as Blob with type application/json
     const body = await request.json() as { snapshot?: Record<string, unknown> };
 
@@ -66,6 +74,7 @@ export async function POST(
 
     return new Response('OK', { status: 200 });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Failed to save session snapshot (sendBeacon):', err);
     return new Response('Failed', { status: 500 });
   }
@@ -86,6 +95,8 @@ export async function PATCH(
   const { id } = await params;
 
   try {
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
     const body = (await request.json()) as {
       title?: string;
       status?: 'active' | 'paused' | 'completed' | 'error';
@@ -108,6 +119,7 @@ export async function PATCH(
 
     return Response.json(updated);
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Failed to update session:', err);
     return Response.json({ error: 'Failed to update session' }, { status: 500 });
   }
@@ -128,12 +140,15 @@ export async function DELETE(
   const { id } = await params;
 
   try {
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
     const deleted = await d1DeleteSession(id);
     if (!deleted) {
       return Response.json({ error: 'Session not found' }, { status: 404 });
     }
     return new Response(null, { status: 204 });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('Failed to delete session:', err);
     return Response.json({ error: 'Failed to delete session' }, { status: 500 });
   }

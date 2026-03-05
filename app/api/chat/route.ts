@@ -97,7 +97,9 @@ async function getEnvConfig(): Promise<EnvConfig> {
       OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
     };
-  } catch {
+  } catch (err) {
+    // BUG-04: Log CF context fallback instead of silently swallowing
+    console.warn('[getEnvConfig] CF context unavailable, using process.env:', err instanceof Error ? err.message : err);
     return {
       OLLAMA_URL: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
@@ -269,7 +271,9 @@ async function tryExternalAPIStreaming(
     return new Response(stream, {
       headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
     });
-  } catch {
+  } catch (err) {
+    // BUG-04: Log external API failure
+    console.warn('[tryExternalAPI] Request failed:', err instanceof Error ? err.message : err);
     return null;
   } finally {
     clearTimeout(timeoutId);
@@ -374,8 +378,9 @@ async function handleMultiTurnGeneration(
                 language: file.language,
               });
             }
-          } catch {
-            // Non-blocking
+          } catch (dbErr) {
+            // BUG-04: Log D1 persistence failure
+            console.warn('[multiTurn] D1 persist failed:', dbErr instanceof Error ? dbErr.message : dbErr);
           }
         }
 
@@ -497,7 +502,10 @@ async function handleSmartChat(
       openFiles = dbFiles
         .filter(f => !f.isDirectory && f.content)
         .map(f => ({ path: f.path, content: f.content, language: f.language ?? 'plaintext' }));
-    } catch { /* non-blocking */ }
+    } catch (ctxErr) {
+      // BUG-04: Log context loading failure
+      console.warn('[smartChat] Context load failed:', ctxErr instanceof Error ? ctxErr.message : ctxErr);
+    }
   }
 
   // Build enriched context via context-builder with token budgeting
@@ -584,8 +592,9 @@ export async function POST(request: NextRequest) {
           sessionId = dbSession.id;
         }
         await d1CreateMessage({ sessionId: dbSession.id, role: 'user', content: lastUserMessage });
-      } catch {
-        // Non-blocking: don't fail the chat if DB write fails
+      } catch (dbErr) {
+        // BUG-04: Log but don't fail the chat if DB write fails
+        console.warn('[/api/chat] DB write failed:', dbErr instanceof Error ? dbErr.message : dbErr);
       }
     }
 

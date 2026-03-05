@@ -12,6 +12,11 @@ interface D1Binding {
 
 let healed = false;
 
+/** BUG-01: Schema version sentinel — bump this when adding new tables/columns.
+ * ensureSchema() compares this against the stored version in the `settings` table
+ * and skips the full heal if the version matches, saving ~13 SQL round-trips. */
+const SCHEMA_VERSION = '2';
+
 /**
  * All required tables with their CREATE TABLE statements.
  * Uses CREATE TABLE IF NOT EXISTS so it's safe to run repeatedly.
@@ -177,6 +182,16 @@ const COLUMN_PATCHES: Array<[string, string, string]> = [
 ];
 
 /**
+ * BUG-02: Unique indexes to enforce data integrity.
+ */
+const INDEX_DEFINITIONS = [
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_files_session_path ON files (session_id, path)`,
+  `CREATE INDEX IF NOT EXISTS idx_messages_session ON messages (session_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions (user_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_llm_calls_session ON llm_calls (session_id)`,
+];
+
+/**
  * Get raw D1 binding from Cloudflare context.
  */
 async function getRawD1(): Promise<D1Binding | null> {
@@ -201,6 +216,17 @@ export async function ensureSchema(): Promise<void> {
   if (!d1) return; // No D1 binding — skip (local dev)
 
   try {
+    // BUG-01: Quick check — if schema version matches, skip the full heal
+    try {
+      const row = await d1.prepare("SELECT value FROM settings WHERE key = 'schema_version'").all();
+      if (row.results.length > 0 && (row.results[0] as Record<string, unknown>).value === SCHEMA_VERSION) {
+        healed = true;
+        return;
+      }
+    } catch {
+      // settings table may not exist yet — continue with full heal
+    }
+
     // 1. Create all tables (IF NOT EXISTS)
     for (const sql of TABLE_DEFINITIONS) {
       try {
@@ -225,8 +251,29 @@ export async function ensureSchema(): Promise<void> {
       }
     }
 
+    // 2b. BUG-02: Create indexes (unique constraint on files, perf indexes)
+    for (const sql of INDEX_DEFINITIONS) {
+      try {
+        await d1.prepare(sql).run();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes('already exists')) {
+          console.error('[selfHeal] Index creation error:', msg);
+        }
+      }
+    }
+
+    // 3. Update schema version sentinel
+    try {
+      await d1.prepare(
+        `INSERT OR REPLACE INTO settings (key, value, updated_at) VALUES ('schema_version', '${SCHEMA_VERSION}', datetime('now'))`
+      ).run();
+    } catch {
+      // Non-critical — sentinel just optimises subsequent calls
+    }
+
     healed = true;
-    console.log('[selfHeal] Schema check complete');
+    console.log('[selfHeal] Schema check complete (v' + SCHEMA_VERSION + ')');
   } catch (err) {
     console.error('[selfHeal] Unexpected error:', err instanceof Error ? err.message : err);
   }

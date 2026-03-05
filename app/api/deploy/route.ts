@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         name: projectName,
         description: body.description ?? `Deployed from Pablo IDE`,
-        private: false,
+        private: true, // SEC-07: default to private repos
         auto_init: true,
       }),
     });

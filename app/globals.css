@@ -23,6 +23,15 @@
   --color-pablo-purple-bg: rgba(167, 139, 250, 0.08);
   --color-pablo-gold-bg: rgba(212, 168, 67, 0.08);
 
+  /* UI-33: Semantic colour tokens for consistent theming */
+  --color-pablo-success: #22C55E;
+  --color-pablo-warning: #F59E0B;
+  --color-pablo-error: #EF4444;
+  --color-pablo-info: #3B82F6;
+  --color-pablo-surface: #111827;
+  --color-pablo-surface-raised: #1F2937;
+  --color-pablo-overlay: rgba(0, 0, 0, 0.5);
+
   --font-ui: 'DM Sans', system-ui, sans-serif;
   --font-code: 'JetBrains Mono', 'Fira Code', monospace;
 }

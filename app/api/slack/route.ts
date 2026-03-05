@@ -13,6 +13,40 @@
 
 import { NextRequest } from 'next/server';
 
+/**
+ * SEC-06: Verify Slack request signature using HMAC-SHA256.
+ * See https://api.slack.com/authentication/verifying-requests-from-slack
+ */
+async function verifySlackSignature(rawBody: string, timestamp: string, signature: string): Promise<boolean> {
+  const signingSecret = process.env.SLACK_SIGNING_SECRET;
+  if (!signingSecret) return false;
+  if (!signature.startsWith('v0=')) return false;
+
+  // Reject requests older than 5 minutes to prevent replay attacks
+  const now = Math.floor(Date.now() / 1000);
+  if (Math.abs(now - parseInt(timestamp, 10)) > 300) return false;
+
+  const baseString = `v0:${timestamp}:${rawBody}`;
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(signingSecret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(baseString));
+  const expected = 'v0=' + Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // Constant-time comparison
+  if (expected.length !== signature.length) return false;
+  let mismatch = 0;
+  for (let i = 0; i < expected.length; i++) {
+    mismatch |= expected.charCodeAt(i) ^ signature.charCodeAt(i);
+  }
+  return mismatch === 0;
+}
+
 interface SlackEvent {
   type: string;
   challenge?: string;
@@ -46,7 +80,18 @@ async function postSlackMessage(channel: string, text: string, threadTs?: string
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json() as SlackEvent;
+    const rawBody = await request.text();
+    const timestamp = request.headers.get('x-slack-request-timestamp') || '';
+    const signature = request.headers.get('x-slack-signature') || '';
+
+    // SEC-06: Verify Slack signature (skip only if SLACK_SIGNING_SECRET not configured)
+    if (process.env.SLACK_SIGNING_SECRET) {
+      if (!(await verifySlackSignature(rawBody, timestamp, signature))) {
+        return new Response('Invalid signature', { status: 401 });
+      }
+    }
+
+    const body = JSON.parse(rawBody) as SlackEvent;
 
     // Slack URL verification
     if (body.type === 'url_verification') {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { d1GetMessagesBySession, d1CreateMessage } from '@/lib/db/d1-messages';
 import { d1GetSession } from '@/lib/db/d1-sessions';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 export async function GET(
   _request: NextRequest,
@@ -14,9 +15,12 @@ export async function GET(
 
   try {
     const { id } = await params;
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
     const messages = await d1GetMessagesBySession(id);
     return Response.json(messages);
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[GET /api/sessions/:id/messages]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -33,6 +37,8 @@ export async function POST(
 
   try {
     const { id } = await params;
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(id);
     const body = (await request.json()) as {
       role: 'user' | 'assistant' | 'system';
       content: string;
@@ -57,6 +63,7 @@ export async function POST(
 
     return Response.json(message, { status: 201 });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[POST /api/sessions/:id/messages]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

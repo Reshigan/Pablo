@@ -40,6 +40,7 @@ export function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     '/session/:path*',
-    '/api/((?!auth).)*',
+    // SEC-05: Exclude auth, webhooks, and health from middleware auth gate
+    '/api/((?!auth|slack|github/webhook|health).)*',
   ],
 };

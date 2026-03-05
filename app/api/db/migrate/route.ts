@@ -182,6 +182,13 @@ export async function POST() {
     return new Response('Unauthorized', { status: 401 });
   }
 
+  // BUG-05: Admin-only migration route — only allow configured admin emails
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const userEmail = (session.user?.email || '').toLowerCase();
+  if (adminEmails.length > 0 && !adminEmails.includes(userEmail)) {
+    return Response.json({ error: 'Forbidden — admin access required' }, { status: 403 });
+  }
+
   const d1 = await getRawD1();
   if (!d1) {
     return Response.json({ status: 'skipped', message: 'D1 not available (no DB binding)' });
