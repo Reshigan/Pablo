@@ -214,9 +214,9 @@ const NON_STREAMING_TIMEOUT_MS = 120_000; // 2 min
 export async function callModelTracked(
   request: LLMRequest,
   env: EnvConfig,
-  meta: { sessionId: string; orchestrationId: string; agentName: string; phase: string },
+  meta: { sessionId: string; orchestrationId: string; agentName: string; phase: string; userId?: string },
 ): Promise<LLMResponse> {
-  const result = await callModel(request, env);
+  const result = await callModel(request, env, meta.userId);
 
   // Log agent run to D1 (non-blocking)
   try {
@@ -241,7 +241,7 @@ export async function callModelTracked(
   return result;
 }
 
-export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LLMResponse> {
+export async function callModel(request: LLMRequest, env: EnvConfig, userId?: string): Promise<LLMResponse> {
   const startTime = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NON_STREAMING_TIMEOUT_MS);
@@ -259,6 +259,7 @@ export async function callModel(request: LLMRequest, env: EnvConfig): Promise<LL
         durationMs: result.duration_ms,
         costUsd: cost,
         source: request.model.description || 'model-router',
+        userId: userId,
       }).catch(() => { /* non-blocking */ });
     } catch {
       // Cost tracking failure should never block the response
