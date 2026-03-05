@@ -25,6 +25,7 @@ const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }>
 export interface LLMCallRecord {
   id: string;
   sessionId?: string;
+  userId?: string;
   model: string;
   tokensIn: number;
   tokensOut: number;
@@ -89,10 +90,14 @@ export async function checkDailyBudget(userId?: string): Promise<{ allowed: bool
     }
   }
 
-  // Aggregate today's spend from llm_calls
-  const row = await db.prepare(
-    `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
-  ).bind(today).first<{ spent: number }>();
+  // Aggregate today's spend from llm_calls — filter by user if known
+  const row = userId
+    ? await db.prepare(
+        `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ? AND user_id = ?`
+      ).bind(today, userId).first<{ spent: number }>()
+    : await db.prepare(
+        `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
+      ).bind(today).first<{ spent: number }>();
 
   const spent = row?.spent || 0;
   return { allowed: spent < budget, spent, budget };
@@ -139,11 +144,12 @@ export async function d1LogLLMCall(record: Omit<LLMCallRecord, 'id' | 'createdAt
   const costUsd = record.costUsd || estimateCost(record.model, record.tokensIn, record.tokensOut);
 
   await db.prepare(
-    `INSERT INTO llm_calls (id, session_id, model, tokens_in, tokens_out, duration_ms, cost_usd, source)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO llm_calls (id, session_id, user_id, model, tokens_in, tokens_out, duration_ms, cost_usd, source)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     id,
     record.sessionId || null,
+    record.userId || null,
     record.model,
     record.tokensIn,
     record.tokensOut,

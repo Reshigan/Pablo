@@ -15,7 +15,7 @@ let healed = false;
 /** BUG-01: Schema version sentinel — bump this when adding new tables/columns.
  * ensureSchema() compares this against the stored version in the `settings` table
  * and skips the full heal if the version matches, saving ~13 SQL round-trips. */
-const SCHEMA_VERSION = '3';
+const SCHEMA_VERSION = '4';
 
 /**
  * All required tables with their CREATE TABLE statements.
@@ -185,6 +185,7 @@ const COLUMN_PATCHES: Array<[string, string, string]> = [
   ['sessions', 'user_id', 'TEXT'],
   ['sessions', 'snapshot', 'TEXT'],
   ['sessions', 'metadata', 'TEXT'],
+  ['llm_calls', 'user_id', 'TEXT'],
 ];
 
 /**

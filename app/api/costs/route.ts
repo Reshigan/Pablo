@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
 
     await d1LogLLMCall({
       sessionId: body.sessionId,
+      userId: session.user?.email || session.user?.name || undefined,
       model: body.model,
       tokensIn: body.tokensIn || 0,
       tokensOut: body.tokensOut || 0,

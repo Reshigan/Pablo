@@ -301,7 +301,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return; // Session switched during save — discard stale snapshot
       }
 
-      await fetch(`/api/sessions/${savingSessionId}`, {
+      const res = await fetch(`/api/sessions/${savingSessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -310,7 +310,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           repoBranch: repo.selectedBranch,
         }),
       });
-      set({ isSaving: false, lastSavedAt: new Date().toISOString() });
+      if (res.ok) {
+        set({ isSaving: false, lastSavedAt: new Date().toISOString() });
+      } else {
+        set({ isSaving: false });
+        toastError('Save failed', `Server returned ${res.status}`);
+      }
     } catch {
       set({ isSaving: false });
     }
