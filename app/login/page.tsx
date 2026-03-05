@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { Github, Zap, Code2, GitBranch, Cpu, Rocket } from 'lucide-react';
+import { Github, Zap, Code2, GitBranch, Cpu, Rocket, Monitor } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**
@@ -9,6 +10,10 @@ import { motion } from 'framer-motion';
  * auto-typing tagline, feature icons, showcase link.
  */
 export default function LoginPage() {
+  const [devEmail, setDevEmail] = useState('dev@localhost');
+  const [showDevLogin, setShowDevLogin] = useState(false);
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-pablo-bg overflow-hidden">
       {/* Task 42: Slow-moving gradient background */}
@@ -57,6 +62,44 @@ export default function LoginPage() {
             <Github size={20} />
             Continue with GitHub
           </button>
+
+          {/* Dev Login — only visible on localhost */}
+          {isLocalhost && (
+            <div className="mt-3">
+              {!showDevLogin ? (
+                <button
+                  onClick={() => setShowDevLogin(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-pablo-border bg-pablo-surface-2 px-4 py-2.5 font-ui text-xs font-medium text-pablo-text-muted transition-colors hover:border-pablo-gold/30 hover:text-pablo-text"
+                >
+                  <Monitor size={14} />
+                  Dev Login (localhost only)
+                </button>
+              ) : (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    signIn('dev-login', { email: devEmail, callbackUrl: '/session/new' });
+                  }}
+                  className="flex flex-col gap-2"
+                >
+                  <input
+                    type="email"
+                    value={devEmail}
+                    onChange={(e) => setDevEmail(e.target.value)}
+                    placeholder="dev@localhost"
+                    className="w-full rounded-lg border border-pablo-border bg-pablo-surface-2 px-3 py-2 font-ui text-sm text-pablo-text placeholder:text-pablo-text-muted focus:border-pablo-gold/50 focus:outline-none"
+                  />
+                  <button
+                    type="submit"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-pablo-gold/30 bg-pablo-gold/10 px-4 py-2.5 font-ui text-xs font-medium text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+                  >
+                    <Monitor size={14} />
+                    Sign in as Dev User
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
 
           <div className="mt-5 flex items-center gap-3">
             <div className="h-px flex-1 bg-pablo-border" />
