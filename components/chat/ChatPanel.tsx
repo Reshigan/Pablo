@@ -844,21 +844,50 @@ export function ChatPanel() {
           throw new Error('No files loaded from repository. Check that the repo has accessible files.');
         }
 
-        // Step 2: Run evaluation
+        // Step 2: Run evaluation via server-side API (SEC-02: API key stays server-side)
         updateMessage(assistantId, { content: `Evaluating ${files.length} files...` });
 
-        const { evaluateRepo } = await import('@/lib/agents/repoEvaluator');
+        const evalRes = await fetch('/api/evaluate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files }),
+        });
 
-        // SEC-02: Fetch LLM config — API key is server-side only, client gets hasApiKey boolean
-        const envRes = await fetch('/api/env-config');
-        const envData: { OLLAMA_URL?: string; hasApiKey?: boolean } = envRes.ok ? await envRes.json() : {};
-        const env = { OLLAMA_URL: envData.OLLAMA_URL };
+        if (!evalRes.ok) {
+          throw new Error(`Evaluation request failed: ${evalRes.status}`);
+        }
 
-        const result = await evaluateRepo(
-          files,
-          env,
-          (msg) => updateMessage(assistantId, { content: msg }),
-        );
+        const reader = evalRes.body?.getReader();
+        if (!reader) throw new Error('No response stream from evaluate API');
+
+        const decoder = new TextDecoder();
+        let evalBuffer = '';
+        let result: EvaluationResult | null = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          evalBuffer += decoder.decode(value, { stream: true });
+          const lines = evalBuffer.split('\n');
+          evalBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as { type: string; message?: string; result?: EvaluationResult; error?: string };
+              if (evt.type === 'progress' && evt.message) {
+                updateMessage(assistantId, { content: evt.message });
+              } else if (evt.type === 'result' && evt.result) {
+                result = evt.result;
+              } else if (evt.type === 'error') {
+                throw new Error(evt.error || 'Evaluation failed');
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message !== 'Evaluation failed') throw e;
+            }
+          }
+        }
+
+        if (!result) throw new Error('No evaluation result received');
 
         setEvaluationResult(result);
         updateMessage(assistantId, {
@@ -909,28 +938,53 @@ export function ChatPanel() {
           throw new Error('No files loaded from repository.');
         }
 
-        // Step 2: Detect mode and run pipeline
-        const { runIncrementalPipeline, detectIncrementalMode } = await import('@/lib/agents/incrementalPipeline');
-        const mode = detectIncrementalMode(content);
+        // Step 2: Run fix pipeline via server-side API (SEC-02: API key stays server-side)
+        updateMessage(assistantId, { content: `Running fix pipeline on ${files.length} files...` });
 
-        updateMessage(assistantId, { content: `Running ${mode} pipeline on ${files.length} files...` });
+        const fixRes = await fetch('/api/fix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ description: content.trim(), files }),
+        });
 
-        // SEC-02: Fetch LLM config — API key is server-side only, client gets hasApiKey boolean
-        const envRes = await fetch('/api/env-config');
-        const envData: { OLLAMA_URL?: string; hasApiKey?: boolean } = envRes.ok ? await envRes.json() : {};
-        const env = { OLLAMA_URL: envData.OLLAMA_URL };
+        if (!fixRes.ok) {
+          throw new Error(`Fix request failed: ${fixRes.status}`);
+        }
 
-        const result = await runIncrementalPipeline(
-          content.trim(),
-          mode,
-          files,
-          env,
-          (progress) => {
-            updateMessage(assistantId, {
-              content: `[${progress.stage}] ${progress.message} (${progress.progress}%)`,
-            });
-          },
-        );
+        const fixReader = fixRes.body?.getReader();
+        if (!fixReader) throw new Error('No response stream from fix API');
+
+        const fixDecoder = new TextDecoder();
+        let fixBuffer = '';
+        interface FixResultShape { mode: string; description: string; edits: Array<{ path: string; oldContent: string; newContent: string; description: string }>; newFiles: Array<{ path: string; content: string; language: string; description: string }>; explanation: string; relevantFiles: string[] }
+        let result: FixResultShape | null = null;
+
+        while (true) {
+          const { done, value } = await fixReader.read();
+          if (done) break;
+          fixBuffer += fixDecoder.decode(value, { stream: true });
+          const lines = fixBuffer.split('\n');
+          fixBuffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const evt = JSON.parse(line.slice(6)) as { type: string; stage?: string; message?: string; progress?: number; result?: FixResultShape; error?: string };
+              if (evt.type === 'progress' && evt.stage && evt.message) {
+                updateMessage(assistantId, {
+                  content: `[${evt.stage}] ${evt.message} (${evt.progress ?? 0}%)`,
+                });
+              } else if (evt.type === 'result' && evt.result) {
+                result = evt.result;
+              } else if (evt.type === 'error') {
+                throw new Error(evt.error || 'Fix pipeline failed');
+              }
+            } catch (e) {
+              if (e instanceof Error && e.message !== 'Fix pipeline failed') throw e;
+            }
+          }
+        }
+
+        if (!result) throw new Error('No fix result received');
 
         // Step 3: Create diffs in the editor
         const editorStore = useEditorStore.getState();
