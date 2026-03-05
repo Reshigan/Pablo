@@ -169,12 +169,16 @@ async function tryExternalAPIStreaming(
         });
 
     if (!apiResponse.ok) {
+      clearTimeout(timeoutId);
       console.warn(`[tryExternalAPI] ${model} returned ${apiResponse.status}`);
       return null;
     }
 
     const reader = apiResponse.body?.getReader();
-    if (!reader) return null;
+    if (!reader) {
+      clearTimeout(timeoutId);
+      return null;
+    }
 
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
