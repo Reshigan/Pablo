@@ -31,7 +31,7 @@ import {
 import { useAgentStore } from '@/stores/agent';
 import { useMetricsStore } from '@/stores/metrics';
 import { useEditorStore } from '@/stores/editor';
-import { useToastStore, toast } from '@/stores/toast';
+import { useToastStore, toast, toastSuccess, toastError } from '@/stores/toast';
 import { useLearningStore } from '@/stores/learning';
 import { parseGeneratedFiles } from '@/lib/code-parser';
 import { generateId } from '@/lib/db/queries';
@@ -758,14 +758,7 @@ export function PipelineView() {
       {/* Pipeline Runs list */}
       <div className="flex-1 overflow-y-auto p-3">
         {runs.length === 0 && agentStore.runs.length === 0 ? (
-          <HeroPrompt onSelectTemplate={(prompt) => {
-            setFeatureInput(prompt);
-            // Auto-start the pipeline with the selected template
-            setTimeout(() => {
-              const startBtn = document.querySelector<HTMLButtonElement>('[data-testid="pipeline-start"]');
-              if (startBtn) startBtn.click();
-            }, 100);
-          }} />
+          <HeroPrompt />
         ) : (
           <div className="flex flex-col gap-3">
             {runs.map((run) => (

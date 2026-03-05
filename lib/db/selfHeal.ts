@@ -15,7 +15,7 @@ let healed = false;
 /** BUG-01: Schema version sentinel — bump this when adding new tables/columns.
  * ensureSchema() compares this against the stored version in the `settings` table
  * and skips the full heal if the version matches, saving ~13 SQL round-trips. */
-const SCHEMA_VERSION = '2';
+const SCHEMA_VERSION = '4';
 
 /**
  * All required tables with their CREATE TABLE statements.
@@ -169,6 +169,12 @@ const TABLE_DEFINITIONS = [
     total_files INTEGER DEFAULT 0,
     total_size INTEGER DEFAULT 0
   )`,
+  `CREATE TABLE IF NOT EXISTS user_limits (
+    user_id TEXT PRIMARY KEY,
+    daily_budget_usd REAL NOT NULL DEFAULT 5.0,
+    total_spent_today_usd REAL NOT NULL DEFAULT 0.0,
+    last_reset TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
 ];
 
 /**
@@ -179,6 +185,7 @@ const COLUMN_PATCHES: Array<[string, string, string]> = [
   ['sessions', 'user_id', 'TEXT'],
   ['sessions', 'snapshot', 'TEXT'],
   ['sessions', 'metadata', 'TEXT'],
+  ['llm_calls', 'user_id', 'TEXT'],
 ];
 
 /**

@@ -1,88 +1,125 @@
 'use client';
 
-/**
- * HeroPrompt — Empty state for new sessions with template quick-start buttons.
- * Shown in PipelineView when no pipeline runs exist yet (Task 31).
- */
+import { useState, useRef, useCallback } from 'react';
+import { Zap, Play, Paperclip, LayoutTemplate } from 'lucide-react';
+import { usePipelineStore } from '@/stores/pipeline';
 
-import { Sparkles, Globe, ShoppingCart, BarChart3, MessageSquare, Cpu } from 'lucide-react';
-
-interface TemplateOption {
-  label: string;
-  icon: React.ReactNode;
-  prompt: string;
-}
-
-const TEMPLATES: TemplateOption[] = [
-  {
-    label: 'Landing Page',
-    icon: <Globe size={16} />,
-    prompt: 'Build a modern responsive landing page with hero section, features grid, testimonials, pricing table, and contact form using React and Tailwind CSS',
-  },
-  {
-    label: 'E-Commerce Store',
-    icon: <ShoppingCart size={16} />,
-    prompt: 'Build a full e-commerce storefront with product catalog, cart, checkout flow, and order confirmation using React, Tailwind, and local state management',
-  },
-  {
-    label: 'Dashboard App',
-    icon: <BarChart3 size={16} />,
-    prompt: 'Build an analytics dashboard with charts, data tables, filters, and a sidebar navigation using React, Tailwind, and Recharts',
-  },
-  {
-    label: 'Chat Interface',
-    icon: <MessageSquare size={16} />,
-    prompt: 'Build a real-time chat application with message bubbles, typing indicators, user avatars, and a message input area using React and Tailwind CSS',
-  },
-  {
-    label: 'AI Tool',
-    icon: <Cpu size={16} />,
-    prompt: 'Build an AI-powered text analysis tool with input area, processing animation, results display with sentiment analysis and key phrase extraction',
-  },
+const TEMPLATES = [
+  'SaaS Dashboard',
+  'REST API',
+  'Landing Page',
+  'E-commerce Store',
+  'Blog Platform',
+  'Admin Panel',
 ];
 
-interface HeroPromptProps {
-  onSelectTemplate: (prompt: string) => void;
-}
+/**
+ * Task 40: Full-width hero prompt — shown when no files are open and no pipeline runs.
+ */
+export function HeroPrompt() {
+  const [prompt, setPrompt] = useState('');
+  const [showTemplates, setShowTemplates] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const startRun = usePipelineStore(s => s.startRun);
 
-export function HeroPrompt({ onSelectTemplate }: HeroPromptProps) {
+  const handleGenerate = useCallback(() => {
+    const text = prompt.trim();
+    if (!text) return;
+    startRun(text);
+    setPrompt('');
+  }, [prompt, startRun]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleGenerate();
+      }
+    },
+    [handleGenerate],
+  );
+
   return (
-    <div className="flex flex-col items-center justify-center gap-6 px-6 py-12 text-center">
-      {/* Logo / hero */}
-      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pablo-gold/10 ring-1 ring-pablo-gold/20">
-        <Sparkles size={32} className="text-pablo-gold" />
-      </div>
-
-      <div className="max-w-md">
-        <h2 className="font-ui text-lg font-bold text-pablo-text">
-          What would you like to build?
+    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-12">
+      {/* Icon + heading */}
+      <div className="flex flex-col items-center gap-3 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pablo-gold/10 border border-pablo-gold/15">
+          <Zap size={28} className="text-pablo-gold" />
+        </div>
+        <h2 className="font-ui text-xl font-bold tracking-tight text-pablo-text">
+          What shall we build?
         </h2>
-        <p className="mt-2 font-ui text-sm text-pablo-text-muted">
-          Describe your app and Pablo will generate a complete, production-ready codebase
-          through an 8-stage AI pipeline.
+        <p className="max-w-md font-ui text-sm text-pablo-text-dim leading-relaxed">
+          Describe your feature and Pablo&apos;s 8-stage pipeline will plan, generate database schemas,
+          APIs, UI components, tests, and review the code — all in one go.
         </p>
       </div>
 
-      {/* Template quick-start buttons */}
-      <div className="grid w-full max-w-lg grid-cols-2 gap-2 sm:grid-cols-3">
-        {TEMPLATES.map((template) => (
-          <button
-            key={template.label}
-            onClick={() => onSelectTemplate(template.prompt)}
-            className="flex items-center gap-2 rounded-lg border border-pablo-border bg-pablo-panel px-3 py-2.5 text-left transition-all hover:border-pablo-gold/30 hover:bg-pablo-hover group"
-          >
-            <span className="shrink-0 text-pablo-text-muted group-hover:text-pablo-gold transition-colors">
-              {template.icon}
-            </span>
-            <span className="font-ui text-xs font-medium text-pablo-text-dim group-hover:text-pablo-text transition-colors">
-              {template.label}
-            </span>
-          </button>
-        ))}
+      {/* Input area */}
+      <div className="w-full max-w-2xl">
+        <div className="rounded-xl border border-pablo-border bg-pablo-surface-1 focus-within:border-pablo-gold/30 focus-within:shadow-glow transition-all">
+          <textarea
+            ref={textareaRef}
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Build a SaaS dashboard with user auth, billing via Stripe, and a team management page..."
+            className="w-full resize-none rounded-t-xl bg-transparent px-4 pt-4 pb-2 font-ui text-sm text-pablo-text placeholder:text-pablo-text-muted outline-none min-h-[100px]"
+            rows={4}
+          />
+          <div className="flex items-center justify-between border-t border-pablo-border/50 px-3 py-2">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setShowTemplates(!showTemplates)}
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-ui text-xs text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim"
+              >
+                <LayoutTemplate size={14} />
+                Templates
+              </button>
+              <button className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 font-ui text-xs text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text-dim">
+                <Paperclip size={14} />
+                Attach
+              </button>
+            </div>
+            <button
+              onClick={handleGenerate}
+              disabled={!prompt.trim()}
+              className="flex items-center gap-1.5 rounded-lg bg-pablo-gold px-4 py-1.5 font-ui text-xs font-medium text-pablo-bg transition-all hover:bg-pablo-gold/90 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Play size={13} />
+              Generate
+            </button>
+          </div>
+        </div>
+
+        {/* Quick-start templates */}
+        {showTemplates && (
+          <div className="mt-3 flex flex-wrap gap-2 justify-center animate-slide-in">
+            {TEMPLATES.map((tpl) => (
+              <button
+                key={tpl}
+                onClick={() => {
+                  setPrompt(`Build a ${tpl.toLowerCase()}`);
+                  setShowTemplates(false);
+                  textareaRef.current?.focus();
+                }}
+                className="rounded-full border border-pablo-border bg-pablo-surface-2 px-3 py-1 font-ui text-xs text-pablo-text-dim transition-colors hover:border-pablo-gold/30 hover:text-pablo-gold"
+              >
+                {tpl}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <p className="font-ui text-[10px] text-pablo-text-muted">
-        Or type your own description in the input below
+      {/* Keyboard hint */}
+      <p className="font-ui text-[10px] text-pablo-text-ghost">
+        <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">&#8984;&#9166;</kbd>{' '}
+        to generate &middot;{' '}
+        <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">&#8984;K</kbd>{' '}
+        to chat &middot;{' '}
+        <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">&#8984;B</kbd>{' '}
+        for files
       </p>
     </div>
   );

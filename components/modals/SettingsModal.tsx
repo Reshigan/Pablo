@@ -298,32 +298,57 @@ function AppearanceSettings() {
 }
 
 function ShortcutSettings() {
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent);
+  const mod = isMac ? '\u2318' : 'Ctrl';
+
   const shortcuts = [
-    { label: 'Command Palette', keys: 'Ctrl+Shift+P' },
-    { label: 'Toggle Terminal', keys: 'Ctrl+`' },
-    { label: 'Toggle Chat', keys: 'Ctrl+Shift+C' },
-    { label: 'Toggle Sidebar', keys: 'Ctrl+B' },
-    { label: 'File Explorer', keys: 'Ctrl+Shift+E' },
-    { label: 'Search', keys: 'Ctrl+Shift+F' },
-    { label: 'Source Control', keys: 'Ctrl+Shift+G' },
-    { label: 'Open Settings', keys: 'Ctrl+,' },
-    { label: 'Save File', keys: 'Ctrl+S' },
-    { label: 'Close Tab', keys: 'Ctrl+W' },
+    { category: 'Navigation', items: [
+      { label: 'Command Palette', keys: `${mod}+Shift+P` },
+      { label: 'Quick Open File', keys: `${mod}+P` },
+      { label: 'Toggle Sidebar', keys: `${mod}+B` },
+      { label: 'Toggle Terminal', keys: `${mod}+\`` },
+      { label: 'Toggle Chat Panel', keys: `${mod}+J` },
+      { label: 'Switch Tab 1-9', keys: `${mod}+1-9` },
+    ]},
+    { category: 'Editing', items: [
+      { label: 'Save File', keys: `${mod}+S` },
+      { label: 'Close Tab', keys: `${mod}+W` },
+      { label: 'Find in File', keys: `${mod}+F` },
+      { label: 'Find & Replace', keys: `${mod}+H` },
+      { label: 'Undo', keys: `${mod}+Z` },
+      { label: 'Redo', keys: `${mod}+Shift+Z` },
+    ]},
+    { category: 'Build & Deploy', items: [
+      { label: 'Start Build Pipeline', keys: `${mod}+Shift+B` },
+      { label: 'Deploy Project', keys: `${mod}+D` },
+      { label: 'Open Settings', keys: `${mod}+,` },
+    ]},
+    { category: 'Search & Navigation', items: [
+      { label: 'File Explorer', keys: `${mod}+Shift+E` },
+      { label: 'Global Search', keys: `${mod}+Shift+F` },
+      { label: 'Source Control', keys: `${mod}+Shift+G` },
+    ]},
   ];
 
   return (
     <div className="flex flex-col gap-4">
       <h3 className="font-ui text-sm font-semibold text-pablo-text">Keyboard Shortcuts</h3>
-      <div className="flex flex-col gap-0.5">
-        {shortcuts.map((s) => (
-          <div key={s.label} className="flex items-center justify-between rounded px-2 py-1.5 transition-colors hover:bg-pablo-hover">
-            <span className="font-ui text-xs text-pablo-text-dim">{s.label}</span>
-            <kbd className="rounded border border-pablo-border bg-pablo-active px-2 py-0.5 font-code text-[10px] text-pablo-text-muted">
-              {s.keys}
-            </kbd>
-          </div>
-        ))}
-      </div>
+      <p className="font-ui text-[10px] text-pablo-text-muted">
+        {isMac ? 'Showing macOS shortcuts (\u2318 = Command)' : 'Showing Windows/Linux shortcuts (Ctrl)'}
+      </p>
+      {shortcuts.map((group) => (
+        <div key={group.category} className="flex flex-col gap-0.5">
+          <h4 className="mb-1 font-ui text-[11px] font-semibold uppercase tracking-wider text-pablo-text-muted">{group.category}</h4>
+          {group.items.map((s) => (
+            <div key={s.label} className="flex items-center justify-between rounded px-2 py-1.5 transition-colors hover:bg-pablo-hover">
+              <span className="font-ui text-xs text-pablo-text-dim">{s.label}</span>
+              <kbd className="rounded border border-pablo-border bg-pablo-active px-2 py-0.5 font-code text-[10px] text-pablo-text-muted">
+                {s.keys}
+              </kbd>
+            </div>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

@@ -417,13 +417,18 @@ export function ChatPanel() {
             // Detect server-side stream errors (e.g. Ollama Cloud connection dropped)
             if (parsed.error) {
               if (parsed.error === 'no_backend') {
-                const msg =
-                  parsed.content ||
-                  'No AI backend configured. Go to Settings and configure OLLAMA_URL and OLLAMA_API_KEY.';
-                setError(msg);
+                setError('No AI backend configured');
                 updateMessage(assistantId, {
                   isStreaming: false,
-                  content: `Error: ${msg}`,
+                  content: [
+                    '### No AI Backend Configured\n',
+                    'Pablo needs an AI backend to generate responses. To fix this:\n',
+                    '1. Open **Settings** (gear icon in sidebar)',
+                    '2. Go to the **AI Models** tab',
+                    '3. Enter your **Ollama Cloud** endpoint and API key',
+                    '4. Or set `OLLAMA_URL` and `OLLAMA_API_KEY` as Cloudflare Worker secrets\n',
+                    '> Need an API key? Visit [ollama.com](https://ollama.com) to get started.',
+                  ].join('\n'),
                 });
                 streamDone = true;
                 break;
@@ -456,6 +461,8 @@ export function ChatPanel() {
             if (parsed.done) {
               if (parsed.eval_count) {
                 addTokens(parsed.eval_count);
+                // Task 25: Store token count and model on assistant message
+                updateMessage(assistantId, { tokens: parsed.eval_count, model: parsed.model });
               }
               // Reset pipeline state when done
               setPipeline(prev => prev.active ? { ...prev, active: false } : prev);

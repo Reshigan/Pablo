@@ -3,6 +3,7 @@ import type { ChatMessage } from './chat';
 import type { PipelineRun } from './pipeline';
 import type { FileTab, DiffHunk } from './editor';
 import type { GitHubRepo } from './repo';
+import { toastSuccess, toastError } from './toast';
 
 // REL-03: lazy store accessors to avoid circular deps
 // Uses dynamic import() instead of require() for Workers ES-module compatibility.
@@ -51,6 +52,8 @@ interface SessionState {
   isLoading: boolean;
   isSaving: boolean;
   error: string | null;
+  /** Task 24: Last successful save timestamp for auto-save indicator */
+  lastSavedAt: string | null;
 
   // ─── Actions ──────────────────────────────────────────────────────────────
 
@@ -201,6 +204,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   isLoading: false,
   isSaving: false,
   error: null,
+  lastSavedAt: null,
 
   createSession: async (title?: string) => {
     set({ isLoading: true, error: null });
@@ -222,10 +226,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         isLoading: false,
       }));
       startAutoSave();
+      toastSuccess('Session created', session.title);
       return session;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create session';
       set({ isLoading: false, error: msg });
+      toastError('Session error', msg);
       throw err;
     }
   },
@@ -241,6 +247,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load sessions';
       set({ isLoading: false, error: msg });
+      toastError('Sessions', msg);
     }
   },
 
@@ -265,9 +272,11 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         isLoading: false,
       }));
       startAutoSave();
+      toastSuccess('Session loaded', session.title);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to load session';
       set({ isLoading: false, error: msg });
+      toastError('Session error', msg);
     }
   },
 
@@ -292,7 +301,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         return; // Session switched during save — discard stale snapshot
       }
 
-      await fetch(`/api/sessions/${savingSessionId}`, {
+      const res = await fetch(`/api/sessions/${savingSessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -301,7 +310,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           repoBranch: repo.selectedBranch,
         }),
       });
-      set({ isSaving: false });
+      if (res.ok) {
+        set({ isSaving: false, lastSavedAt: new Date().toISOString() });
+      } else {
+        set({ isSaving: false });
+        toastError('Save failed', `Server returned ${res.status}`);
+      }
     } catch {
       set({ isSaving: false });
     }
