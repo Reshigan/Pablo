@@ -35,11 +35,11 @@ export class FrontendAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen3-coder:480b',
-        description: 'Qwen3-Coder 480B for frontend code generation',
+        model: 'qwen2.5-coder:32b',
+        description: 'Qwen2.5-Coder 32B for frontend code generation',
         max_tokens: 16384,
         temperature: 0.2,
-        estimated_speed: '30-100 TPS',
+        estimated_speed: '40-80 TPS',
       },
       fileScope: [
         /^src\/components\//,

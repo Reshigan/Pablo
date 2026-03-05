@@ -32,90 +32,96 @@ export interface RouteDecision {
   reasoning: string;
 }
 
-// Model definitions — Ollama Cloud only (hosted at ollama.com)
-// NOTE: The 480B/671B models (qwen3-coder:480b, deepseek-v3.2) frequently
-// queue for 10+ minutes on Ollama Cloud, making them unusable for interactive
-// pipelines. Use devstral-2:123b and gpt-oss:120b which respond in seconds.
+// Model definitions — Ollama Cloud only (hosted at api.ollama.ai)
+// Qwen model stack: small enough to avoid long queues, large enough for quality.
 const MODELS = {
-  ollama_devstral: {
+  qwen3_reasoning: {
     provider: 'ollama_cloud' as const,
-    model: 'devstral-2:123b',
-    description: 'Devstral-2 123B - fast, high-quality code generation',
+    model: 'qwen3:32b',
+    description: 'Qwen3 32B - reasoning and planning',
+    max_tokens: 16384,
+    temperature: 0.2,
+    estimated_speed: '40-80 TPS',
+  },
+  qwen25_coder: {
+    provider: 'ollama_cloud' as const,
+    model: 'qwen2.5-coder:32b',
+    description: 'Qwen2.5-Coder 32B - code generation',
     max_tokens: 16384,
     temperature: 0.1,
-    estimated_speed: '40-100 TPS',
+    estimated_speed: '40-80 TPS',
   },
-  ollama_gpt_oss: {
+  qwen25_fast: {
     provider: 'ollama_cloud' as const,
-    model: 'gpt-oss:120b',
-    description: 'GPT-OSS 120B - general purpose, fast',
+    model: 'qwen2.5:72b',
+    description: 'Qwen2.5 72B - fast general purpose',
     max_tokens: 8192,
     temperature: 0.3,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '30-60 TPS',
   },
 };
 
-// Routing table — uses fast, reliable models that respond in seconds
+// Routing table — Qwen model stack
 const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   plan: {
     task_type: 'plan',
-    primary: MODELS.ollama_devstral,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Planning via Devstral-2 123B. GPT-OSS fallback.',
+    primary: MODELS.qwen3_reasoning,
+    fallback: MODELS.qwen25_coder,
+    reasoning: 'Planning via Qwen3 32B reasoning. Qwen2.5-Coder fallback.',
   },
   decompose: {
     task_type: 'decompose',
-    primary: MODELS.ollama_devstral,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Decomposition via Devstral-2. GPT-OSS fallback.',
+    primary: MODELS.qwen3_reasoning,
+    fallback: MODELS.qwen25_coder,
+    reasoning: 'Decomposition via Qwen3 32B. Qwen2.5-Coder fallback.',
   },
   generate: {
     task_type: 'generate',
-    primary: MODELS.ollama_devstral,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Code generation via Devstral-2 123B. GPT-OSS fallback.',
+    primary: MODELS.qwen25_coder,
+    fallback: MODELS.qwen25_fast,
+    reasoning: 'Code generation via Qwen2.5-Coder 32B. Qwen2.5 72B fallback.',
   },
   fix: {
     task_type: 'fix',
-    primary: MODELS.ollama_devstral,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Fixing code via Devstral-2. GPT-OSS fallback.',
+    primary: MODELS.qwen25_coder,
+    fallback: MODELS.qwen25_fast,
+    reasoning: 'Fixing code via Qwen2.5-Coder 32B. Qwen2.5 72B fallback.',
   },
   test: {
     task_type: 'test',
-    primary: MODELS.ollama_devstral,
-    fallback: MODELS.ollama_gpt_oss,
-    reasoning: 'Test generation via Devstral-2. GPT-OSS fallback.',
+    primary: MODELS.qwen25_coder,
+    fallback: MODELS.qwen25_fast,
+    reasoning: 'Test generation via Qwen2.5-Coder 32B. Qwen2.5 72B fallback.',
   },
   review: {
     task_type: 'review',
-    primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_devstral,
-    reasoning: 'Review via GPT-OSS. Devstral-2 fallback.',
+    primary: MODELS.qwen3_reasoning,
+    fallback: MODELS.qwen25_fast,
+    reasoning: 'Review via Qwen3 32B reasoning. Qwen2.5 72B fallback.',
   },
   explain: {
     task_type: 'explain',
-    primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_devstral,
-    reasoning: 'Explanations via GPT-OSS. Devstral-2 fallback.',
+    primary: MODELS.qwen25_fast,
+    fallback: MODELS.qwen3_reasoning,
+    reasoning: 'Explanations via Qwen2.5 72B. Qwen3 reasoning fallback.',
   },
   chat: {
     task_type: 'chat',
-    primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_devstral,
-    reasoning: 'General chat via GPT-OSS. Devstral-2 fallback.',
+    primary: MODELS.qwen25_fast,
+    fallback: MODELS.qwen3_reasoning,
+    reasoning: 'General chat via Qwen2.5 72B. Qwen3 reasoning fallback.',
   },
   seed_data: {
     task_type: 'seed_data',
-    primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_devstral,
-    reasoning: 'Seed data via GPT-OSS. Devstral-2 fallback.',
+    primary: MODELS.qwen25_fast,
+    fallback: MODELS.qwen25_coder,
+    reasoning: 'Seed data via Qwen2.5 72B. Qwen2.5-Coder fallback.',
   },
   document: {
     task_type: 'document',
-    primary: MODELS.ollama_gpt_oss,
-    fallback: MODELS.ollama_devstral,
-    reasoning: 'Documentation via GPT-OSS. Devstral-2 fallback.',
+    primary: MODELS.qwen25_fast,
+    fallback: MODELS.qwen25_coder,
+    reasoning: 'Documentation via Qwen2.5 72B. Qwen2.5-Coder fallback.',
   },
 };
 
@@ -273,7 +279,7 @@ interface OllamaCloudResult {
 }
 
 async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig, signal?: AbortSignal): Promise<LLMResponse> {
-  const OLLAMA_URL = env.OLLAMA_URL || 'https://ollama.com/api';
+  const OLLAMA_URL = env.OLLAMA_URL || 'https://api.ollama.ai/v1';
   const OLLAMA_KEY = env.OLLAMA_API_KEY;
 
   const isOpenAICompatible = OLLAMA_URL.includes('/v1/') || OLLAMA_URL.endsWith('/v1') || OLLAMA_URL.includes('openai');

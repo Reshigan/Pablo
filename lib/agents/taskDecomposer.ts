@@ -72,11 +72,11 @@ Decompose this into atomic sub-tasks.`;
 
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'deepseek-v3.2',
-    description: 'DeepSeek V3.2 for task decomposition',
+    model: 'qwen3:32b',
+    description: 'Qwen3 32B for task decomposition',
     max_tokens: 8192,
     temperature: 0.2,
-    estimated_speed: '20-50 TPS',
+    estimated_speed: '40-80 TPS',
   };
 
   try {

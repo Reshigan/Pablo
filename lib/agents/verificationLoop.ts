@@ -128,11 +128,11 @@ export async function runVerificationLoop(
       const fixResult = await callModel({
         model: {
           provider: 'ollama_cloud',
-          model: 'qwen3-coder:480b',
+          model: 'qwen2.5-coder:32b',
           description: 'Fix generation',
           max_tokens: 16384,
           temperature: 0.1,
-          estimated_speed: '15-30 TPS',
+          estimated_speed: '40-80 TPS',
         },
         systemPrompt: 'You are a code fixer. Output ONLY the corrected files as markdown code blocks with filenames.',
         userMessage: prompt,

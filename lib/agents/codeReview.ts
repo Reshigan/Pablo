@@ -201,11 +201,11 @@ export async function reviewCode(
   try {
     const MODEL = {
       provider: 'ollama_cloud' as const,
-      model: 'deepseek-v3.2',
+      model: 'qwen3:32b',
       description: 'Code reviewer',
       max_tokens: 8192,
       temperature: 0.2,
-      estimated_speed: '20-50 TPS',
+      estimated_speed: '40-80 TPS',
     };
 
     const result = await callModel(

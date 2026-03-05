@@ -28,11 +28,11 @@ export class OpsAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen3-coder:480b',
-        description: 'Qwen3-Coder 480B for ops tooling',
+        model: 'qwen2.5-coder:32b',
+        description: 'Qwen2.5-Coder 32B for ops tooling',
         max_tokens: 8192,
         temperature: 0.2,
-        estimated_speed: '30-100 TPS',
+        estimated_speed: '40-80 TPS',
       },
       fileScope: [
         /^src\/app\/api\/health\//,

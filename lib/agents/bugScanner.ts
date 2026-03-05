@@ -117,7 +117,7 @@ export async function scanProject(
             content: `Review this project for bugs, missing imports, broken references, security issues, and type errors. Return a JSON array of objects with {file, line, severity, message, suggestedFix}. Only return the JSON array, no markdown.\n\n${fileList}`,
           }],
           mode: 'pipeline-stage',
-          model: 'deepseek-v3.2',
+          model: 'qwen3:32b',
           max_tokens: 2048,
         }),
       });

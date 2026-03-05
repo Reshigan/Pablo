@@ -38,11 +38,11 @@ export class DesignAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'gpt-oss:120b',
-        description: 'GPT-OSS 120B for design token generation',
+        model: 'qwen2.5:72b',
+        description: 'Qwen2.5 72B for design token generation',
         max_tokens: 8192,
         temperature: 0.3,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '30-60 TPS',
       },
       fileScope: [
         /^tailwind\.config/,

@@ -73,11 +73,11 @@ function RunCard({ run, onCancel, onIterate }: { run: PipelineRun; onCancel?: ()
 
 
 /** Max time (ms) for a single pipeline stage before aborting.
- *  Using fast 120B models now — they respond in seconds, not minutes. */
-const STAGE_TIMEOUT_MS = 300_000;   // 5 min — plenty for devstral-2:123b / gpt-oss:120b
+ *  Using fast 32B/72B Qwen models now — they respond in seconds, not minutes. */
+const STAGE_TIMEOUT_MS = 300_000;   // 5 min — plenty for qwen2.5-coder:32b / qwen2.5:72b
 /** Max time (ms) to wait for the very first SSE token.
  *  Fast models typically respond within 10-30 seconds. */
-const FIRST_TOKEN_TIMEOUT_MS = 120_000;  // 2 min — generous for 120B models
+const FIRST_TOKEN_TIMEOUT_MS = 120_000;  // 2 min — generous for 32B/72B Qwen models
 /** Max inactivity (ms) — if no SSE data arrives for this long AFTER the first token, abort. */
 const STREAM_IDLE_TIMEOUT_MS = 120_000;  // 2 min — fast models stream continuously
 /** Number of retries per stage before marking as failed */

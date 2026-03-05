@@ -126,12 +126,12 @@ export function MetricsPanel() {
             <>
               <div className="flex items-center gap-2">
                 <Zap size={12} className="text-pablo-purple" />
-                <span className="font-ui text-xs text-pablo-text-dim">deepseek-v3.2</span>
+                <span className="font-ui text-xs text-pablo-text-dim">qwen3:32b</span>
                 <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
               </div>
               <div className="flex items-center gap-2">
                 <Code size={12} className="text-pablo-blue" />
-                <span className="font-ui text-xs text-pablo-text-dim">qwen3-coder:480b</span>
+                <span className="font-ui text-xs text-pablo-text-dim">qwen2.5-coder:32b</span>
                 <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
               </div>
             </>
