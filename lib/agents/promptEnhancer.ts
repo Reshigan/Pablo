@@ -38,7 +38,7 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
           { role: 'user', content: vaguePrompt },
         ],
         mode: 'pipeline-stage',
-        model: 'deepseek-v3.2',
+        model: 'gpt-oss:120b',
         max_tokens: 1024,
       }),
       signal: controller.signal,
