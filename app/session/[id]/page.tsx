@@ -206,8 +206,11 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
 
       {/* UX-14: ContextBar removed — repo/branch info now in StatusBar */}
 
-      {/* Main Area: Sidebar icon rail + Workspace (full width) */}
-      <div className="flex min-h-0 flex-1">
+      {/* Main Area: Sidebar icon rail + Workspace (shrinks when chat is open) */}
+      <div
+        className="flex min-h-0 flex-1 transition-[margin] duration-200"
+        style={{ marginRight: chatOpen ? chatWidth : 0 }}
+      >
         {/* Sidebar — icon rail always visible, panel is overlay */}
         <ErrorBoundary name="Sidebar">
           <Sidebar />
