@@ -6,6 +6,7 @@ import {
   d1GetFileByPath,
   d1UpdateFile,
 } from '@/lib/db/d1-files';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -19,9 +20,13 @@ export async function GET(request: NextRequest) {
       return Response.json({ error: 'sessionId is required' }, { status: 400 });
     }
 
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(sessionId);
+
     const files = await d1GetFilesBySession(sessionId);
     return Response.json(files);
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[GET /api/files]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -51,6 +56,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(body.sessionId);
+
     const existing = await d1GetFileByPath(body.sessionId, body.path);
     if (existing) {
       const updated = await d1UpdateFile(existing.id, {
@@ -72,6 +80,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json(file, { status: 201 });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[POST /api/files]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -91,8 +100,14 @@ export async function PATCH(request: NextRequest) {
       content: string;
     };
 
+    // SEC-01: sessionId is required for ownership verification
+    if (!body.sessionId) {
+      return Response.json({ error: 'sessionId is required for PATCH' }, { status: 400 });
+    }
+    await verifySessionOwnership(body.sessionId);
+
     let fileId = body.id;
-    if (!fileId && body.sessionId && body.path) {
+    if (!fileId && body.path) {
       const found = await d1GetFileByPath(body.sessionId, body.path);
       if (found) fileId = found.id;
     }
@@ -109,6 +124,7 @@ export async function PATCH(request: NextRequest) {
 
     return Response.json(updated);
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[PATCH /api/files]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

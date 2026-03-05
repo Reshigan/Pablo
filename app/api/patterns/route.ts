@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { d1CreatePattern, d1GetPatterns } from '@/lib/db/d1-patterns';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 export async function GET(request: NextRequest) {
   const session = await auth();
@@ -10,9 +11,17 @@ export async function GET(request: NextRequest) {
 
   try {
     const type = request.nextUrl.searchParams.get('type') ?? undefined;
+    const sessionId = request.nextUrl.searchParams.get('sessionId');
+
+    // SEC-01: verify session ownership if sessionId is provided
+    if (sessionId) {
+      await verifySessionOwnership(sessionId);
+    }
+
     const patterns = await d1GetPatterns(type);
     return Response.json(patterns);
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[GET /api/patterns]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -41,6 +50,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // SEC-01: verify session ownership if sessionId is provided
+    if (body.sessionId) {
+      await verifySessionOwnership(body.sessionId);
+    }
+
     const pattern = await d1CreatePattern({
       sessionId: body.sessionId ?? null,
       type: body.type,
@@ -52,6 +66,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json(pattern, { status: 201 });
   } catch (err) {
+    if (err instanceof Response) return err;
     console.error('[POST /api/patterns]', err);
     return Response.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -22,45 +22,45 @@ interface DeployFile {
 
 interface CloudflareEnv {
   accountId: string;
-  apiKey: string;
-  email: string;
+  apiToken: string;
 }
 
+/**
+ * BUG-07: Use CF_API_TOKEN (Bearer token) instead of CF_API_KEY + CF_EMAIL.
+ * API tokens are scoped and more secure than global API keys.
+ */
 async function getCloudflareEnv(): Promise<CloudflareEnv> {
-  // Try Cloudflare Worker env first, then process.env
   let accountId = '';
-  let apiKey = '';
-  let email = '';
+  let apiToken = '';
 
   try {
     const { getCloudflareContext } = await import('@opennextjs/cloudflare');
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     accountId = cfEnv.CF_ACCOUNT_ID || '';
-    apiKey = cfEnv.CF_API_KEY || '';
-    email = cfEnv.CF_EMAIL || '';
+    apiToken = cfEnv.CF_API_TOKEN || '';
   } catch {
     // Not in Cloudflare Worker
   }
 
   accountId = accountId || process.env.CF_ACCOUNT_ID || '';
-  apiKey = apiKey || process.env.CF_API_KEY || '';
-  email = email || process.env.CF_EMAIL || '';
+  apiToken = apiToken || process.env.CF_API_TOKEN || '';
 
-  return { accountId, apiKey, email };
+  return { accountId, apiToken };
 }
 
+/**
+ * BUG-07: Use Bearer token auth instead of X-Auth-Key + X-Auth-Email.
+ */
 async function cfAPI(
   url: string,
-  apiKey: string,
-  email: string,
+  apiToken: string,
   options: RequestInit = {}
 ): Promise<Response> {
   return fetch(url, {
     ...options,
     headers: {
-      'X-Auth-Key': apiKey,
-      'X-Auth-Email': email,
+      'Authorization': `Bearer ${apiToken}`,
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) ?? {}),
     },
@@ -242,13 +242,11 @@ export async function POST(request: NextRequest) {
 
   // Use server-side credentials only — never accept credentials from request body
   const env = await getCloudflareEnv();
-  const accountId = env.accountId;
-  const apiKey = env.apiKey;
-  const email = env.email;
+  const { accountId, apiToken } = env;
 
-  if (!accountId || !apiKey || !email) {
+  if (!accountId || !apiToken) {
     return Response.json({
-      error: 'Cloudflare credentials not configured. Set CF_ACCOUNT_ID, CF_API_KEY, CF_EMAIL.',
+      error: 'Cloudflare credentials not configured. Set CF_ACCOUNT_ID and CF_API_TOKEN (scoped API token, not global API key).',
     }, { status: 400 });
   }
 
@@ -264,14 +262,13 @@ export async function POST(request: NextRequest) {
 
     // Step 2: Create project if it doesn't exist
     const projectUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}`;
-    const projectCheck = await cfAPI(projectUrl, apiKey, email);
+    const projectCheck = await cfAPI(projectUrl, apiToken);
 
     if (!projectCheck.ok) {
       // Create the project
       const createRes = await cfAPI(
         `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects`,
-        apiKey,
-        email,
+        apiToken,
         {
           method: 'POST',
           body: JSON.stringify({
@@ -299,12 +296,12 @@ export async function POST(request: NextRequest) {
       formData.append(file.path, blob, file.path);
     }
 
+    // BUG-07: Use Bearer token for upload too
     const uploadUrl = `https://api.cloudflare.com/client/v4/accounts/${accountId}/pages/projects/${projectName}/deployments`;
     const uploadRes = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
-        'X-Auth-Key': apiKey,
-        'X-Auth-Email': email,
+        'Authorization': `Bearer ${apiToken}`,
       },
       body: formData,
     });

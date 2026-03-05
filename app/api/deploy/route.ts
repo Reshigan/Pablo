@@ -161,16 +161,20 @@ export async function POST(request: NextRequest) {
 
     const repo = (await createRes.json()) as { full_name: string; html_url: string; default_branch: string };
 
-    // Wait a moment for the repo to initialize
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Now commit all files
+    // BUG-06: Poll for repo readiness instead of fixed delay
     const baseUrl = `https://api.github.com/repos/${repo.full_name}`;
     const branch = repo.default_branch;
 
-    const refRes = await githubAPI(`${baseUrl}/git/refs/heads/${branch}`, accessToken);
-    if (!refRes.ok) throw new Error('Failed to get branch ref for new repo');
-    const refData = (await refRes.json()) as { object: { sha: string } };
+    let refData: { object: { sha: string } } | null = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const refRes = await githubAPI(`${baseUrl}/git/refs/heads/${branch}`, accessToken);
+      if (refRes.ok) {
+        refData = (await refRes.json()) as { object: { sha: string } };
+        break;
+      }
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+    if (!refData) throw new Error('Repository not ready after 5 seconds');
     const latestSha = refData.object.sha;
 
     const commitRes = await githubAPI(`${baseUrl}/git/commits/${latestSha}`, accessToken);

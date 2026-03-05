@@ -308,7 +308,9 @@ async function handleMultiTurnGeneration(
           try {
             const dbPatterns = await d1GetPatterns();
             patterns = dbPatterns.map(p => ({ trigger: p.trigger, action: p.action, confidence: p.confidence }));
-          } catch { /* non-blocking */ }
+          } catch (patternErr) {
+            loggers.chat.warn('Pattern load failed (non-blocking)', { error: patternErr instanceof Error ? patternErr.message : String(patternErr) });
+          }
         }
 
         // Build system prompt with domain knowledge + patterns

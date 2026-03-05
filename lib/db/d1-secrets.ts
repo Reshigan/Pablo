@@ -14,12 +14,13 @@ import { generateId } from './queries';
 function getEncryptionKey(): string {
   const key = process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET;
   if (!key) {
-    // SEC-03: In production, refuse to encrypt/decrypt with a weak default key.
-    // Local dev can set AUTH_SECRET in .env to use encryption.
-    if (process.env.ENVIRONMENT === 'production' || process.env.NODE_ENV === 'production') {
-      throw new Error('AUTH_SECRET is required for encryption in production');
-    }
-    return 'dev-only-key-not-for-production';
+    throw new Error(
+      '[SEC-02] AUTH_SECRET or NEXTAUTH_SECRET is required for secret encryption. ' +
+      'Set it via: echo "your-secret" | npx wrangler secret put AUTH_SECRET'
+    );
+  }
+  if (key.length < 32) {
+    throw new Error('[SEC-02] AUTH_SECRET must be at least 32 characters');
   }
   return key;
 }
@@ -68,6 +69,23 @@ export interface D1Secret {
   value: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/**
+ * Get a single secret by ID (for ownership verification).
+ */
+export async function d1GetSecretById(id: string): Promise<D1Secret | null> {
+  const d1 = await getD1();
+  if (d1) {
+    const rows = await d1
+      .select()
+      .from(secrets)
+      .where(eq(secrets.id, id));
+    if (rows.length === 0) return null;
+    const row = rows[0] as unknown as D1Secret;
+    return { ...row, value: await decryptValue(row.value) };
+  }
+  return null;
 }
 
 /**

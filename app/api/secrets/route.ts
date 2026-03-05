@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { d1ListSecrets, d1UpsertSecret, d1DeleteSecret } from '@/lib/db/d1-secrets';
+import { d1ListSecrets, d1UpsertSecret, d1DeleteSecret, d1GetSecretById } from '@/lib/db/d1-secrets';
+import { verifySessionOwnership } from '@/lib/db/ownership';
 
 /**
  * GET /api/secrets?sessionId=xxx — List all secrets for a session
@@ -17,9 +18,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(sessionId);
+
     const secrets = await d1ListSecrets(sessionId);
     return NextResponse.json({ secrets });
   } catch (err) {
+    if (err instanceof Response) return err;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to list secrets' },
       { status: 500 },
@@ -43,9 +48,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'sessionId, key, and value required' }, { status: 400 });
     }
 
+    // SEC-01: verify session ownership
+    await verifySessionOwnership(body.sessionId);
+
     const secret = await d1UpsertSecret(body.sessionId, body.key, body.value);
     return NextResponse.json({ secret });
   } catch (err) {
+    if (err instanceof Response) return err;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to save secret' },
       { status: 500 },
@@ -68,9 +77,19 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    // SEC-01: look up secret to verify ownership before deleting
+    const secret = await d1GetSecretById(id);
+    if (!secret) {
+      return NextResponse.json({ error: 'Secret not found' }, { status: 404 });
+    }
+    if (secret.sessionId) {
+      await verifySessionOwnership(secret.sessionId);
+    }
+
     const deleted = await d1DeleteSecret(id);
     return NextResponse.json({ deleted });
   } catch (err) {
+    if (err instanceof Response) return err;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to delete secret' },
       { status: 500 },
