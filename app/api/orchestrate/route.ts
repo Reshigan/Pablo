@@ -19,6 +19,10 @@ import {
   type OrchestrationPhase,
 } from '@/lib/agents/orchestrator';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('orchestrate-route');
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -44,6 +48,17 @@ export async function POST(request: NextRequest) {
     const session = await auth();
     if (!session) {
       return new Response('Unauthorized', { status: 401 });
+    }
+
+    // ARCH-01: Rate limiting — orchestration is expensive
+    const clientIP = getClientIP(request.headers);
+    const rl = checkRateLimit(`orchestrate:${clientIP}`, RATE_LIMITS.deploy);
+    if (!rl.allowed) {
+      log.warn('Rate limit exceeded', { ip: clientIP });
+      return Response.json(
+        { error: 'Rate limit exceeded. Please wait before starting another orchestration.' },
+        { status: 429, headers: rateLimitHeaders(rl) },
+      );
     }
 
     const body = await request.json() as {
