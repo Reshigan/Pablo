@@ -17,7 +17,11 @@
 
 import { NextRequest } from 'next/server';
 import { reviewPR, type PRReviewResult } from '@/lib/agents/prReview';
+import { runOrchestration, type OrchestratorEvent } from '@/lib/agents/orchestrator';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { createLogger } from '@/lib/logger';
+
+const log = createLogger('github-webhook');
 
 async function verifyGitHubSignature(payload: string, signature: string): Promise<boolean> {
   const secret = process.env.GITHUB_WEBHOOK_SECRET;
@@ -143,15 +147,173 @@ async function handleIssue(issue: IssueData, repo: RepoData): Promise<void> {
   const issueBody = issue.body || '';
 
   const taskMessage = `${issueTitle}\n\n${issueBody}`;
-  console.log(`[GitHub Webhook] Processing issue #${issueNumber} on ${repoFullName}: ${taskMessage.slice(0, 100)}`);
+  log.info('Processing issue', { repo: repoFullName, issue: issueNumber });
 
-  // TODO: Call orchestrator, create branch, commit, open PR
-  // This follows the same pattern as the Slack integration
+  const token = process.env.GITHUB_APP_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) {
+    log.warn('No GitHub token — cannot create branch/PR for issue');
+    return;
+  }
+
+  const env = await getEnvConfig();
+  const branchName = `pablo/issue-${issueNumber}`;
+
+  try {
+    // Step 1: Get default branch ref
+    const refRes = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/refs/heads/main`,
+      { headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'Pablo-IDE/2.0' } },
+    );
+    if (!refRes.ok) {
+      log.warn('Could not get main branch ref', { status: refRes.status });
+      return;
+    }
+    const refData = (await refRes.json()) as { object: { sha: string } };
+
+    // Step 2: Create branch
+    const createBranchRes = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/refs`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+        body: JSON.stringify({ ref: `refs/heads/${branchName}`, sha: refData.object.sha }),
+      },
+    );
+    if (!createBranchRes.ok) {
+      const err = (await createBranchRes.json()) as { message?: string };
+      // Branch may already exist — that's OK
+      if (!err.message?.includes('Reference already exists')) {
+        log.warn('Could not create branch', { branch: branchName, error: err.message });
+        return;
+      }
+    }
+
+    // Step 3: Run orchestrator to generate code
+    const generatedFiles = new Map<string, string>();
+    await runOrchestration(
+      taskMessage,
+      { existingFiles: new Map(), repoFullName, branch: branchName },
+      env,
+      { autoApprove: true, maxTotalTokens: 200_000, phases: ['understand', 'design', 'build', 'quality', 'ship', 'verify'], sessionId: `issue-${issueNumber}` },
+      (event: OrchestratorEvent) => {
+        // Collect generated files from file_written events
+        if (event.type === 'file_written') {
+          const fileEvt = event as OrchestratorEvent & { path?: string; content?: string };
+          if (fileEvt.path && fileEvt.content) {
+            generatedFiles.set(fileEvt.path, fileEvt.content);
+          }
+        }
+      },
+    );
+
+    if (generatedFiles.size === 0) {
+      log.warn('Orchestrator produced no files for issue', { issue: issueNumber });
+      return;
+    }
+
+    // Step 4: Commit files to branch
+    const latestRef = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/refs/heads/${branchName}`,
+      { headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'Pablo-IDE/2.0' } },
+    );
+    const latestRefData = (await latestRef.json()) as { object: { sha: string } };
+    const commitRef = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/commits/${latestRefData.object.sha}`,
+      { headers: { Authorization: `Bearer ${token}`, 'User-Agent': 'Pablo-IDE/2.0' } },
+    );
+    const commitData = (await commitRef.json()) as { tree: { sha: string } };
+
+    const treeItems: Array<{ path: string; mode: string; type: string; sha: string }> = [];
+    for (const [filePath, content] of generatedFiles) {
+      const blobRes = await fetch(
+        `https://api.github.com/repos/${repoFullName}/git/blobs`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+          body: JSON.stringify({ content, encoding: 'utf-8' }),
+        },
+      );
+      const blobData = (await blobRes.json()) as { sha: string };
+      treeItems.push({ path: filePath, mode: '100644', type: 'blob', sha: blobData.sha });
+    }
+
+    const treeRes = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/trees`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+        body: JSON.stringify({ base_tree: commitData.tree.sha, tree: treeItems }),
+      },
+    );
+    const treeData = (await treeRes.json()) as { sha: string };
+
+    const newCommitRes = await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/commits`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+        body: JSON.stringify({
+          message: `feat: implement issue #${issueNumber} — ${issueTitle}\n\nGenerated by Pablo AI`,
+          tree: treeData.sha,
+          parents: [latestRefData.object.sha],
+        }),
+      },
+    );
+    const newCommit = (await newCommitRes.json()) as { sha: string };
+
+    await fetch(
+      `https://api.github.com/repos/${repoFullName}/git/refs/heads/${branchName}`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+        body: JSON.stringify({ sha: newCommit.sha }),
+      },
+    );
+
+    // Step 5: Open PR
+    const prRes = await fetch(
+      `https://api.github.com/repos/${repoFullName}/pulls`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+        body: JSON.stringify({
+          title: `feat: ${issueTitle}`,
+          body: `Closes #${issueNumber}\n\nGenerated by Pablo AI from issue description.\n\n**${generatedFiles.size} files** generated.`,
+          head: branchName,
+          base: 'main',
+        }),
+      },
+    );
+    const prData = (await prRes.json()) as { number?: number; html_url?: string };
+
+    // Step 6: Comment on issue with PR link
+    if (prData.html_url) {
+      await fetch(
+        `https://api.github.com/repos/${repoFullName}/issues/${issueNumber}/comments`,
+        {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'User-Agent': 'Pablo-IDE/2.0' },
+          body: JSON.stringify({
+            body: `Pablo has generated a PR for this issue: ${prData.html_url}\n\n${generatedFiles.size} files generated. Please review and merge.`,
+          }),
+        },
+      );
+    }
+
+    log.info('Issue-to-PR complete', { issue: issueNumber, pr: prData.number, files: generatedFiles.size });
+  } catch (err) {
+    log.error('Issue-to-PR failed', { issue: issueNumber }, err);
+  }
 }
 
 async function handleIssueComment(issue: IssueData, comment: CommentData, repo: RepoData): Promise<void> {
   const message = comment.body.replace(/@pablo/gi, '').trim();
-  console.log(`[GitHub Webhook] Processing comment on issue #${issue.number} on ${repo.full_name}: ${message.slice(0, 100)}`);
+  log.info('Processing @pablo comment', { issue: issue.number, repo: repo.full_name });
+
+  // Treat @pablo comments on issues the same as labeled issues
+  if (message.length > 0) {
+    await handleIssue({ ...issue, body: message }, repo);
+  }
 }
 
 async function handlePRReview(pr: PRData, repo: RepoData, headSha: string): Promise<void> {
