@@ -328,6 +328,10 @@ export function PipelineView() {
     abortRef.current = controller;
     const previousOutputs: string[] = [];
     let resolvedStack: TechStackHint | undefined;
+    // Track all files extracted progressively across stages
+    const allParsedFiles: Array<{ filename: string; language: string; content: string }> = [];
+    const seenFiles = new Set<string>();
+    let navigatedToDiff = false;
 
     try {
       for (let i = 0; i < PIPELINE_STAGES.length; i++) {
@@ -361,6 +365,74 @@ export function PipelineView() {
           useMetricsStore.getState().recordPipelineStage(stage.id);
 
           previousOutputs.push(`## ${stage.label}\n${result.output}`);
+
+          // Progressive file extraction: parse files from THIS stage immediately
+          // so they appear in the Diff tab as each stage completes
+          const stageFiles = parseGeneratedFiles(result.output);
+          if (stageFiles.length > 0) {
+            const editorStore = useEditorStore.getState();
+            let newFileCount = 0;
+            for (const file of stageFiles) {
+              if (seenFiles.has(file.filename)) {
+                // Update existing diff with newer content from later stage
+                const existingDiff = editorStore.pendingDiffs.find(d => d.filename === file.filename);
+                if (existingDiff && existingDiff.status === 'pending') {
+                  // Still pending — upsert in place
+                  editorStore.addDiff({
+                    fileId: existingDiff.fileId,
+                    filename: file.filename,
+                    language: file.language,
+                    oldContent: existingDiff.oldContent ?? '',
+                    newContent: file.content,
+                  });
+                } else if (existingDiff && existingDiff.status !== 'pending') {
+                  // User already accepted/rejected — create a NEW diff entry
+                  // using current tab content as oldContent (earlier version was applied)
+                  const currentTab = editorStore.tabs.find(t => t.path === file.filename);
+                  const freshId = generateId('diff');
+                  editorStore.addDiff({
+                    fileId: freshId,
+                    filename: file.filename,
+                    language: file.language,
+                    oldContent: currentTab?.content ?? '',
+                    newContent: file.content,
+                  });
+                  newFileCount++;
+                }
+              } else {
+                seenFiles.add(file.filename);
+                const fileId = generateId('diff');
+                const existingTab = editorStore.tabs.find(t => t.path === file.filename);
+                editorStore.addDiff({
+                  fileId,
+                  filename: file.filename,
+                  language: file.language,
+                  oldContent: existingTab?.content ?? '',
+                  newContent: file.content,
+                });
+                newFileCount++;
+              }
+              // Keep running list for readiness check at the end
+              const idx = allParsedFiles.findIndex(f => f.filename === file.filename);
+              if (idx >= 0) allParsedFiles[idx] = file;
+              else allParsedFiles.push(file);
+            }
+
+            if (newFileCount > 0) {
+              useToastStore.getState().addToast({
+                type: 'success',
+                title: `${stage.label} Complete`,
+                message: `${newFileCount} new file(s) added to Diff tab`,
+                duration: 3000,
+              });
+            }
+
+            // Auto-navigate to Diff tab on first file extraction
+            if (!navigatedToDiff) {
+              useUIStore.getState().setActiveWorkspaceTab('diff');
+              navigatedToDiff = true;
+            }
+          }
 
           // After Plan stage: parse the recommended tech stack from LLM output
           // and lock it in for all subsequent stages
@@ -402,106 +474,87 @@ export function PipelineView() {
         completeRun(runId, anyCompleted ? 'completed' : 'failed');
         if (anyCompleted) useMetricsStore.getState().incrementFeatures();
 
-        // AI → Editor bridge: parse generated files from all stage outputs
-        // Creates diffs for review (accept/reject) instead of directly opening
+        // Files were already extracted progressively per-stage above.
+        // Now run final readiness check + learning capture on ALL accumulated files.
         const completedRun = usePipelineStore.getState().runs.find(r => r.id === runId);
-        if (completedRun) {
-          const allOutput = completedRun.stages
-            .filter(s => s.output && s.status === 'completed')
-            .map(s => s.output)
-            .join('\n\n');
-          const parsedFiles = parseGeneratedFiles(allOutput);
-          if (parsedFiles.length > 0) {
-            const editorStore = useEditorStore.getState();
+        if (completedRun && allParsedFiles.length > 0) {
+          useToastStore.getState().addToast({
+            type: 'success',
+            title: 'Pipeline Complete',
+            message: `${allParsedFiles.length} total file(s) ready for review in Diff tab`,
+            duration: 5000,
+          });
 
-            // Create diffs for each generated file (AI-Apply Diff system)
-            for (const file of parsedFiles) {
-              const fileId = generateId('diff');
-              const existingTab = editorStore.tabs.find(t => t.path === file.filename);
-              editorStore.addDiff({
-                fileId,
-                filename: file.filename,
-                language: file.language,
-                oldContent: existingTab?.content ?? '',
-                newContent: file.content,
-              });
-            }
-
-            useToastStore.getState().addToast({
-              type: 'success',
-              title: 'Pipeline Complete',
-              message: `${parsedFiles.length} file(s) ready for review in Diff tab`,
-              duration: 5000,
-            });
-
-            // Auto-navigate user to Diff tab so generated files are visible immediately
+          // Ensure we're on the Diff tab
+          if (!navigatedToDiff) {
             useUIStore.getState().setActiveWorkspaceTab('diff');
-
-            // Production Readiness Score — evaluate generated code quality
-            try {
-              const readinessFiles = parsedFiles.map(f => ({
-                path: f.filename,
-                content: f.content,
-                language: f.language,
-              }));
-              const readinessResult = quickReadinessCheck(readinessFiles);
-              usePipelineStore.getState().setReadinessScore(runId, readinessResult);
-
-              if (readinessResult.score < 70) {
-                useToastStore.getState().addToast({
-                  type: 'warning',
-                  title: `Readiness: ${readinessResult.grade} (${readinessResult.score}/100)`,
-                  message: `${readinessResult.issues.length} issues found — click "Iterate" to improve`,
-                  duration: 6000,
-                });
-              }
-            } catch {
-              // Non-blocking — readiness evaluation is optional
-            }
-
-            // Auto-capture patterns from generated code (Self-Learning)
-            try {
-              const learningStore = useLearningStore.getState();
-              for (const file of parsedFiles) {
-                const baseTags = [file.language, 'pipeline-generated'];
-                // Extract architecture patterns from generated code
-                if (file.filename.includes('api/') || file.filename.includes('route')) {
-                  learningStore.addPattern({
-                    type: 'architecture',
-                    trigger: `API route: ${file.filename}`,
-                    action: `Generated ${file.language} API route with ${file.content.split('\n').length} lines`,
-                    confidence: 0.6,
-                    tags: [...baseTags, 'api'],
-                    context: description,
-                  });
-                }
-                if (file.filename.includes('schema') || file.filename.includes('migration') || file.filename.includes('.sql')) {
-                  learningStore.addPattern({
-                    type: 'code_pattern',
-                    trigger: `DB schema: ${file.filename}`,
-                    action: `Generated ${file.language} database schema`,
-                    confidence: 0.6,
-                    tags: [...baseTags, 'database'],
-                    context: description,
-                  });
-                }
-                if (file.filename.includes('test') || file.filename.includes('spec')) {
-                  learningStore.addPattern({
-                    type: 'code_pattern',
-                    trigger: `Test: ${file.filename}`,
-                    action: `Generated test file in ${file.language}`,
-                    confidence: 0.6,
-                    tags: [...baseTags, 'tests'],
-                    context: description,
-                  });
-                }
-              }
-            } catch {
-              // Non-blocking
-            }
           }
 
-          // Persist pipeline run to DB
+          // Production Readiness Score — evaluate generated code quality
+          try {
+            const readinessFiles = allParsedFiles.map(f => ({
+              path: f.filename,
+              content: f.content,
+              language: f.language,
+            }));
+            const readinessResult = quickReadinessCheck(readinessFiles);
+            usePipelineStore.getState().setReadinessScore(runId, readinessResult);
+
+            if (readinessResult.score < 70) {
+              useToastStore.getState().addToast({
+                type: 'warning',
+                title: `Readiness: ${readinessResult.grade} (${readinessResult.score}/100)`,
+                message: `${readinessResult.issues.length} issues found — click "Iterate" to improve`,
+                duration: 6000,
+              });
+            }
+          } catch {
+            // Non-blocking — readiness evaluation is optional
+          }
+
+          // Auto-capture patterns from generated code (Self-Learning)
+          try {
+            const learningStore = useLearningStore.getState();
+            for (const file of allParsedFiles) {
+              const baseTags = [file.language, 'pipeline-generated'];
+              if (file.filename.includes('api/') || file.filename.includes('route')) {
+                learningStore.addPattern({
+                  type: 'architecture',
+                  trigger: `API route: ${file.filename}`,
+                  action: `Generated ${file.language} API route with ${file.content.split('\n').length} lines`,
+                  confidence: 0.6,
+                  tags: [...baseTags, 'api'],
+                  context: description,
+                });
+              }
+              if (file.filename.includes('schema') || file.filename.includes('migration') || file.filename.includes('.sql')) {
+                learningStore.addPattern({
+                  type: 'code_pattern',
+                  trigger: `DB schema: ${file.filename}`,
+                  action: `Generated ${file.language} database schema`,
+                  confidence: 0.6,
+                  tags: [...baseTags, 'database'],
+                  context: description,
+                });
+              }
+              if (file.filename.includes('test') || file.filename.includes('spec')) {
+                learningStore.addPattern({
+                  type: 'code_pattern',
+                  trigger: `Test: ${file.filename}`,
+                  action: `Generated test file in ${file.language}`,
+                  confidence: 0.6,
+                  tags: [...baseTags, 'tests'],
+                  context: description,
+                });
+              }
+            }
+          } catch {
+            // Non-blocking
+          }
+        }
+
+        // Persist pipeline run to DB — always, regardless of whether files were parsed
+        if (completedRun) {
           try {
             const db = getDB();
             db.createPipelineRun({
