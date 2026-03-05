@@ -2,6 +2,8 @@ import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { runIncrementalPipeline, detectIncrementalMode } from '@/lib/agents/incrementalPipeline';
 import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { loggers } from '@/lib/logger';
 
 /**
  * POST /api/fix — Server-side incremental fix pipeline.
@@ -37,6 +39,17 @@ export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session) {
     return new Response('Unauthorized', { status: 401 });
+  }
+
+  // ARCH-01: Rate limiting
+  const clientIP = getClientIP(req.headers);
+  const rl = checkRateLimit(`fix:${clientIP}`, RATE_LIMITS.chat);
+  if (!rl.allowed) {
+    loggers.fix.warn('Rate limit exceeded', { ip: clientIP });
+    return Response.json(
+      { error: 'Rate limit exceeded' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
   }
 
   let body: FixRequestBody;

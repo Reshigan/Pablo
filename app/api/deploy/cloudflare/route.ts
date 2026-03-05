@@ -11,6 +11,8 @@
  */
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
+import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
+import { loggers } from '@/lib/logger';
 
 interface DeployFile {
   path: string;
@@ -210,6 +212,17 @@ export async function POST(request: NextRequest) {
   const session = await auth();
   if (!session) {
     return Response.json({ error: 'Unauthorized — sign in to deploy' }, { status: 401 });
+  }
+
+  // ARCH-01: Rate limiting — deploy is expensive, limit to 5/min
+  const clientIP = getClientIP(request.headers);
+  const rl = checkRateLimit(`cf-deploy:${clientIP}`, RATE_LIMITS.deploy);
+  if (!rl.allowed) {
+    loggers.deploy.warn('CF deploy rate limit exceeded', { ip: clientIP });
+    return Response.json(
+      { error: 'Rate limit exceeded. Please wait before deploying again.' },
+      { status: 429, headers: rateLimitHeaders(rl) },
+    );
   }
 
   const body = (await request.json()) as {
