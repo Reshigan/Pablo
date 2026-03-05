@@ -29,6 +29,8 @@ export interface PipelineRun {
   completedAt?: number;
   /** Tech stack resolved after Plan stage — injected into every subsequent stage */
   techStack?: TechStackHint;
+  /** Production Readiness Score — evaluated after pipeline completes */
+  readinessScore?: import('@/lib/agents/productionReadiness').ReadinessScore;
 }
 
 // ─── Tech Stack Hint ─────────────────────────────────────────────────────────
@@ -259,6 +261,7 @@ interface PipelineState {
   startRun: (featureDescription: string, mode?: PipelineMode) => string;
   updateStage: (runId: string, stage: PipelineStage, updates: Partial<StageResult>) => void;
   setTechStack: (runId: string, techStack: TechStackHint) => void;
+  setReadinessScore: (runId: string, score: import('@/lib/agents/productionReadiness').ReadinessScore) => void;
   advanceStage: (runId: string) => void;
   completeRun: (runId: string, status: 'completed' | 'failed' | 'cancelled') => void;
   setActiveRun: (runId: string | null) => void;
@@ -323,6 +326,14 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
     set((state) => ({
       runs: state.runs.map((run) =>
         run.id === runId ? { ...run, techStack } : run
+      ),
+    }));
+  },
+
+  setReadinessScore: (runId, readinessScore) => {
+    set((state) => ({
+      runs: state.runs.map((run) =>
+        run.id === runId ? { ...run, readinessScore } : run
       ),
     }));
   },

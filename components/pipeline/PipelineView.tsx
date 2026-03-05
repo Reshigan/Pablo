@@ -45,18 +45,26 @@ import { downloadProjectZip } from '@/lib/export/zipExport';
 import { PipelineProgress } from './PipelineProgress';
 import { PipelineOutputPanel } from './PipelineOutputPanel';
 import { PipelineDeploySection } from './PipelineDeploySection';
+import { ProductionReadinessCard } from './ProductionReadinessCard';
 import { AgentRunCard } from './AgentRunCard';
 import { buildStagePrompt } from './stagePrompts';
 import { HeroPrompt } from './HeroPrompt';
+import { quickReadinessCheck } from '@/lib/agents/productionReadiness';
 
 
 // ─── RunCard (uses extracted sub-components) ───────────────────────────
 
-function RunCard({ run, onCancel }: { run: PipelineRun; onCancel?: () => void }) {
+function RunCard({ run, onCancel, onIterate }: { run: PipelineRun; onCancel?: () => void; onIterate?: (prompt: string) => void }) {
   return (
     <div className="rounded-lg border border-pablo-border bg-pablo-panel overflow-hidden">
       <PipelineProgress run={run} onCancel={onCancel} />
       <PipelineOutputPanel run={run} />
+      {run.readinessScore && (
+        <ProductionReadinessCard
+          score={run.readinessScore}
+          onIterate={onIterate}
+        />
+      )}
       <PipelineDeploySection run={run} />
     </div>
   );
@@ -414,6 +422,28 @@ export function PipelineView() {
               duration: 5000,
             });
 
+            // Production Readiness Score — evaluate generated code quality
+            try {
+              const readinessFiles = parsedFiles.map(f => ({
+                path: f.filename,
+                content: f.content,
+                language: f.language,
+              }));
+              const readinessResult = quickReadinessCheck(readinessFiles);
+              usePipelineStore.getState().setReadinessScore(runId, readinessResult);
+
+              if (readinessResult.score < 70) {
+                useToastStore.getState().addToast({
+                  type: 'warning',
+                  title: `Readiness: ${readinessResult.grade} (${readinessResult.score}/100)`,
+                  message: `${readinessResult.issues.length} issues found — click "Iterate" to improve`,
+                  duration: 6000,
+                });
+              }
+            } catch {
+              // Non-blocking — readiness evaluation is optional
+            }
+
             // Auto-capture patterns from generated code (Self-Learning)
             try {
               const learningStore = useLearningStore.getState();
@@ -573,6 +603,16 @@ export function PipelineView() {
 
   const removeMention = useCallback((index: number) => {
     setSelectedMentions(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  // Production Readiness: feed issues back as a new iteration prompt
+  const handleIterate = useCallback((iterationPrompt: string) => {
+    setFeatureInput(iterationPrompt);
+    // Auto-scroll textarea to show the prompt
+    setTimeout(() => {
+      textareaRef.current?.focus();
+      textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 100);
   }, []);
 
   return (
@@ -769,6 +809,7 @@ export function PipelineView() {
                   abortRef.current?.abort();
                   completeRun(run.id, 'cancelled');
                 } : undefined}
+                onIterate={run.readinessScore ? handleIterate : undefined}
               />
             ))}
 
