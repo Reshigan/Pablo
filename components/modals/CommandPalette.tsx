@@ -12,8 +12,6 @@ import {
   Database,
   Globe,
   Brain,
-  BarChart3,
-  Plug,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab, type WorkspaceTab } from '@/stores/ui';
@@ -120,8 +118,6 @@ export function CommandPalette() {
     { id: 'nav-search', label: 'Search', icon: Search, category: 'navigation', shortcut: 'Ctrl+Shift+F', action: () => setSidebarTab('search' as SidebarTab) },
     { id: 'nav-git', label: 'Source Control', icon: GitBranch, category: 'navigation', shortcut: 'Ctrl+Shift+G', action: () => setSidebarTab('git' as SidebarTab) },
     { id: 'nav-memory', label: 'Self-Learning', icon: Brain, category: 'navigation', action: () => setSidebarTab('memory' as SidebarTab) },
-    { id: 'nav-metrics', label: 'Metrics', icon: BarChart3, category: 'navigation', action: () => setSidebarTab('metrics' as SidebarTab) },
-    { id: 'nav-mcp', label: 'MCP Servers', icon: Plug, category: 'navigation', action: () => setSidebarTab('mcp' as SidebarTab) },
 
     // Workspace
     { id: 'ws-editor', label: 'Code Editor', icon: File, category: 'workspace', action: () => setActiveWorkspaceTab('editor' as WorkspaceTab) },
