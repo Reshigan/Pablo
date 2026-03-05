@@ -93,17 +93,31 @@ const panelComponents: Record<SidebarTab, React.ComponentType> = {
 };
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarTab, setSidebarTab, sidebarWidth } = useUIStore();
+  const { sidebarOpen, sidebarTab, setSidebarTab, sidebarWidth, toggleSidebar } = useUIStore();
   const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
+  // UX-28: On mobile (<768px), render sidebar as an overlay instead of inline
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
+
   return (
-    <aside
-      className="flex h-full shrink-0 border-r border-pablo-border bg-pablo-panel"
-      style={{ width: sidebarOpen ? sidebarWidth : 48 }}
-      role="complementary"
-      aria-label="Sidebar"
-    >
+    <>
+      {/* UX-28: Backdrop overlay on mobile when sidebar is expanded */}
+      {isMobile && sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={toggleSidebar}
+          aria-label="Close sidebar"
+        />
+      )}
+      <aside
+        className={`flex h-full shrink-0 border-r border-pablo-border bg-pablo-panel ${
+          isMobile && sidebarOpen ? 'fixed left-0 top-[44px] bottom-[28px] z-50' : ''
+        }`}
+        style={{ width: sidebarOpen ? sidebarWidth : 48 }}
+        role="complementary"
+        aria-label="Sidebar"
+      >
       {/* Icon strip - always visible (Issue 10: grouped with dividers) */}
       <div className="flex w-12 shrink-0 flex-col border-r border-pablo-border bg-pablo-panel pt-1">
         {tabs.map((tab, i) => (
@@ -136,6 +150,7 @@ export function Sidebar() {
           </div>
         </div>
       )}
-    </aside>
+      </aside>
+    </>
   );
 }
