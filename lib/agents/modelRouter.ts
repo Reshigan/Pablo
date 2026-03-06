@@ -66,14 +66,14 @@ const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   plan: {
     task_type: 'plan',
     primary: MODELS.devstral_primary,
-    fallback: MODELS.devstral_coder,
-    reasoning: 'Planning via Devstral-2 123B reasoning. Devstral-2 coder fallback.',
+    fallback: MODELS.gpt_oss_fast,
+    reasoning: 'Planning via Devstral-2 123B reasoning. GPT-OSS 20B fallback.',
   },
   decompose: {
     task_type: 'decompose',
     primary: MODELS.devstral_primary,
-    fallback: MODELS.devstral_coder,
-    reasoning: 'Decomposition via Devstral-2 123B. Devstral-2 coder fallback.',
+    fallback: MODELS.gpt_oss_fast,
+    reasoning: 'Decomposition via Devstral-2 123B. GPT-OSS 20B fallback.',
   },
   generate: {
     task_type: 'generate',
@@ -114,13 +114,13 @@ const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   seed_data: {
     task_type: 'seed_data',
     primary: MODELS.gpt_oss_fast,
-    fallback: MODELS.devstral_coder,
+    fallback: MODELS.devstral_primary,
     reasoning: 'Seed data via GPT-OSS 20B. Devstral-2 fallback.',
   },
   document: {
     task_type: 'document',
     primary: MODELS.gpt_oss_fast,
-    fallback: MODELS.devstral_coder,
+    fallback: MODELS.devstral_primary,
     reasoning: 'Documentation via GPT-OSS 20B. Devstral-2 fallback.',
   },
 };
