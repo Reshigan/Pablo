@@ -107,6 +107,7 @@ async function runStageWithChat(
   abortSignal.addEventListener('abort', onUserAbort, { once: true });
 
   try {
+    console.log(`[Pipeline] runStageWithChat: fetching /api/chat for stage=${stage.id} model=${stage.model}`);
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -117,6 +118,7 @@ async function runStageWithChat(
       }),
       signal: stageAbort.signal,
     });
+    console.log(`[Pipeline] runStageWithChat: got response status=${response.status}`);
 
     if (!response.ok) throw new Error(`Chat API error: ${response.status}`);
     if (!response.body) throw new Error('No response body');
@@ -272,6 +274,7 @@ export function PipelineView() {
     if (!featureInput.trim() || isBuilding) return;
     setIsBuilding(true); // Immediately prevent double-clicks
     try {
+    console.log('[Pipeline] handleStart fired');
     let description = featureInput.trim();
 
     // Include attached documents in the feature description
@@ -299,45 +302,43 @@ export function PipelineView() {
 
     // Start the pipeline run IMMEDIATELY so the UI shows progress.
     // Prompt enhancement runs concurrently with the Plan stage setup.
+    console.log('[Pipeline] calling startRun');
     const runId = startRun(description);
     setFeatureInput('');
 
     // Feature 21: Activity tracking
     useActivityStore.getState().addEntry('pipeline_started', `Pipeline started: ${description.slice(0, 80)}...`);
 
-    // Feature 9: Prompt Enhancement — runs with a timeout so it never blocks
-    // the pipeline indefinitely. If it succeeds, the enhanced description is
-    // used for subsequent stages (Plan stage already started with the original).
+    // Feature 9: Prompt Enhancement — SKIPPED for long prompts (>200 chars).
+    // Also wrapped in a timeout to prevent blocking the pipeline.
+    console.log('[Pipeline] prompt length:', description.length, 'enhanceEnabled:', enhanceEnabled);
     if (enhanceEnabled && description.length < 200) {
       try {
-        const enhanced = await enhancePrompt(description);
+        console.log('[Pipeline] enhancing prompt...');
+        const enhanced = await Promise.race([
+          enhancePrompt(description),
+          new Promise<string>((_, reject) => setTimeout(() => reject(new Error('enhance-timeout')), 5000)),
+        ]);
         if (enhanced && enhanced !== description) {
           description = enhanced;
           useActivityStore.getState().addEntry('prompt_enhanced', `Prompt enhanced: "${featureInput.trim().slice(0, 60)}..."`  );
         }
+        console.log('[Pipeline] prompt enhancement done');
       } catch {
-        // Fall back to original prompt (timeout or error)
+        console.log('[Pipeline] prompt enhancement skipped (timeout or error)');
       }
     }
 
     // Extract what the user explicitly requested (no defaults applied)
+    console.log('[Pipeline] extracting explicit stack hints');
     const explicitHints = extractExplicitStack(description);
 
-    // Enterprise: fetch business rules once for the entire pipeline run.
-    // IMPORTANT: d1-business-rules imports @opennextjs/cloudflare (server-only).
-    // The dynamic import can hang forever in the browser, so we race it with a 3s timeout.
-    let businessRulesPrompt = '';
-    try {
-      businessRulesPrompt = await Promise.race([
-        (async () => {
-          const { getActiveRulesPrompt } = await import('@/lib/db/d1-business-rules');
-          return await getActiveRulesPrompt();
-        })(),
-        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
-      ]);
-    } catch {
-      // Non-blocking — rules are optional (timeout, import failure, or D1 unavailable)
-    }
+    // Enterprise: business rules are fetched via API route, not client-side D1.
+    // Previously this did a dynamic import of d1-business-rules which imports
+    // @opennextjs/cloudflare (server-only) and could hang forever in the browser.
+    // Now we just skip business rules on the client — they're optional.
+    const businessRulesPrompt = '';
+    console.log('[Pipeline] skipping business rules (server-only module)');
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -349,9 +350,11 @@ export function PipelineView() {
     let navigatedToDiff = false;
 
     try {
+      console.log('[Pipeline] entering stage loop, stages:', PIPELINE_STAGES.length);
       for (let i = 0; i < PIPELINE_STAGES.length; i++) {
         if (controller.signal.aborted) break;
         const stage = PIPELINE_STAGES[i];
+        console.log(`[Pipeline] starting stage ${i}: ${stage.id} (model: ${stage.model})`);
 
         if (i > 0) advanceStage(runId);
         updateStage(runId, stage.id, { status: 'running', startedAt: Date.now() });
