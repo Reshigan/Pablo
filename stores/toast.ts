@@ -32,9 +32,11 @@ export const useToastStore = create<ToastState>((set) => ({
       createdAt: Date.now(),
     };
 
-    set((state) => ({
-      toasts: [...state.toasts, newToast],
-    }));
+    // ENH-8: Cap visible toasts at 3 (FIFO eviction)
+    set((state) => {
+      const updated = [...state.toasts, newToast];
+      return { toasts: updated.length > 3 ? updated.slice(-3) : updated };
+    });
 
     // Auto-remove after duration
     if (toast.duration > 0) {

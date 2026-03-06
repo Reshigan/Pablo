@@ -1,8 +1,8 @@
 'use client';
 
-import { BarChart3, Clock, Zap, Code, ArrowUp, ArrowDown } from 'lucide-react';
+import { BarChart3, Clock, Zap, Code, ArrowUp, ArrowDown, Download } from 'lucide-react';
 import { useMetricsStore } from '@/stores/metrics';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface MetricItem {
   label: string;
@@ -85,6 +85,35 @@ export function MetricsPanel() {
   const successRate = getSuccessRate();
   const hasData = totalRequests > 0;
 
+  // ENH-5: CSV export of cost/metrics data
+  const handleExportCSV = useCallback(() => {
+    const rows = [
+      ['Metric', 'Value'],
+      ['Total Tokens', String(totalTokens)],
+      ['Features Built', String(featuresBuilt)],
+      ['Total Requests', String(totalRequests)],
+      ['Successful Requests', String(successfulRequests)],
+      ['Failed Requests', String(failedRequests)],
+      ['Success Rate', `${successRate}%`],
+      ['Session Duration', duration],
+      [''],
+      ['Model', 'Calls'],
+      ...Object.entries(modelCalls).map(([model, count]) => [model, String(count)]),
+      [''],
+      ['Pipeline Stage', 'Completions'],
+      ...Object.entries(pipelineStagesCompleted).map(([stage, count]) => [stage, String(count)]),
+    ];
+    const escape = (v: string) => /[,"\n\r]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+    const csv = rows.map(r => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pablo-metrics-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [totalTokens, featuresBuilt, totalRequests, successfulRequests, failedRequests, successRate, duration, modelCalls, pipelineStagesCompleted]);
+
   return (
     <div className="flex flex-col">
       {/* Quick stats */}
@@ -163,6 +192,19 @@ export function MetricsPanel() {
           <span className="ml-auto font-code text-xs text-pablo-gold">{duration}</span>
         </div>
       </div>
+
+      {/* ENH-5: CSV Export */}
+      {hasData && (
+        <div className="border-t border-pablo-border px-3 py-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex w-full items-center justify-center gap-1.5 rounded bg-pablo-gold/10 px-3 py-1.5 font-ui text-[11px] font-medium text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+          >
+            <Download size={12} />
+            Export CSV
+          </button>
+        </div>
+      )}
     </div>
   );
 }

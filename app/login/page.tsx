@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Github, Zap, Code2, GitBranch, Cpu, Rocket, Monitor } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -9,10 +10,12 @@ import { motion } from 'framer-motion';
  * Task 42: Login page polish — animated gradient bg, framer-motion card entrance,
  * auto-typing tagline, feature icons, showcase link.
  */
-export default function LoginPage() {
+function LoginContent() {
   const [devEmail, setDevEmail] = useState('dev@localhost');
   const [showDevLogin, setShowDevLogin] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const searchParams = useSearchParams();
+  const authError = searchParams.get('error');
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-pablo-bg overflow-hidden">
@@ -54,6 +57,16 @@ export default function LoginPage() {
           <p className="mb-6 font-ui text-sm text-pablo-text-muted">
             Connect your GitHub account to access your repositories and start building with AI.
           </p>
+
+          {/* FIX-3: Access denied message */}
+          {authError === 'AccessDenied' && (
+            <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <p className="font-ui text-sm font-medium text-red-400">Access Denied</p>
+              <p className="mt-1 font-ui text-xs text-red-400/80">
+                Your account is not on the team allowlist. Contact your admin to get access.
+              </p>
+            </div>
+          )}
 
           <button
             onClick={() => signIn('github', { callbackUrl: '/session/new' })}
@@ -129,5 +142,17 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-pablo-bg">
+        <div className="animate-pulse text-pablo-text-muted font-ui text-sm">Loading...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }
