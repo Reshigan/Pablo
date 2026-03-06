@@ -20,7 +20,7 @@
   ],
   "vars": {
     "ENVIRONMENT": "production",
-    "OLLAMA_URL": "https://api.ollama.ai/v1",
+    "OLLAMA_URL": "https://ollama.com/api",
     "NEXTAUTH_URL": "https://pablo.vantax.co.za",
     "ALLOWED_EMAILS": "",
     "ALLOWED_GITHUB_ORG": ""

@@ -55,11 +55,11 @@ export async function GET() {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     const hasKey = !!(cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY);
-    const ollamaUrl = cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://api.ollama.ai/v1';
+    const ollamaUrl = cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://ollama.com/api';
     status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: ollamaUrl };
   } catch {
     const hasKey = !!process.env.OLLAMA_API_KEY;
-    status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1' };
+    status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: process.env.OLLAMA_URL || 'https://ollama.com/api' };
   }
 
   // Check GitHub OAuth configuration
