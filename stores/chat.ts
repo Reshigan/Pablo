@@ -38,7 +38,7 @@ function generateId(): string {
 export const useChatStore = create<ChatState>((set, get) => ({
   messages: [],
   isStreaming: false,
-  currentModel: 'deepseek-r1',
+  currentModel: 'devstral-2:123b',
   totalTokens: 0,
   error: null,
 

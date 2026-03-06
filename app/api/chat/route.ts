@@ -244,9 +244,9 @@ async function tryExternalAPIStreaming(
                     eval_count?: number;
                     total_duration?: number;
                   };
-                  // Merge content + thinking: deepseek-v3.2 streams reasoning
+                  // Merge content + thinking: some models stream reasoning
                   // in `message.thinking` with empty `message.content`, then
-                  // switches to `message.content` for the final answer.
+                  // switch to `message.content` for the final answer.
                   const textContent = chunk.message?.content ?? '';
                   const thinkingContent = chunk.message?.thinking ?? '';
                   const mergedContent = textContent || thinkingContent;
@@ -459,14 +459,14 @@ Rules:
     ...messages.filter((m) => m.role !== 'system'),
   ];
 
-  // Resolve model name: map legacy names to available Ollama Cloud models
+  // Resolve model name: map any legacy names to available Ollama Cloud models
   const MODEL_ALIASES: Record<string, string> = {
     'deepseek-r1': 'devstral-2:123b',
-    'qwen3-coder-next': 'devstral-2:123b',
     'deepseek-v3.2': 'devstral-2:123b',
     'qwen3-coder:480b': 'devstral-2:123b',
     'qwen3:32b': 'devstral-2:123b',
     'qwen3-next:80b': 'devstral-2:123b',
+    'qwen3-coder-next': 'devstral-2:123b',
     'qwen2.5-coder:32b': 'devstral-2:123b',
     'qwen2.5:72b': 'gpt-oss:20b',
     'gpt-oss:120b': 'gpt-oss:20b',
@@ -694,10 +694,10 @@ export async function POST(request: NextRequest) {
  */
 export async function GET() {
   return Response.json({
-    version: '2.0',
-    engine: 'Pablo AI Engine v2',
+    version: '3.0',
+    engine: 'Pablo AI Engine v3 — Devstral-2 + GPT-OSS',
     features: [
-      'Smart model routing (R1 reasoning + 70B code gen + Flash chat)',
+      'Smart model routing (Devstral-2 reasoning/code + GPT-OSS fast chat)',
       'Domain knowledge injection (optional)',
       'Multi-turn 7-step generation pipeline',
       'Post-generation validation (12 automated checks)',

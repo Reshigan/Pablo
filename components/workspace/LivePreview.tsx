@@ -334,7 +334,7 @@ export function LivePreview() {
               content: `Fix this ${error.type} error in the code. Return ONLY the complete fixed file, no markdown fences, no explanation.\n\nERROR: ${error.message}\n\nFILE: ${targetFile.path}\n\nCODE:\n${targetFile.content}`,
             }],
             mode: 'pipeline-stage',
-            model: 'qwen2.5-coder:32b',
+            model: 'devstral-2:123b',
             max_tokens: 8192,
           }),
         });
@@ -437,7 +437,7 @@ export function LivePreview() {
             body: JSON.stringify({
               messages: [{ role: 'user', content: prompt }],
               mode: 'pipeline-stage',
-              model: 'qwen2.5-coder:32b',
+              model: 'devstral-2:123b',
               max_tokens: 16384,
             }),
           });

@@ -322,11 +322,11 @@ async function llmDeepReview(
 }> {
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3:32b',
+    model: 'devstral-2:123b',
     description: 'Production readiness auditor',
     max_tokens: 8192,
     temperature: 0.2,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '15-30 TPS',
   };
 
   const fileContexts = files

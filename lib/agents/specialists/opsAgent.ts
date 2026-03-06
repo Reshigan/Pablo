@@ -28,7 +28,7 @@ export class OpsAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen2.5-coder:32b',
+        model: 'devstral-2:123b',
         description: 'Qwen2.5-Coder 32B for ops tooling',
         max_tokens: 8192,
         temperature: 0.2,

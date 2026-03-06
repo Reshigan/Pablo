@@ -53,7 +53,7 @@ export class ArchitectAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen3:32b',
+        model: 'devstral-2:123b',
         description: 'Qwen3 32B for architecture reasoning',
         max_tokens: 16384,
         temperature: 0.2,

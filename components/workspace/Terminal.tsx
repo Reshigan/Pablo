@@ -87,9 +87,8 @@ export function TerminalPanel() {
       version: () => '\x1b[38;2;212;168;67mPablo IDE\x1b[0m v5.0 — AI-Powered Development Environment',
       models: () => [
         '\x1b[1;38;2;212;168;67mConfigured Models:\x1b[0m',
-        '  \x1b[38;2;167;139;250m●\x1b[0m qwen3:32b          \x1b[38;2;100;116;139m(reasoning & planning)\x1b[0m',
-        '  \x1b[38;2;59;130;246m●\x1b[0m qwen2.5-coder:32b  \x1b[38;2;100;116;139m(code generation)\x1b[0m',
-        '  \x1b[38;2;34;197;94m●\x1b[0m qwen2.5:72b        \x1b[38;2;100;116;139m(chat & docs)\x1b[0m',
+        '  \x1b[38;2;167;139;250m●\x1b[0m devstral-2:123b    \x1b[38;2;100;116;139m(reasoning, planning & code)\x1b[0m',
+        '  \x1b[38;2;34;197;94m●\x1b[0m gpt-oss:20b        \x1b[38;2;100;116;139m(fast chat & docs)\x1b[0m',
       ].join('\r\n'),
       status: () => [
         '\x1b[1;38;2;212;168;67mSession Status:\x1b[0m',

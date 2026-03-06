@@ -36,7 +36,7 @@ export class DocsAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen2.5:72b',
+        model: 'gpt-oss:20b',
         description: 'Qwen2.5 72B for documentation generation',
         max_tokens: 16384,
         temperature: 0.3,

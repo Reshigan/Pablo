@@ -61,11 +61,11 @@ export async function reviewPR(
   const result = await callModel({
     model: {
       provider: 'ollama_cloud',
-      model: 'qwen3:32b',
+      model: 'devstral-2:123b',
       description: 'Code review',
       max_tokens: 8192,
       temperature: 0.2,
-      estimated_speed: '40-80 TPS',
+      estimated_speed: '15-30 TPS',
     },
     systemPrompt: 'You are a senior code reviewer. Output ONLY valid JSON.',
     userMessage: REVIEW_PROMPT.replace('{diff}', diff.slice(0, 50000)),

@@ -33,25 +33,25 @@ export interface RouteDecision {
 }
 
 // Model definitions — Ollama Cloud only (hosted at ollama.com/api)
-// Qwen model stack: small enough to avoid long queues, large enough for quality.
+// Two-model stack: Devstral-2 for reasoning/code, GPT-OSS for fast tasks.
 const MODELS = {
-  qwen3_reasoning: {
+  devstral_primary: {
     provider: 'ollama_cloud' as const,
     model: 'devstral-2:123b',
-    description: 'Devstral-2 123B - reasoning and planning (no thinking mode)',
+    description: 'Devstral-2 123B - reasoning, planning, and code generation',
     max_tokens: 16384,
     temperature: 0.2,
     estimated_speed: '15-30 TPS',
   },
-  qwen25_coder: {
+  devstral_coder: {
     provider: 'ollama_cloud' as const,
     model: 'devstral-2:123b',
-    description: 'Devstral-2 123B - code generation',
+    description: 'Devstral-2 123B - code generation (lower temperature)',
     max_tokens: 16384,
     temperature: 0.1,
     estimated_speed: '15-30 TPS',
   },
-  qwen25_fast: {
+  gpt_oss_fast: {
     provider: 'ollama_cloud' as const,
     model: 'gpt-oss:20b',
     description: 'GPT-OSS 20B - fast general purpose',
@@ -61,66 +61,66 @@ const MODELS = {
   },
 };
 
-// Routing table — Ollama Cloud model stack (qwen3-next, devstral-2, gpt-oss)
+// Routing table — Ollama Cloud model stack (devstral-2, gpt-oss)
 const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
   plan: {
     task_type: 'plan',
-    primary: MODELS.qwen3_reasoning,
-    fallback: MODELS.qwen25_coder,
-    reasoning: 'Planning via Qwen3-Next 80B reasoning. Devstral-2 fallback.',
+    primary: MODELS.devstral_primary,
+    fallback: MODELS.devstral_coder,
+    reasoning: 'Planning via Devstral-2 123B reasoning. Devstral-2 coder fallback.',
   },
   decompose: {
     task_type: 'decompose',
-    primary: MODELS.qwen3_reasoning,
-    fallback: MODELS.qwen25_coder,
-    reasoning: 'Decomposition via Qwen3-Next 80B. Devstral-2 fallback.',
+    primary: MODELS.devstral_primary,
+    fallback: MODELS.devstral_coder,
+    reasoning: 'Decomposition via Devstral-2 123B. Devstral-2 coder fallback.',
   },
   generate: {
     task_type: 'generate',
-    primary: MODELS.qwen25_coder,
-    fallback: MODELS.qwen25_fast,
+    primary: MODELS.devstral_coder,
+    fallback: MODELS.gpt_oss_fast,
     reasoning: 'Code generation via Devstral-2 123B. GPT-OSS 20B fallback.',
   },
   fix: {
     task_type: 'fix',
-    primary: MODELS.qwen25_coder,
-    fallback: MODELS.qwen25_fast,
+    primary: MODELS.devstral_coder,
+    fallback: MODELS.gpt_oss_fast,
     reasoning: 'Fixing code via Devstral-2 123B. GPT-OSS 20B fallback.',
   },
   test: {
     task_type: 'test',
-    primary: MODELS.qwen25_coder,
-    fallback: MODELS.qwen25_fast,
+    primary: MODELS.devstral_coder,
+    fallback: MODELS.gpt_oss_fast,
     reasoning: 'Test generation via Devstral-2 123B. GPT-OSS 20B fallback.',
   },
   review: {
     task_type: 'review',
-    primary: MODELS.qwen3_reasoning,
-    fallback: MODELS.qwen25_fast,
-    reasoning: 'Review via Qwen3-Next 80B reasoning. GPT-OSS 20B fallback.',
+    primary: MODELS.devstral_primary,
+    fallback: MODELS.gpt_oss_fast,
+    reasoning: 'Review via Devstral-2 123B reasoning. GPT-OSS 20B fallback.',
   },
   explain: {
     task_type: 'explain',
-    primary: MODELS.qwen25_fast,
-    fallback: MODELS.qwen3_reasoning,
-    reasoning: 'Explanations via GPT-OSS 20B. Qwen3-Next reasoning fallback.',
+    primary: MODELS.gpt_oss_fast,
+    fallback: MODELS.devstral_primary,
+    reasoning: 'Explanations via GPT-OSS 20B. Devstral-2 reasoning fallback.',
   },
   chat: {
     task_type: 'chat',
-    primary: MODELS.qwen25_fast,
-    fallback: MODELS.qwen3_reasoning,
-    reasoning: 'General chat via GPT-OSS 20B. Qwen3-Next reasoning fallback.',
+    primary: MODELS.gpt_oss_fast,
+    fallback: MODELS.devstral_primary,
+    reasoning: 'General chat via GPT-OSS 20B. Devstral-2 reasoning fallback.',
   },
   seed_data: {
     task_type: 'seed_data',
-    primary: MODELS.qwen25_fast,
-    fallback: MODELS.qwen25_coder,
+    primary: MODELS.gpt_oss_fast,
+    fallback: MODELS.devstral_coder,
     reasoning: 'Seed data via GPT-OSS 20B. Devstral-2 fallback.',
   },
   document: {
     task_type: 'document',
-    primary: MODELS.qwen25_fast,
-    fallback: MODELS.qwen25_coder,
+    primary: MODELS.gpt_oss_fast,
+    fallback: MODELS.devstral_coder,
     reasoning: 'Documentation via GPT-OSS 20B. Devstral-2 fallback.',
   },
 };

@@ -155,12 +155,12 @@ export function MetricsPanel() {
             <>
               <div className="flex items-center gap-2">
                 <Zap size={12} className="text-pablo-purple" />
-                <span className="font-ui text-xs text-pablo-text-dim">qwen3:32b</span>
+                <span className="font-ui text-xs text-pablo-text-dim">devstral-2:123b</span>
                 <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
               </div>
               <div className="flex items-center gap-2">
                 <Code size={12} className="text-pablo-blue" />
-                <span className="font-ui text-xs text-pablo-text-dim">qwen2.5-coder:32b</span>
+                <span className="font-ui text-xs text-pablo-text-dim">gpt-oss:20b</span>
                 <span className="ml-auto font-code text-[10px] text-pablo-text-muted">0 calls</span>
               </div>
             </>

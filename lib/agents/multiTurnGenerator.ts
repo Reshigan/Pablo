@@ -288,27 +288,27 @@ function getModels(): ModelSet {
   return {
     reasoner: {
       provider: 'ollama_cloud',
-      model: 'qwen3:32b',
-      description: 'Qwen3 32B for reasoning (Ollama Cloud)',
+      model: 'devstral-2:123b',
+      description: 'Devstral-2 123B for reasoning (Ollama Cloud)',
       max_tokens: 16384,
       temperature: 0.2,
-      estimated_speed: '40-80 TPS',
+      estimated_speed: '15-30 TPS',
     },
     coder: {
       provider: 'ollama_cloud',
-      model: 'qwen2.5-coder:32b',
-      description: 'Qwen2.5-Coder 32B for code gen (Ollama Cloud)',
+      model: 'devstral-2:123b',
+      description: 'Devstral-2 123B for code gen (Ollama Cloud)',
       max_tokens: 16384,
       temperature: 0.1,
-      estimated_speed: '40-80 TPS',
+      estimated_speed: '15-30 TPS',
     },
     fast: {
       provider: 'ollama_cloud',
-      model: 'qwen2.5:72b',
-      description: 'Qwen2.5 72B for fast tasks (Ollama Cloud)',
+      model: 'gpt-oss:20b',
+      description: 'GPT-OSS 20B for fast tasks (Ollama Cloud)',
       max_tokens: 8192,
       temperature: 0.3,
-      estimated_speed: '30-60 TPS',
+      estimated_speed: '50-100 TPS',
     },
   };
 }

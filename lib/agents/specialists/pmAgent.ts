@@ -50,7 +50,7 @@ export class PMAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen3:32b',
+        model: 'devstral-2:123b',
         description: 'Qwen3 32B for requirements analysis',
         max_tokens: 8192,
         temperature: 0.3,

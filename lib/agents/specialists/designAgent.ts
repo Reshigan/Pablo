@@ -38,7 +38,7 @@ export class DesignAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen2.5:72b',
+        model: 'gpt-oss:20b',
         description: 'Qwen2.5 72B for design token generation',
         max_tokens: 8192,
         temperature: 0.3,

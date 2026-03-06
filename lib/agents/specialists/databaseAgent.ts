@@ -43,7 +43,7 @@ export class DatabaseAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen2.5-coder:32b',
+        model: 'devstral-2:123b',
         description: 'Qwen2.5-Coder 32B for database schema design',
         max_tokens: 16384,
         temperature: 0.2,

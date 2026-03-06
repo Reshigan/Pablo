@@ -17,9 +17,8 @@ async function getDBAsync(): Promise<D1Database | null> {
 
 // Pricing per 1M tokens (approximate for Ollama Cloud)
 const MODEL_PRICING: Record<string, { inputPer1M: number; outputPer1M: number }> = {
-  'qwen3:32b':           { inputPer1M: 0.10, outputPer1M: 0.20 },
-  'qwen2.5-coder:32b':  { inputPer1M: 0.10, outputPer1M: 0.20 },
-  'qwen2.5:72b':         { inputPer1M: 0.10, outputPer1M: 0.20 },
+  'devstral-2:123b':     { inputPer1M: 0.10, outputPer1M: 0.20 },
+  'gpt-oss:20b':         { inputPer1M: 0.05, outputPer1M: 0.10 },
 };
 
 export interface LLMCallRecord {
