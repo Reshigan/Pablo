@@ -137,7 +137,9 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
   }
 
   // Restore pipeline runs (replace entire runs array)
-  usePipelineStore.setState({ runs: snapshot.pipelineRuns, activeRunId: null });
+  // Set activeRunId to the most recent run so EditorPanel shows PipelineView
+  const lastRunId = snapshot.pipelineRuns.length > 0 ? snapshot.pipelineRuns[0].id : null;
+  usePipelineStore.setState({ runs: snapshot.pipelineRuns, activeRunId: lastRunId });
 
   // Restore editor tabs
   useEditorStore.setState({
@@ -313,7 +315,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }),
       });
       if (res.ok) {
-        set({ isSaving: false, lastSavedAt: new Date().toISOString() });
+        // Update local session state with repo info so sidebar shows it immediately
+        const repoFullName = repo.selectedRepo?.full_name ?? null;
+        const repoBranch = repo.selectedBranch;
+        set((state) => ({
+          isSaving: false,
+          lastSavedAt: new Date().toISOString(),
+          sessions: state.sessions.map((s) =>
+            s.id === savingSessionId
+              ? { ...s, repoFullName: repoFullName ?? s.repoFullName, repoBranch: repoBranch ?? s.repoBranch }
+              : s
+          ),
+        }));
       } else {
         set({ isSaving: false });
         toastError('Save failed', `Server returned ${res.status}`);
