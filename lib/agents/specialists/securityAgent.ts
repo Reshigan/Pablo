@@ -47,10 +47,10 @@ export class SecurityAgent extends BaseAgent {
       model: {
         provider: 'ollama_cloud',
         model: 'devstral-2:123b',
-        description: 'Qwen3 32B for security reasoning',
+        description: 'Devstral-2 123B for security reasoning',
         max_tokens: 16384,
         temperature: 0.1,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '15-30 TPS',
       },
       fileScope: [], // SecurityAgent writes no files
       maxOutputTokens: 16384,

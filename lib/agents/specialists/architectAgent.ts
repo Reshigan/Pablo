@@ -54,10 +54,10 @@ export class ArchitectAgent extends BaseAgent {
       model: {
         provider: 'ollama_cloud',
         model: 'devstral-2:123b',
-        description: 'Qwen3 32B for architecture reasoning',
+        description: 'Devstral-2 123B for architecture reasoning',
         max_tokens: 16384,
         temperature: 0.2,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '15-30 TPS',
       },
       fileScope: [], // ArchitectAgent doesn't write code files
       maxOutputTokens: 16384,

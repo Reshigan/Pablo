@@ -43,10 +43,10 @@ export class ReviewAgent extends BaseAgent {
       model: {
         provider: 'ollama_cloud',
         model: 'devstral-2:123b',
-        description: 'Qwen3 32B for code review reasoning',
+        description: 'Devstral-2 123B for code review reasoning',
         max_tokens: 16384,
         temperature: 0.1,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '15-30 TPS',
       },
       fileScope: [], // ReviewAgent writes no files
       maxOutputTokens: 16384,

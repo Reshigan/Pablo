@@ -31,10 +31,10 @@ export class InfraAgent extends BaseAgent {
       model: {
         provider: 'ollama_cloud',
         model: 'devstral-2:123b',
-        description: 'Qwen2.5-Coder 32B for infra config generation',
+        description: 'Devstral-2 123B for infra config generation',
         max_tokens: 16384,
         temperature: 0.2,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '15-30 TPS',
       },
       fileScope: [
         /^wrangler\./,
