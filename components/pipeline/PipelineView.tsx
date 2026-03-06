@@ -323,13 +323,20 @@ export function PipelineView() {
     // Extract what the user explicitly requested (no defaults applied)
     const explicitHints = extractExplicitStack(description);
 
-    // Enterprise: fetch business rules once for the entire pipeline run
+    // Enterprise: fetch business rules once for the entire pipeline run.
+    // IMPORTANT: d1-business-rules imports @opennextjs/cloudflare (server-only).
+    // The dynamic import can hang forever in the browser, so we race it with a 3s timeout.
     let businessRulesPrompt = '';
     try {
-      const { getActiveRulesPrompt } = await import('@/lib/db/d1-business-rules');
-      businessRulesPrompt = await getActiveRulesPrompt();
+      businessRulesPrompt = await Promise.race([
+        (async () => {
+          const { getActiveRulesPrompt } = await import('@/lib/db/d1-business-rules');
+          return await getActiveRulesPrompt();
+        })(),
+        new Promise<string>((_, reject) => setTimeout(() => reject(new Error('timeout')), 3000)),
+      ]);
     } catch {
-      // Non-blocking — rules are optional
+      // Non-blocking — rules are optional (timeout, import failure, or D1 unavailable)
     }
 
     const controller = new AbortController();
