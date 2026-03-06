@@ -46,11 +46,11 @@ export class SecurityAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'deepseek-v3.2',
-        description: 'DeepSeek V3.2 for security reasoning',
+        model: 'qwen3:32b',
+        description: 'Qwen3 32B for security reasoning',
         max_tokens: 16384,
         temperature: 0.1,
-        estimated_speed: '20-50 TPS',
+        estimated_speed: '40-80 TPS',
       },
       fileScope: [], // SecurityAgent writes no files
       maxOutputTokens: 16384,

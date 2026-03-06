@@ -53,11 +53,11 @@ export class ArchitectAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'deepseek-v3.2',
-        description: 'DeepSeek V3.2 for architecture reasoning',
+        model: 'qwen3:32b',
+        description: 'Qwen3 32B for architecture reasoning',
         max_tokens: 16384,
         temperature: 0.2,
-        estimated_speed: '20-50 TPS',
+        estimated_speed: '40-80 TPS',
       },
       fileScope: [], // ArchitectAgent doesn't write code files
       maxOutputTokens: 16384,

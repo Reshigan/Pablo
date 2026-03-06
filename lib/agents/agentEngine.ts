@@ -84,29 +84,29 @@ export type AgentEventCallback = (event: AgentEvent) => void;
 
 const PLANNER_MODEL: ModelConfig = {
   provider: 'ollama_cloud',
-  model: 'deepseek-v3.2',
-  description: 'DeepSeek V3.2 for planning and reasoning',
+  model: 'qwen3:32b',
+  description: 'Qwen3 32B for planning and reasoning',
   max_tokens: 16384,
   temperature: 0.2,
-  estimated_speed: '20-50 TPS',
+  estimated_speed: '40-80 TPS',
 };
 
 const CODER_MODEL: ModelConfig = {
   provider: 'ollama_cloud',
-  model: 'qwen3-coder:480b',
-  description: 'Qwen3-Coder 480B for code generation',
+  model: 'qwen2.5-coder:32b',
+  description: 'Qwen2.5-Coder 32B for code generation',
   max_tokens: 16384,
   temperature: 0.1,
-  estimated_speed: '30-100 TPS',
+  estimated_speed: '40-80 TPS',
 };
 
 const FAST_MODEL: ModelConfig = {
   provider: 'ollama_cloud',
-  model: 'gpt-oss:120b',
-  description: 'GPT-OSS 120B for fast tasks',
+  model: 'qwen2.5:72b',
+  description: 'Qwen2.5 72B for fast tasks',
   max_tokens: 8192,
   temperature: 0.3,
-  estimated_speed: '40-80 TPS',
+  estimated_speed: '30-60 TPS',
 };
 
 // ─── Planning ────────────────────────────────────────────────────────

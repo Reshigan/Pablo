@@ -176,9 +176,9 @@ export async function GET() {
       'Tool system: file ops, search, grep, glob, git',
     ],
     models: {
-      planner: 'deepseek-v3.2 (Ollama Cloud)',
-      coder: 'qwen3-coder:480b (Ollama Cloud)',
-      fast: 'gpt-oss:120b (Ollama Cloud)',
+      planner: 'qwen3:32b (Ollama Cloud)',
+      coder: 'qwen2.5-coder:32b (Ollama Cloud)',
+      fast: 'qwen2.5:72b (Ollama Cloud)',
     },
     step_types: [
       'plan', 'read_file', 'write_file', 'edit_file', 'search',

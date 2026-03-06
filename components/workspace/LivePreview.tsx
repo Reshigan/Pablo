@@ -11,6 +11,7 @@ import {
   Play,
   Wrench,
   Crosshair,
+  CheckCircle2,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
@@ -107,6 +108,8 @@ export function LivePreview() {
   const [isAutoFixing, setIsAutoFixing] = useState(false);
   const [inspectMode, setInspectMode] = useState(false);
   const [selectedElement, setSelectedElement] = useState<{ tagName: string; className: string; componentName?: string; selector: string } | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifyResult, setVerifyResult] = useState<{ passed: boolean; errors: string[]; fixAttempts: number } | null>(null);
   const terminalRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const prevFilesRef = useRef<string>('');
@@ -331,7 +334,7 @@ export function LivePreview() {
               content: `Fix this ${error.type} error in the code. Return ONLY the complete fixed file, no markdown fences, no explanation.\n\nERROR: ${error.message}\n\nFILE: ${targetFile.path}\n\nCODE:\n${targetFile.content}`,
             }],
             mode: 'pipeline-stage',
-            model: 'qwen3-coder:480b',
+            model: 'qwen2.5-coder:32b',
             max_tokens: 8192,
           }),
         });
@@ -389,6 +392,120 @@ export function LivePreview() {
       setIsAutoFixing(false);
     }
   }, [currentOutput, appendLog]);
+
+  // Verification loop handler (CHANGE 4: wired into LivePreview)
+  const handleVerify = useCallback(async () => {
+    if (runtime !== 'webcontainer' || runtimeStatus !== 'ready') {
+      toast('Verify', 'Run the WebContainer first (click Run)');
+      return;
+    }
+
+    setIsVerifying(true);
+    setVerifyResult(null);
+    setShowTerminal(true);
+    appendLog('\n--- Verification Loop Started ---\n');
+
+    try {
+      const { runVerificationLoop } = await import('@/lib/agents/verificationLoop');
+      const wcRuntime = await import('@/lib/preview/webcontainerRuntime');
+
+      const files = previewFiles.map(f => ({ path: f.path, content: f.content, language: f.language }));
+
+      const result = await runVerificationLoop(files, {
+        onStatusChange: (status) => {
+          appendLog(`[Verify] ${status}\n`);
+        },
+        onOutput: (output) => {
+          appendLog(output);
+        },
+        writeFiles: async (filesToWrite) => {
+          for (const f of filesToWrite) {
+            await wcRuntime.writeFile(f.path, f.content);
+          }
+        },
+        runCommand: async (cmd, args) => {
+          let output = '';
+          const exitCode = await wcRuntime.runCommand(cmd, args, (data) => {
+            output += data;
+          });
+          return { output, exitCode };
+        },
+        callLLM: async (prompt: string) => {
+          const response = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: prompt }],
+              mode: 'pipeline-stage',
+              model: 'qwen2.5-coder:32b',
+              max_tokens: 16384,
+            }),
+          });
+          if (!response.ok) throw new Error(`LLM API error: ${response.status}`);
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error('No response body');
+          const decoder = new TextDecoder();
+          let result = '';
+          let buf = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop() ?? '';
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const data = line.slice(6);
+                if (data === '[DONE]') continue;
+                try {
+                  const parsed = JSON.parse(data) as { content?: string; thinking?: boolean };
+                  if (parsed.content && !parsed.thinking) result += parsed.content;
+                } catch { /* skip */ }
+              }
+            }
+          }
+          return result;
+        },
+      }, 3);
+
+      setVerifyResult({ passed: result.passed, errors: result.errors, fixAttempts: result.fixAttempts });
+
+      if (result.passed) {
+        appendLog('\n--- Verification PASSED ---\n');
+        toast('Verify', 'Build and tests passed!');
+      } else {
+        appendLog(`\n--- Verification FAILED (${result.fixAttempts} fix attempts) ---\n`);
+        toast('Verify', `Failed after ${result.fixAttempts} fix attempts`);
+      }
+
+      // Apply any fixed files back to editor as diffs
+      if (result.fixAttempts > 0) {
+        const editorStore = useEditorStore.getState();
+        let diffsAdded = 0;
+        for (const fixed of result.files) {
+          const original = previewFiles.find(f => f.path === fixed.path);
+          if (original && original.content !== fixed.content) {
+            editorStore.addDiff({
+              fileId: `verify-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              filename: fixed.path,
+              language: fixed.language,
+              oldContent: original.content,
+              newContent: fixed.content,
+            });
+            diffsAdded++;
+          }
+        }
+        if (diffsAdded > 0) {
+          toast('Verify', 'Fixed files ready for review in Diff tab');
+        }
+      }
+    } catch (err) {
+      appendLog(`[Verify] Error: ${err instanceof Error ? err.message : err}\n`);
+      setVerifyResult({ passed: false, errors: [String(err)], fixAttempts: 0 });
+    } finally {
+      setIsVerifying(false);
+    }
+  }, [runtime, runtimeStatus, previewFiles, appendLog]);
 
   // Suppress unused variable warning - runs is used for reactivity
   void runs;
@@ -456,6 +573,30 @@ export function LivePreview() {
             <Loader2 size={10} className="animate-spin text-pablo-gold" />
             <span className="font-ui text-[10px] text-pablo-gold">Fixing...</span>
           </div>
+        )}
+
+        {/* Verify button — runs build-test-fix loop in WebContainer */}
+        {runtime === 'webcontainer' && runtimeStatus === 'ready' && !isVerifying && (
+          <button
+            onClick={handleVerify}
+            className="flex items-center gap-1 rounded bg-pablo-green/10 px-2 py-0.5 font-ui text-[10px] text-pablo-green transition-colors hover:bg-pablo-green/20"
+          >
+            <CheckCircle2 size={10} />
+            Verify
+          </button>
+        )}
+        {isVerifying && (
+          <div className="flex items-center gap-1 rounded bg-pablo-gold/10 px-2 py-0.5">
+            <Loader2 size={10} className="animate-spin text-pablo-gold" />
+            <span className="font-ui text-[10px] text-pablo-gold">Verifying...</span>
+          </div>
+        )}
+        {verifyResult && !isVerifying && (
+          <span className={`rounded px-1.5 py-0.5 font-code text-[9px] ${
+            verifyResult.passed ? 'bg-pablo-green/10 text-pablo-green' : 'bg-pablo-red/10 text-pablo-red'
+          }`}>
+            {verifyResult.passed ? 'PASS' : `FAIL (${verifyResult.fixAttempts} fixes)`}
+          </span>
         )}
 
         {/* Inspect mode toggle (Preview Bridge) */}

@@ -90,7 +90,7 @@ interface ChatRequestBody {
  * Get environment config from Cloudflare Worker context or process.env
  */
 /** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
+const OLLAMA_CLOUD_URL = 'https://api.ollama.ai/v1';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {
@@ -459,23 +459,23 @@ Rules:
     ...messages.filter((m) => m.role !== 'system'),
   ];
 
-  // Resolve model name: map legacy names to actual Ollama Cloud models
+  // Resolve model name: map legacy names to current Qwen model stack
   const MODEL_ALIASES: Record<string, string> = {
-    'deepseek-r1': 'devstral-2:123b',
-    'qwen3-coder-next': 'devstral-2:123b',
-    // Legacy aliases — redirect to fast models since 480B/671B queue for 10+ min
-    'deepseek-v3.2': 'devstral-2:123b',
-    'qwen3-coder:480b': 'devstral-2:123b',
+    'deepseek-r1': 'qwen3:32b',
+    'qwen3-coder-next': 'qwen2.5-coder:32b',
+    'deepseek-v3.2': 'qwen3:32b',
+    'qwen3-coder:480b': 'qwen2.5-coder:32b',
+    'devstral-2:123b': 'qwen2.5-coder:32b',
+    'gpt-oss:120b': 'qwen2.5:72b',
   };
   const resolvedModel = modelOverride ? (MODEL_ALIASES[modelOverride] || modelOverride) : undefined;
 
-  // Fallback chain: fast models first, then larger models.
-  // devstral-2:123b and gpt-oss:120b respond in seconds on Ollama Cloud.
-  // The 480B/671B models frequently queue for 10+ minutes.
+  // Fallback chain: Qwen model stack (32B-72B range, no long queues)
   const modelsToTry = [
     ...(resolvedModel ? [resolvedModel] : []),
-    'devstral-2:123b',
-    'gpt-oss:120b',
+    'qwen2.5-coder:32b',
+    'qwen3:32b',
+    'qwen2.5:72b',
   ];
   // De-duplicate in case resolvedModel is already in the fallback list
   const uniqueModels = [...new Set(modelsToTry)];
@@ -701,10 +701,11 @@ export async function GET() {
       'Post-generation validation (12 automated checks)',
       'Auto-fix loop (up to 3 iterations)',
     ],
-    provider: 'Ollama Cloud (ollama.com)',
+    provider: 'Ollama Cloud (api.ollama.ai)',
     models: {
-      code_generation: 'devstral-2:123b',
-      fast_chat: 'gpt-oss:120b',
+      reasoning: 'qwen3:32b',
+      code_generation: 'qwen2.5-coder:32b',
+      fast_chat: 'qwen2.5:72b',
     },
   });
 }

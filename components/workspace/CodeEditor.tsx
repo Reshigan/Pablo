@@ -199,7 +199,7 @@ CODE TO EDIT:
 ${selectedText}`,
           }],
           mode: 'pipeline-stage',
-          model: 'qwen3-coder:480b',
+          model: 'qwen2.5-coder:32b',
           max_tokens: 4096,
         }),
       });

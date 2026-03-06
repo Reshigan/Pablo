@@ -205,28 +205,25 @@ export function resolveTechStack(
 
 // ─── Pipeline Stages ─────────────────────────────────────────────────────────
 
-// Model selection: Use models that are reliably responsive on Ollama Cloud.
-// The 480B/671B models (qwen3-coder:480b, deepseek-v3.2) frequently queue for
-// 10+ minutes on Ollama Cloud, causing pipelines to stall. Use fast, reliable
-// models as primary and let the server-side handlePipelineStage() fallback chain
-// try larger models if the primary fails.
+// Model selection: Qwen model stack — small enough to avoid Ollama Cloud queues,
+// large enough for quality code generation.
 export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
-  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'devstral-2:123b' },
-  { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'devstral-2:123b' },
-  { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'devstral-2:123b' },
-  { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'devstral-2:123b' },
-  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'gpt-oss:120b' },
-  { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'devstral-2:123b' },
-  { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'devstral-2:123b' },
-  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'gpt-oss:120b' },
+  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'qwen3:32b' },
+  { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'qwen2.5-coder:32b' },
+  { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'qwen2.5-coder:32b' },
+  { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'qwen2.5-coder:32b' },
+  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'qwen2.5:72b' },
+  { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'qwen2.5-coder:32b' },
+  { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'qwen2.5-coder:32b' },
+  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'qwen3:32b' },
 ];
 
 // ─── Incremental Pipeline Stages ────────────────────────────────────────────
 
 export const INCREMENTAL_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
-  { id: 'analyze', label: 'Analyze', description: 'Analyze codebase and find relevant files', model: 'gpt-oss:120b' },
-  { id: 'fix', label: 'Fix', description: 'Generate targeted fixes for identified issues', model: 'devstral-2:123b' },
-  { id: 'implement', label: 'Implement', description: 'Implement new code changes', model: 'devstral-2:123b' },
+  { id: 'analyze', label: 'Analyze', description: 'Analyze codebase and find relevant files', model: 'qwen2.5:72b' },
+  { id: 'fix', label: 'Fix', description: 'Generate targeted fixes for identified issues', model: 'qwen2.5-coder:32b' },
+  { id: 'implement', label: 'Implement', description: 'Implement new code changes', model: 'qwen2.5-coder:32b' },
 ];
 
 /**
@@ -254,7 +251,7 @@ export function selectStages(mode: PipelineMode): PipelineStage[] {
  */
 export function getStageMetadata(stageId: PipelineStage): { label: string; description: string; model: string } {
   const all = [...PIPELINE_STAGES, ...INCREMENTAL_STAGES];
-  return all.find((s) => s.id === stageId) ?? { label: stageId, description: '', model: 'devstral-2:123b' };
+  return all.find((s) => s.id === stageId) ?? { label: stageId, description: '', model: 'qwen2.5-coder:32b' };
 }
 
 // ─── Store ───────────────────────────────────────────────────────────────────

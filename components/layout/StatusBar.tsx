@@ -18,7 +18,7 @@ export function StatusBar() {
   const { selectedRepo, selectedBranch } = useRepoStore();
   const { tabs, activeTabId } = useEditorStore();
   const { totalTokens } = useChatStore();
-  const currentModel = useChatStore(s => s.currentModel) || 'deepseek-v3.2';
+  const currentModel = useChatStore(s => s.currentModel) || 'qwen3:32b';
   const runs = usePipelineStore(s => s.runs);
   const activeRun = useMemo(() => runs.find(r => r.status === 'running'), [runs]);
   const activeStage = useMemo(() => activeRun?.stages.find((s: { status: string }) => s.status === 'running'), [activeRun]);
