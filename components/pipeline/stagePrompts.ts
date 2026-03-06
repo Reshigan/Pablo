@@ -93,6 +93,61 @@ List each issue with severity (critical/warning/info) and a specific fix.`,
 - Wire all new UI to real handlers and API calls.
 - Include proper error handling and loading states.
 - Output complete, runnable code files.`,
+
+  enterprise: `Perform a mandatory enterprise production-readiness review of
+ALL generated code from previous stages. This stage has zero tolerance for
+missing enterprise patterns.
+
+## SECTION 1 — Observability Audit
+Check every backend service/route file. For each file report PASS or FAIL:
+- [ ] /health endpoint present and returns dependency status
+- [ ] Structured logging (not raw console.log) on all routes
+- [ ] Request ID (UUID) generated per request and returned in X-Request-ID header
+- [ ] Request duration (ms) logged on every route completion
+- [ ] Global error handler catches and logs unhandled errors with stack trace
+
+## SECTION 2 — API Versioning Audit
+- [ ] All API routes are prefixed with /api/v1/ (not just /api/)
+- [ ] Version header (API-Version: 1.0) returned on all responses
+- [ ] If breaking changes exist across stages, a /api/v2/ path is introduced
+     rather than modifying /api/v1/
+
+## SECTION 3 — Multi-Environment Config Audit
+- [ ] .env.example covers: development, staging, production variables
+- [ ] No hardcoded environment-specific values (URLs, ports, credentials)
+- [ ] Database connection strings use environment variables
+- [ ] CORS origins use environment variables (not hardcoded domains)
+- [ ] Log level is controlled by environment variable (LOG_LEVEL=info/debug/error)
+
+## SECTION 4 — Database Migration Safety Audit
+- [ ] All schema changes use migrations (not raw ALTER TABLE in app code)
+- [ ] Migrations are additive where possible (add columns, do not rename or drop)
+- [ ] Any column removal has a two-phase approach:
+     Phase 1: mark deprecated, stop writing to it
+     Phase 2: drop in a subsequent migration
+- [ ] All migrations have a rollback (DOWN migration) defined
+- [ ] No migration truncates or destroys existing data without explicit warning
+
+## SECTION 5 — Test Quality Audit
+- [ ] Tests cover happy path for every endpoint
+- [ ] Tests cover at least 2 error cases per endpoint (invalid input, auth failure)
+- [ ] Tests cover at least 1 edge case per endpoint (empty list, max values)
+- [ ] Test file names match source file names (auth.test.ts for auth.ts)
+- [ ] No test uses hardcoded test data that would fail in a different timezone
+
+## SECTION 6 — Compliance Audit (context-dependent)
+Apply ONLY the checks relevant to the user's stated domain:
+- If POPIA applies: personal data fields are flagged, consent tracking exists,
+  PII is masked in logs
+- If financial data: amounts stored as integers (cents), never floats
+- If medical/health data: audit trail on every record change exists
+- If multi-tenant: every query includes tenant/company_id filter
+
+## OUTPUT FORMAT
+For each section list every item as PASS, FAIL, or N/A.
+For every FAIL: output the complete corrected file(s) as markdown code blocks.
+Do not output partial fixes — every corrected file must be complete and runnable.
+Summary line at end: X/Y checks passed. Z files corrected.`,
 };
 
 /**
@@ -116,6 +171,7 @@ export function buildStagePrompt(
   previousOutputs: string[],
   techStack?: TechStackHint,
   explicitHints?: Partial<TechStackHint>,
+  businessRulesPrompt?: string,
 ): string {
   const trimmedPrevious = previousOutputs.map((o) => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
 
@@ -173,10 +229,17 @@ Do NOT use any other framework, language, or library. Do NOT switch languages. E
     // Non-blocking — .pablo rules are optional
   }
 
+  // Enterprise: inject business rules into the prompt for enterprise + review stages
+  let rulesBlock = '';
+  if (businessRulesPrompt && (stage.id === 'enterprise' || stage.id === 'review')) {
+    rulesBlock = businessRulesPrompt;
+  }
+
   const parts = [
     `Feature: ${featureDescription}`,
     stackBlock,
     pabloRulesBlock,
+    rulesBlock,
     `\nYour task (${stage.label}): ${STAGE_INSTRUCTIONS[stage.id]}`,
     '\nOutput format: For any code, respond with markdown code blocks that include filenames with full paths (e.g. ```tsx src/components/Dashboard.tsx).',
   ];

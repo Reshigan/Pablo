@@ -110,7 +110,7 @@ export function WelcomeModal() {
             <Zap size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
             <div>
               <p className="font-ui text-[11px] font-medium text-pablo-text-dim">AI Pipeline</p>
-              <p className="font-ui text-[10px] text-pablo-text-muted">Describe any app and Pablo builds it through an 8-stage AI pipeline</p>
+              <p className="font-ui text-[10px] text-pablo-text-muted">Describe any app and Pablo builds it through a 9-stage AI pipeline</p>
             </div>
           </div>
         </div>

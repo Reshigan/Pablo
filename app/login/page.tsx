@@ -42,7 +42,7 @@ export default function LoginPage() {
             Build SaaS in minutes, not months
           </p>
           <p className="font-ui text-xs text-pablo-text-muted text-center max-w-xs">
-            AI-Powered IDE with an 8-stage pipeline that plans, builds, tests &amp; deploys your full-stack app.
+            AI-Powered IDE with a 9-stage pipeline that plans, builds, tests, audits &amp; deploys your full-stack app.
           </p>
         </div>
 
@@ -112,7 +112,7 @@ export default function LoginPage() {
           <ul className="mt-4 space-y-2.5">
             {[
               { icon: GitBranch, text: 'Access your GitHub repositories directly in the IDE' },
-              { icon: Cpu, text: '8-stage Feature Factory pipeline with UX validation' },
+              { icon: Cpu, text: '9-stage Feature Factory pipeline with enterprise audit' },
               { icon: Code2, text: 'Monaco editor with AI-assisted code generation' },
               { icon: Rocket, text: 'One-click deploy to Cloudflare Pages' },
             ].map(({ icon: Icon, text }) => (

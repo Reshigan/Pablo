@@ -1,6 +1,6 @@
 // lib/agents/incrementalPipeline.ts
 // Incremental pipeline for bug fixes, feature additions, and refactoring
-// Unlike the full 8-stage Build pipeline, this is a focused 4-stage pipeline:
+// Unlike the full 9-stage Build pipeline, this is a focused 4-stage pipeline:
 // 1. Analyze → 2. Plan → 3. Implement → 4. Review
 
 import { callModel, type EnvConfig } from './modelRouter';

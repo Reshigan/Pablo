@@ -58,6 +58,27 @@ When generating code, ALWAYS follow this structure:
 5. **Seed data** — realistic demo data
 6. **Run instructions** — exact commands to start the application
 
+### Observability (MANDATORY on every backend service generation)
+1. ALWAYS include a /health endpoint that returns:
+   - HTTP 200 with JSON: { status: 'ok', version, uptime, timestamp }
+   - If dependencies exist (DB, cache, external APIs): check each one and
+     return { status: 'degraded' | 'ok', checks: { db: bool, cache: bool } }
+2. ALWAYS add structured logging — never raw console.log in production code:
+   - Node.js: use a logger object with .info(), .warn(), .error() and include
+     { timestamp, level, message, requestId, userId } on every log line
+   - Python: use structlog or logging with a JSON formatter
+   - Every API route MUST log: method, path, statusCode, durationMs on completion
+3. ALWAYS add a request ID header:
+   - Generate a UUID per request (crypto.randomUUID() or uuid4())
+   - Attach to response as X-Request-ID header
+   - Include requestId in all log lines for that request
+4. ALWAYS add error tracking hooks:
+   - Wrap global error handlers to log full stack traces with requestId
+   - Never swallow errors silently — log them even if you recover gracefully
+5. ALWAYS add basic performance timing:
+   - Record request start time
+   - Log duration_ms on every request completion
+
 ## SELF-CHECK BEFORE RESPONDING
 
 Before sending any generated code, verify:
@@ -70,6 +91,11 @@ Before sending any generated code, verify:
 - [ ] All DB operations have error handling
 - [ ] No hardcoded secrets
 - [ ] Every file is complete and runnable — not a snippet, not a placeholder
+- [ ] /health endpoint exists and checks dependencies
+- [ ] Structured logging (not raw console.log) on all routes
+- [ ] Request ID generated and attached to response headers
+- [ ] Global error handler logs stack traces with requestId
+- [ ] Request duration logged on every route
 
 {domain_knowledge}
 {patterns}

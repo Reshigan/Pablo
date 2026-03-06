@@ -95,8 +95,9 @@ async function runStageWithChat(
   abortSignal: AbortSignal,
   techStack?: TechStackHint,
   explicitHints?: Partial<TechStackHint>,
+  businessRulesPrompt?: string,
 ): Promise<{ output: string; tokens: number }> {
-  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs, techStack, explicitHints);
+  const prompt = buildStagePrompt(featureDescription, stage, previousOutputs, techStack, explicitHints, businessRulesPrompt);
 
   // Create a per-stage abort that fires on timeout OR user cancel
   const stageAbort = new AbortController();
@@ -195,12 +196,13 @@ async function runStageWithRetry(
   abortSignal: AbortSignal,
   techStack?: TechStackHint,
   explicitHints?: Partial<TechStackHint>,
+  businessRulesPrompt?: string,
 ): Promise<{ output: string; tokens: number }> {
   let lastError: Error | null = null;
   for (let attempt = 0; attempt <= MAX_STAGE_RETRIES; attempt++) {
     if (abortSignal.aborted) throw new Error('Aborted');
     try {
-      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal, techStack, explicitHints);
+      return await runStageWithChat(featureDescription, stage, previousOutputs, abortSignal, techStack, explicitHints, businessRulesPrompt);
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (abortSignal.aborted) throw lastError;
@@ -323,6 +325,15 @@ export function PipelineView() {
     // Extract what the user explicitly requested (no defaults applied)
     const explicitHints = extractExplicitStack(description);
 
+    // Enterprise: fetch business rules once for the entire pipeline run
+    let businessRulesPrompt = '';
+    try {
+      const { getActiveRulesPrompt } = await import('@/lib/db/d1-business-rules');
+      businessRulesPrompt = await getActiveRulesPrompt();
+    } catch {
+      // Non-blocking — rules are optional
+    }
+
     const controller = new AbortController();
     abortRef.current = controller;
     const previousOutputs: string[] = [];
@@ -346,6 +357,7 @@ export function PipelineView() {
             description, stage, previousOutputs, controller.signal,
             resolvedStack,    // undefined for Plan, resolved for stages 2-8
             explicitHints,    // user's explicit mentions (Plan stage uses these)
+            businessRulesPrompt, // enterprise rules injected into review + enterprise stages
           );
           const durationMs = Date.now() - startTime;
 
@@ -489,6 +501,31 @@ export function PipelineView() {
             useUIStore.getState().setActiveWorkspaceTab('diff');
           }
 
+          // Standards Enforcer — run built-in rule detectors on all generated files
+          try {
+            const { enforceRules, formatReport } = await import('@/lib/agents/standardsEnforcer');
+            const allOutput = previousOutputs.join('\n---\n');
+            const enforcementReport = await enforceRules(allOutput);
+            if (enforcementReport.totalViolations > 0) {
+              const reportText = formatReport(enforcementReport);
+              // Append enforcement report to the enterprise stage output
+              const enterpriseStage = completedRun.stages.find(s => s.stage === 'enterprise');
+              if (enterpriseStage) {
+                updateStage(runId, 'enterprise', {
+                  output: (enterpriseStage.output ?? '') + '\n\n' + reportText,
+                });
+              }
+              useToastStore.getState().addToast({
+                type: enforcementReport.errors > 0 ? 'error' : 'warning',
+                title: `Standards: ${enforcementReport.passRate} pass rate`,
+                message: `${enforcementReport.totalViolations} violation(s) found (${enforcementReport.errors} errors, ${enforcementReport.warnings} warnings)`,
+                duration: 6000,
+              });
+            }
+          } catch {
+            // Non-blocking — standards enforcement is optional
+          }
+
           // Production Readiness Score — evaluate generated code quality
           try {
             const readinessFiles = allParsedFiles.map(f => ({
@@ -561,7 +598,7 @@ export function PipelineView() {
               sessionId: 'default',
               featureDescription: description,
               status: 'completed',
-              currentStage: 'review',
+              currentStage: (completedRun.stages[completedRun.stages.length - 1]?.stage ?? 'enterprise') as 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review' | 'enterprise',
               totalTokens: completedRun.totalTokens,
               totalDurationMs: completedRun.totalDurationMs,
             });
