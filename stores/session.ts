@@ -137,7 +137,9 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
   }
 
   // Restore pipeline runs (replace entire runs array)
-  usePipelineStore.setState({ runs: snapshot.pipelineRuns, activeRunId: null });
+  // Set activeRunId to the most recent run so EditorPanel shows PipelineView
+  const lastRunId = snapshot.pipelineRuns.length > 0 ? snapshot.pipelineRuns[0].id : null;
+  usePipelineStore.setState({ runs: snapshot.pipelineRuns, activeRunId: lastRunId });
 
   // Restore editor tabs
   useEditorStore.setState({

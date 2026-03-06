@@ -115,17 +115,33 @@ export function LivePreview() {
   const prevFilesRef = useRef<string>('');
 
   const tabs = useEditorStore((s) => s.tabs);
+  const pendingDiffs = useEditorStore((s) => s.pendingDiffs);
   const runs = usePipelineStore((s) => s.runs);
 
-  // Convert editor tabs to PreviewFile format
+  // Convert editor tabs to PreviewFile format.
+  // Also include accepted/pending diffs as preview files when tabs are empty,
+  // so the preview works before user manually accepts all diffs.
   const previewFiles: PreviewFile[] = useMemo(
-    () => tabs.filter(t => t.content).map(t => ({
-      path: t.path,
-      name: t.name,
-      content: t.content,
-      language: t.language,
-    })),
-    [tabs]
+    () => {
+      const fromTabs = tabs.filter(t => t.content).map(t => ({
+        path: t.path,
+        name: t.name,
+        content: t.content,
+        language: t.language,
+      }));
+      if (fromTabs.length > 0) return fromTabs;
+      // Fallback: use pending diffs (pipeline-generated files not yet accepted)
+      const fromDiffs = pendingDiffs
+        .filter(d => d.status !== 'rejected' && d.newContent)
+        .map(d => ({
+          path: d.filename,
+          name: d.filename.split('/').pop() || d.filename,
+          content: d.newContent,
+          language: d.language,
+        }));
+      return fromDiffs;
+    },
+    [tabs, pendingDiffs]
   );
 
   // Auto-detect runtime when files change

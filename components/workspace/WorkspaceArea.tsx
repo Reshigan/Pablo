@@ -20,16 +20,19 @@ import { usePipelineStore } from '@/stores/pipeline';
 
 /** Task 40: Show HeroPrompt when idle, PipelineView when running, Editor otherwise */
 function EditorPanel() {
-  const { tabs, activeTabId } = useEditorStore();
+  const { tabs, activeTabId, pendingDiffs } = useEditorStore();
   const runs = usePipelineStore(s => s.runs);
   const pendingPrompt = usePipelineStore(s => s.pendingPrompt);
   const hasOpenFile = tabs.length > 0 && activeTabId !== null;
   const hasRuns = runs.length > 0;
+  // Also count pending diffs as "has content" — pipeline generates files into diffs
+  const hasPendingDiffs = pendingDiffs.length > 0;
 
   // Show PipelineView when there's a pending prompt (HeroPrompt queued it)
   // so the useEffect in PipelineView can pick it up and execute.
-  if (!hasOpenFile && !hasRuns && !pendingPrompt) return <HeroPrompt />;
-  if (!hasOpenFile && (hasRuns || pendingPrompt)) return <PipelineView />;
+  // Also show PipelineView when there are runs OR pending diffs (session restored with pipeline data)
+  if (!hasOpenFile && !hasRuns && !pendingPrompt && !hasPendingDiffs) return <HeroPrompt />;
+  if (!hasOpenFile && (hasRuns || pendingPrompt || hasPendingDiffs)) return <PipelineView />;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
