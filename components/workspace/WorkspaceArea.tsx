@@ -22,11 +22,14 @@ import { usePipelineStore } from '@/stores/pipeline';
 function EditorPanel() {
   const { tabs, activeTabId } = useEditorStore();
   const runs = usePipelineStore(s => s.runs);
+  const pendingPrompt = usePipelineStore(s => s.pendingPrompt);
   const hasOpenFile = tabs.length > 0 && activeTabId !== null;
   const hasRuns = runs.length > 0;
 
-  if (!hasOpenFile && !hasRuns) return <HeroPrompt />;
-  if (!hasOpenFile && hasRuns) return <PipelineView />;
+  // Show PipelineView when there's a pending prompt (HeroPrompt queued it)
+  // so the useEffect in PipelineView can pick it up and execute.
+  if (!hasOpenFile && !hasRuns && !pendingPrompt) return <HeroPrompt />;
+  if (!hasOpenFile && (hasRuns || pendingPrompt)) return <PipelineView />;
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">

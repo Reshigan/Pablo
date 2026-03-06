@@ -16,7 +16,7 @@ import {
   ImageIcon,
   Cpu,
 } from 'lucide-react';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { MentionDropdown, resolveMentions, type MentionItem } from '@/components/pipeline/MentionDropdown';
 import {
   usePipelineStore,
@@ -234,7 +234,7 @@ const SUGGESTED_ACTIONS = [
 ];
 
 export function PipelineView() {
-  const { runs, startRun, updateStage, advanceStage, completeRun } = usePipelineStore();
+  const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt } = usePipelineStore();
   const agentStore = useAgentStore();
   const [featureInput, setFeatureInput] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
@@ -249,6 +249,31 @@ export function PipelineView() {
   const [selectedMentions, setSelectedMentions] = useState<string[]>([]);
   const [mentionDropdownPos, setMentionDropdownPos] = useState({ top: 0, left: 0 });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-execute pipeline when HeroPrompt queues a prompt via pendingPrompt.
+  // HeroPrompt sets pendingPrompt, WorkspaceArea switches to PipelineView,
+  // and this effect picks up the prompt and triggers handleStart.
+  const pendingRef = useRef(false);
+  useEffect(() => {
+    if (pendingPrompt && !pendingRef.current && !isBuilding) {
+      pendingRef.current = true;
+      setFeatureInput(pendingPrompt);
+      setPendingPrompt(null);
+    }
+  }, [pendingPrompt, isBuilding, setPendingPrompt]);
+
+  // Once featureInput is set from pendingPrompt, auto-trigger handleStart
+  useEffect(() => {
+    if (pendingRef.current && featureInput && !isBuilding) {
+      pendingRef.current = false;
+      // Trigger handleStart on next tick to ensure state is settled
+      const timer = setTimeout(() => {
+        const btn = document.querySelector('[data-pipeline-start]') as HTMLButtonElement;
+        if (btn) btn.click();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [featureInput, isBuilding]);
 
   const handleZipDownload = useCallback(() => {
     const tabs = useEditorStore.getState().tabs;
@@ -822,6 +847,7 @@ export function PipelineView() {
             </button>
             <button
               data-testid="pipeline-start"
+              data-pipeline-start
               onClick={handleStart}
               disabled={!featureInput.trim() || isBuilding}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-30 disabled:cursor-not-allowed"

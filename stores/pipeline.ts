@@ -259,6 +259,8 @@ export function getStageMetadata(stageId: PipelineStage): { label: string; descr
 interface PipelineState {
   runs: PipelineRun[];
   activeRunId: string | null;
+  /** Prompt queued by HeroPrompt — PipelineView picks it up and executes the stages */
+  pendingPrompt: string | null;
 
   startRun: (featureDescription: string, mode?: PipelineMode) => string;
   updateStage: (runId: string, stage: PipelineStage, updates: Partial<StageResult>) => void;
@@ -268,6 +270,7 @@ interface PipelineState {
   completeRun: (runId: string, status: 'completed' | 'failed' | 'cancelled') => void;
   setActiveRun: (runId: string | null) => void;
   getActiveRun: () => PipelineRun | undefined;
+  setPendingPrompt: (prompt: string | null) => void;
 }
 
 let runCounter = 0;
@@ -275,6 +278,7 @@ let runCounter = 0;
 export const usePipelineStore = create<PipelineState>((set, get) => ({
   runs: [],
   activeRunId: null,
+  pendingPrompt: null,
 
   startRun: (featureDescription: string, mode: PipelineMode = 'greenfield') => {
     runCounter += 1;
@@ -377,6 +381,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   },
 
   setActiveRun: (runId) => set({ activeRunId: runId }),
+
+  setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
 
   getActiveRun: () => {
     const state = get();
