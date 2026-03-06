@@ -594,7 +594,6 @@ export function PipelineView() {
                 const iterResult = await runIterationLoop(
                   readinessFiles,
                   description,
-                  env,
                   { targetScore, maxIterations: 5, autoApprove: true },
                   (event) => {
                     if (event.type === 'score_update') {
@@ -605,12 +604,19 @@ export function PipelineView() {
                       toastError('Iteration stalled', event.message);
                     }
                   },
-                  async (stage, prompt, files) => {
-                    const stageResult = await runStageWithChat(stage, prompt, env, runId);
-                    if (stageResult) {
-                      return parseGeneratedFiles(stageResult).map(f => ({
-                        path: f.filename, content: f.content, language: f.language,
-                      }));
+                  async (stageName, prompt, files) => {
+                    // Map stage name to a proper stage object for runStageWithChat
+                    const stageObj = PIPELINE_STAGES.find(s => s.id === stageName) || PIPELINE_STAGES[0];
+                    const abortCtrl = new AbortController();
+                    try {
+                      const stageResult = await runStageWithChat(prompt, stageObj, [], abortCtrl.signal);
+                      if (stageResult && stageResult.output) {
+                        return parseGeneratedFiles(stageResult.output).map(f => ({
+                          path: f.filename, content: f.content, language: f.language,
+                        }));
+                      }
+                    } catch {
+                      // Stage failed — return original files
                     }
                     return files;
                   },
@@ -625,8 +631,15 @@ export function PipelineView() {
 
                 // Add iterated files to editor
                 for (const file of iterResult.files) {
-                  const parsed = { filename: file.path, content: file.content, language: file.language };
-                  useEditorStore.getState().openFile(parsed.filename, parsed.content, parsed.language);
+                  const fileId = `iter-${file.path}`;
+                  const fileName = file.path.split('/').pop() || file.path;
+                  useEditorStore.getState().openFile({
+                    id: fileId,
+                    path: file.path,
+                    name: fileName,
+                    language: file.language,
+                    content: file.content,
+                  });
                 }
               } catch {
                 // Non-blocking — auto-iteration failure shouldn't crash the pipeline

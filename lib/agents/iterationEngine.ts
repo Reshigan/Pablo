@@ -19,8 +19,7 @@
  *   accessibility   → run 'ux_validation' stage
  */
 
-import { evaluateReadiness, type ReadinessScore, type ReadinessCategory } from './productionReadiness';
-import type { EnvConfig } from './modelRouter';
+import { quickReadinessCheck, type ReadinessScore, type ReadinessCategory } from './productionReadiness';
 
 export interface IterationConfig {
   targetScore: number;       // Default: 95 (not 100 — diminishing returns)
@@ -84,8 +83,7 @@ function scoreToGrade(score: number): string {
 
 export async function runIterationLoop(
   files: Array<{ path: string; content: string; language: string }>,
-  featureDescription: string,
-  env: EnvConfig,
+  _featureDescription: string,
   config: IterationConfig,
   onEvent: IterationCallback,
   /** Function that runs a single pipeline stage and returns fixed files */
@@ -97,8 +95,8 @@ export async function runIterationLoop(
   const scores: number[] = [];
   const history: IterationStep[] = [];
 
-  // Initial score
-  const initialResult = await evaluateReadiness(currentFiles, featureDescription, env);
+  // Initial score — use quickReadinessCheck (client-side, no LLM needed)
+  const initialResult = quickReadinessCheck(currentFiles);
   let currentScore: ReadinessScore = initialResult;
   scores.push(currentScore.score);
 
@@ -162,8 +160,8 @@ export async function runIterationLoop(
       }
     }
 
-    // Re-score after fixes
-    const newScore = await evaluateReadiness(currentFiles, featureDescription, env);
+    // Re-score after fixes — use quickReadinessCheck (client-side, no LLM needed)
+    const newScore = quickReadinessCheck(currentFiles);
     totalTokens += newScore.tokensUsed;
     iterTokens += newScore.tokensUsed;
 
