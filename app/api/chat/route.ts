@@ -90,7 +90,7 @@ interface ChatRequestBody {
  * Get environment config from Cloudflare Worker context or process.env
  */
 /** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://api.ollama.ai/v1';
+const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
 
 async function getEnvConfig(): Promise<EnvConfig> {
   try {

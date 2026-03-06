@@ -32,7 +32,7 @@ export interface RouteDecision {
   reasoning: string;
 }
 
-// Model definitions — Ollama Cloud only (hosted at api.ollama.ai)
+// Model definitions — Ollama Cloud only (hosted at ollama.com/api)
 // Qwen model stack: small enough to avoid long queues, large enough for quality.
 const MODELS = {
   qwen3_reasoning: {
@@ -279,7 +279,7 @@ interface OllamaCloudResult {
 }
 
 async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvConfig, signal?: AbortSignal): Promise<LLMResponse> {
-  const OLLAMA_URL = env.OLLAMA_URL || 'https://api.ollama.ai/v1';
+  const OLLAMA_URL = env.OLLAMA_URL || 'https://ollama.com/api';
   const OLLAMA_KEY = env.OLLAMA_API_KEY;
 
   const isOpenAICompatible = OLLAMA_URL.includes('/v1/') || OLLAMA_URL.endsWith('/v1') || OLLAMA_URL.includes('openai');
