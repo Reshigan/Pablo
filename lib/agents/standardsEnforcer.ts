@@ -234,7 +234,7 @@ export async function enforceRules(pipelineOutput: string): Promise<EnforcementR
   const infos = violations.filter((v) => v.severity === 'info').length;
   const totalChecks = blocks.length * enabled.length;
   const passRate = totalChecks > 0
-    ? `${Math.round(((totalChecks - violations.length) / totalChecks) * 100)}%`
+    ? `${Math.max(0, Math.round(((totalChecks - violations.length) / totalChecks) * 100))}%`
     : '100%';
 
   return {
