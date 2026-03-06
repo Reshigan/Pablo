@@ -22,8 +22,9 @@ export function middleware(request: NextRequest) {
   const origin = request.headers.get('origin');
   const allowedOriginUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://pablo.vantax.co.za';
   const expectedOrigin = new URL(allowedOriginUrl).origin;
-  // Allow localhost origins in development (when NEXTAUTH_URL is not explicitly set)
-  const isLocalhostOrigin = origin && (origin === 'http://localhost' || origin.startsWith('http://localhost:') || origin === 'http://127.0.0.1' || origin.startsWith('http://127.0.0.1:'));
+  // Allow localhost origins only in development
+  const isDev = process.env.NODE_ENV === 'development';
+  const isLocalhostOrigin = isDev && origin && (origin === 'http://localhost' || origin.startsWith('http://localhost:') || origin === 'http://127.0.0.1' || origin.startsWith('http://127.0.0.1:'));
   if (
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
     origin &&
