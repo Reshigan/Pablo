@@ -5,8 +5,8 @@ export interface EnvConfig {
   OLLAMA_API_KEY: string | undefined;
 }
 
-/** Canonical Ollama Cloud URL — the /v1 suffix is REQUIRED for OpenAI-compatible endpoints */
-export const OLLAMA_CLOUD_URL = 'https://api.ollama.ai/v1';
+/** Canonical Ollama Cloud URL — confirmed working (PRs #66, #94 verified api.ollama.ai/v1 is dead) */
+export const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
 
 /**
  * Get environment config from Cloudflare Worker context or process.env.
