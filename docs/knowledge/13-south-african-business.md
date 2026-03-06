@@ -562,7 +562,7 @@ CREATE TABLE energy_readings (
 ```
 
 ```typescript
--- NERSA compliance fields (required on all SA energy systems)
+// NERSA compliance fields (required on all SA energy systems)
 interface EnergySystemCompliance {
   nersa_licence_number: string;
   nersa_licence_expiry: string;
@@ -591,7 +591,7 @@ CREATE TABLE device_audit_log (
 ```
 
 ```typescript
--- OHS Act: field deployment safety record
+// OHS Act: field deployment safety record
 interface FieldDeploymentSafetyRecord {
   deployment_id: string;
   risk_assessment_completed: boolean;
