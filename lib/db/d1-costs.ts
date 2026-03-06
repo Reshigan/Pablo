@@ -161,6 +161,39 @@ export async function d1LogLLMCall(record: Omit<LLMCallRecord, 'id' | 'createdAt
 /**
  * Get cost summary for a time range
  */
+/**
+ * Phase 2.2: Get team-wide cost summary for the team budget progress bar.
+ * Aggregates ALL users' spend for today against TEAM_DAILY_BUDGET_USD.
+ */
+export async function d1GetTeamCostSummary(): Promise<{ spent: number; budget: number; userBreakdown: Array<{ userId: string; spent: number }> }> {
+  const db = await getDBAsync();
+  const teamBudget = parseFloat(process.env.TEAM_DAILY_BUDGET_USD || '20');
+  if (!db) return { spent: 0, budget: teamBudget, userBreakdown: [] };
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    const totalRow = await db.prepare(
+      `SELECT COALESCE(SUM(cost_usd), 0) as spent FROM llm_calls WHERE date(created_at) = ?`
+    ).bind(today).first<{ spent: number }>();
+
+    const byUserRows = await db.prepare(
+      `SELECT COALESCE(user_id, 'anonymous') as user_id, COALESCE(SUM(cost_usd), 0) as spent
+       FROM llm_calls WHERE date(created_at) = ?
+       GROUP BY user_id ORDER BY spent DESC LIMIT 20`
+    ).bind(today).all<{ user_id: string; spent: number }>();
+
+    return {
+      spent: totalRow?.spent || 0,
+      budget: teamBudget,
+      userBreakdown: (byUserRows.results || []).map(r => ({ userId: r.user_id, spent: r.spent })),
+    };
+  } catch (err) {
+    console.warn('[d1GetTeamCostSummary] Failed:', err instanceof Error ? err.message : err);
+    return { spent: 0, budget: teamBudget, userBreakdown: [] };
+  }
+}
+
 export async function d1GetCostSummary(days: number = 30): Promise<CostSummary> {
   const db = await getDBAsync();
   if (!db) {

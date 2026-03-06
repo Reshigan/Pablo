@@ -78,6 +78,10 @@ export function GitPanel() {
   const [deploying, setDeploying] = useState(false);
   const [deployProjectName, setDeployProjectName] = useState('');
 
+  // Phase 2.3: Push to new repo state
+  const [pushingToNew, setPushingToNew] = useState(false);
+  const [showPushToNew, setShowPushToNew] = useState(false);
+
   // AI Review state (Feature 19)
   const [showAIReview, setShowAIReview] = useState(false);
   const [aiReviewing, setAiReviewing] = useState(false);
@@ -268,6 +272,66 @@ export function GitPanel() {
       setCreatingRepo(false);
     }
   }, [newRepoName, newRepoDesc, newRepoPrivate]);
+
+  // Phase 2.3: Push to New Repo — create repo + commit files in one step
+  const handlePushToNewRepo = useCallback(async () => {
+    if (!newRepoName.trim()) return;
+    const filesToPush = tabs.filter((t) => t.content && t.path);
+    if (filesToPush.length === 0) {
+      toast('No files to push', 'Open some files in the editor first.');
+      return;
+    }
+
+    setPushingToNew(true);
+    try {
+      // Step 1: Create the repo
+      const createRes = await fetch('/api/github/create-repo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newRepoName.trim(),
+          description: newRepoDesc,
+          private: newRepoPrivate,
+          auto_init: true,
+        }),
+      });
+
+      if (!createRes.ok) {
+        const errData = (await createRes.json()) as { error?: string };
+        throw new Error(errData.error ?? `Create failed: ${createRes.status}`);
+      }
+
+      const repoData = (await createRes.json()) as { full_name: string; url: string };
+
+      // Step 2: Commit all editor files to the new repo
+      const commitRes = await fetch('/api/github/commit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repo: repoData.full_name,
+          branch: 'main',
+          message: `Initial commit — ${filesToPush.length} file(s) from Pablo`,
+          files: filesToPush.map((t) => ({ path: t.path, content: t.content })),
+        }),
+      });
+
+      if (!commitRes.ok) {
+        const errData = (await commitRes.json()) as { error?: string };
+        throw new Error(errData.error ?? `Commit failed: ${commitRes.status}`);
+      }
+
+      toast('Pushed to new repo!', `${repoData.full_name} — ${filesToPush.length} file(s)`);
+      window.open(repoData.url, '_blank');
+      setNewRepoName('');
+      setNewRepoDesc('');
+      setShowPushToNew(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      toast('Push to new repo failed', msg);
+    } finally {
+      setPushingToNew(false);
+    }
+  }, [newRepoName, newRepoDesc, newRepoPrivate, tabs]);
 
   const handleDeploy = useCallback(async () => {
     if (!selectedRepo) return;
@@ -617,7 +681,53 @@ export function GitPanel() {
         )}
       </div>
 
-      {/* Create New Repository */}
+      {/* Phase 2.3: Push to New Repo (create + commit in one step) */}
+      <div className="border-b border-pablo-border shrink-0">
+        <button
+          onClick={() => setShowPushToNew(!showPushToNew)}
+          className="flex w-full items-center gap-1 px-2 py-1.5 text-left transition-colors hover:bg-pablo-hover"
+        >
+          {showPushToNew ? <ChevronDown size={12} className="text-pablo-text-muted" /> : <ChevronRight size={12} className="text-pablo-text-muted" />}
+          <Upload size={12} className="text-pablo-green" />
+          <span className="font-ui text-[11px] font-medium text-pablo-text-dim">Push to New Repo</span>
+          <span className="ml-auto rounded bg-pablo-green/10 px-1.5 font-ui text-[9px] text-pablo-green">NEW</span>
+        </button>
+        {showPushToNew && (
+          <div className="border-t border-pablo-border/50 px-3 py-2">
+            <p className="mb-1.5 font-ui text-[10px] text-pablo-text-muted">
+              Creates a new repo and pushes {tabs.filter(t => t.content && t.path).length} open file(s) in one step
+            </p>
+            <input
+              type="text"
+              value={newRepoName}
+              onChange={(e) => setNewRepoName(e.target.value)}
+              placeholder="Repository name..."
+              className="mb-1 w-full rounded border border-pablo-border bg-pablo-input px-2 py-1 font-ui text-xs text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+            />
+            <input
+              type="text"
+              value={newRepoDesc}
+              onChange={(e) => setNewRepoDesc(e.target.value)}
+              placeholder="Description (optional)..."
+              className="mb-1 w-full rounded border border-pablo-border bg-pablo-input px-2 py-1 font-ui text-[10px] text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+            />
+            <label className="mb-1.5 flex items-center gap-2 font-ui text-[10px] text-pablo-text-muted">
+              <input type="checkbox" checked={newRepoPrivate} onChange={(e) => setNewRepoPrivate(e.target.checked)} className="rounded" />
+              Private repository
+            </label>
+            <button
+              onClick={handlePushToNewRepo}
+              disabled={pushingToNew || !newRepoName.trim() || tabs.filter(t => t.content && t.path).length === 0}
+              className="flex w-full items-center justify-center gap-1.5 rounded bg-pablo-green/90 px-3 py-1 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-green disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              {pushingToNew ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />}
+              {pushingToNew ? 'Creating & Pushing...' : 'Create Repo & Push Files'}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Create New Repository (empty) */}
       <div className="border-b border-pablo-border shrink-0">
         <button
           onClick={() => setShowCreateRepo(!showCreateRepo)}
@@ -625,7 +735,7 @@ export function GitPanel() {
         >
           {showCreateRepo ? <ChevronDown size={12} className="text-pablo-text-muted" /> : <ChevronRight size={12} className="text-pablo-text-muted" />}
           <FolderPlus size={12} className="text-pablo-orange" />
-          <span className="font-ui text-[11px] font-medium text-pablo-text-dim">Create New Repository</span>
+          <span className="font-ui text-[11px] font-medium text-pablo-text-dim">Create Empty Repository</span>
         </button>
         {showCreateRepo && (
           <div className="border-t border-pablo-border/50 px-3 py-2">

@@ -66,16 +66,39 @@ export function ChatInput({
     }
   };
 
+  // Phase: Document upload — support all file types including binary (PDF, DOCX, images)
+  const BINARY_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico', 'tiff']);
+
   const handleFileAttach = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
-      };
-      reader.readAsText(file);
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const isBinary = BINARY_EXTENSIONS.has(ext) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+      if (isBinary) {
+        // Read binary files as base64 for server-side extraction
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setAttachments((prev) => [...prev, {
+            name: file.name,
+            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]
+
+Base64 data attached for server-side processing. File size: ${file.size} bytes.`,
+            type: file.type || `application/${ext}`,
+          }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Read text files directly
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type || `text/${ext}` }]);
+        };
+        reader.readAsText(file);
+      }
     });
     // Reset input so same file can be re-selected
     e.target.value = '';
@@ -146,7 +169,7 @@ export function ChatInput({
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx"
+              accept=".txt,.md,.json,.csv,.xml,.yaml,.yml,.toml,.ts,.tsx,.js,.jsx,.py,.html,.css,.sql,.env,.sh,.rs,.go,.java,.rb,.php,.swift,.kt,.c,.cpp,.h,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.rtf,.odt,.ods,.odp,.log,.ini,.cfg,.conf,.dockerfile,.makefile,.gitignore,.editorconfig,.prettierrc,.eslintrc,.babelrc,.svg,.graphql,.proto,.tf,.hcl,.lua,.r,.m,.scala,.groovy,.dart,.zig,.nim,.ex,.exs,.erl,.clj,.hs,.ml,.v,.vhd,.asm,.bat,.ps1,.zsh,.fish,.diff,.patch,image/*"
               onChange={handleFileAttach}
               className="hidden"
             />

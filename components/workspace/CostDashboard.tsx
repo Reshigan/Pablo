@@ -8,7 +8,13 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Users } from 'lucide-react';
+
+interface TeamCostSummary {
+  spent: number;
+  budget: number;
+  userBreakdown: Array<{ userId: string; spent: number }>;
+}
 
 interface CostSummary {
   totalCostUsd: number;
@@ -21,6 +27,7 @@ interface CostSummary {
 
 export function CostDashboard() {
   const [summary, setSummary] = useState<CostSummary | null>(null);
+  const [teamCost, setTeamCost] = useState<TeamCostSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(30);
@@ -29,10 +36,17 @@ export function CostDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/costs?days=${days}`);
+      const [res, teamRes] = await Promise.all([
+        fetch(`/api/costs?days=${days}`),
+        fetch('/api/costs?type=team'),
+      ]);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json() as CostSummary;
       setSummary(data);
+      if (teamRes.ok) {
+        const teamData = await teamRes.json() as TeamCostSummary;
+        setTeamCost(teamData);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -94,6 +108,38 @@ export function CostDashboard() {
           ))}
         </div>
       </div>
+
+      {/* Phase 2.2: Team Budget Progress Bar */}
+      {teamCost && (
+        <div className="mb-4 rounded-lg border border-pablo-border bg-pablo-panel p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Users size={14} className="text-pablo-blue" />
+              <span className="text-xs font-medium text-pablo-text-dim">Team Daily Budget</span>
+            </div>
+            <span className="text-xs text-pablo-text-muted">
+              ${teamCost.spent.toFixed(2)} / ${teamCost.budget.toFixed(2)}
+            </span>
+          </div>
+          <div className="h-2.5 w-full rounded-full bg-pablo-bg overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                teamCost.spent / teamCost.budget > 0.9
+                  ? 'bg-red-500'
+                  : teamCost.spent / teamCost.budget > 0.7
+                  ? 'bg-pablo-orange'
+                  : 'bg-pablo-green'
+              }`}
+              style={{ width: `${Math.min((teamCost.spent / teamCost.budget) * 100, 100)}%` }}
+            />
+          </div>
+          {teamCost.spent / teamCost.budget > 0.9 && (
+            <p className="mt-1.5 text-[10px] text-red-400 flex items-center gap-1">
+              <AlertTriangle size={10} /> Team budget nearly exhausted
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">

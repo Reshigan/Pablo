@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "build:worker": "npx @opennextjs/cloudflare build",
+        "prebuild": "node scripts/build-kb.js",
+        "prebuild:worker": "node scripts/build-kb.js",
+        "build": "node scripts/build-kb.js && next build",
+        "build:worker": "node scripts/build-kb.js && npx @opennextjs/cloudflare build",
     "preview:worker": "npx wrangler dev",
     "deploy": "npx wrangler deploy",
     "start": "next start",

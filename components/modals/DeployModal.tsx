@@ -28,6 +28,52 @@ const DEPLOY_TARGETS: DeployTargetConfig[] = [
   { id: 'docker', label: 'Docker', description: 'Container-based deployment', icon: Container },
 ];
 
+// Phase 4.1: Docker helpers
+function generateDockerfile(files: Array<{ path: string; content: string }>): string {
+  const hasPackageJson = files.some(f => f.path === 'package.json');
+  const hasPython = files.some(f => f.path.endsWith('.py'));
+
+  if (hasPackageJson) {
+    return `FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci
+COPY . .
+RUN npm run build
+
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=builder /app ./
+EXPOSE 3000
+CMD ["npm", "start"]`;
+  } else if (hasPython) {
+    return `FROM python:3.12-slim
+WORKDIR /app
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]`;
+  }
+
+  return `FROM nginx:alpine
+COPY . /usr/share/nginx/html
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]`;
+}
+
+function generateDockerCompose(projectName: string): string {
+  return `version: '3.8'
+services:
+  ${projectName}:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped`;
+}
+
 interface DeployModalProps {
   open: boolean;
   onClose: () => void;
@@ -87,19 +133,91 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
         });
 
         setResult({ url });
-      } else {
-        // Other targets — show coming soon with instructions
-        const instructions: Record<DeployTarget, string> = {
-          'cloudflare-pages': '',
-          'vercel': 'Push to GitHub and connect via vercel.com',
-          'netlify': 'Push to GitHub and connect via netlify.com',
-          'github-pages': 'Enable GitHub Pages in repo settings',
-          'docker': 'Generate Dockerfile and build with docker build',
-        };
-
-        setResult({
-          error: `${DEPLOY_TARGETS.find((t) => t.id === selectedTarget)?.label} deployment coming soon. ${instructions[selectedTarget]}`,
+      } else if (selectedTarget === 'vercel') {
+        // Phase 4.1: Vercel deploy via GitHub integration
+        const res = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files, project_name: name, target: 'vercel' }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(errData.error || `Vercel deploy failed: ${res.status}`);
+        }
+        const data = (await res.json()) as { url?: string; message?: string };
+        const url = data.url || `https://${name}.vercel.app`;
+        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url, projectName: name, timestamp: Date.now() });
+        setResult({ url });
+      } else if (selectedTarget === 'netlify') {
+        // Phase 4.1: Netlify deploy
+        const res = await fetch('/api/deploy', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files, project_name: name, target: 'netlify' }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(errData.error || `Netlify deploy failed: ${res.status}`);
+        }
+        const data = (await res.json()) as { url?: string; message?: string };
+        const url = data.url || `https://${name}.netlify.app`;
+        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url, projectName: name, timestamp: Date.now() });
+        setResult({ url });
+      } else if (selectedTarget === 'github-pages') {
+        // Phase 4.1: GitHub Pages — commit to gh-pages branch
+        if (!selectedRepo) {
+          throw new Error('Select a GitHub repo first to deploy to GitHub Pages');
+        }
+        const res = await fetch('/api/github/commit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            repo: selectedRepo.full_name,
+            branch: 'gh-pages',
+            message: `Deploy to GitHub Pages — ${files.length} file(s)`,
+            files,
+          }),
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({})) as { error?: string };
+          throw new Error(errData.error || `GitHub Pages deploy failed: ${res.status}`);
+        }
+        const [owner, repo] = selectedRepo.full_name.split('/');
+        const url = `https://${owner}.github.io/${repo}`;
+        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url, projectName: name, timestamp: Date.now() });
+        setResult({ url });
+      } else if (selectedTarget === 'docker') {
+        // Phase 4.1: Docker — generate Dockerfile and docker-compose.yml
+        const dockerfile = generateDockerfile(files);
+        const compose = generateDockerCompose(name);
+        // If repo connected, commit Docker files
+        if (selectedRepo) {
+          const res = await fetch('/api/github/commit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              repo: selectedRepo.full_name,
+              branch: 'main',
+              message: `Add Dockerfile and docker-compose.yml for ${name}`,
+              files: [{ path: 'Dockerfile', content: dockerfile }, { path: 'docker-compose.yml', content: compose }],
+            }),
+          });
+          if (res.ok) {
+            addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url: `${selectedRepo.html_url}`, projectName: name, timestamp: Date.now() });
+            setResult({ url: `${selectedRepo.html_url}` });
+          } else {
+            throw new Error('Failed to commit Docker files to repo');
+          }
+        } else {
+          // Download Docker files
+          const blob = new Blob([`# Dockerfile\n${dockerfile}\n\n# docker-compose.yml\n${compose}`], { type: 'text/plain' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `${name}-docker.txt`;
+          a.click();
+          setResult({ url: undefined, error: undefined });
+          addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url: 'local-download', projectName: name, timestamp: Date.now() });
+        }
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Deploy failed';
@@ -157,7 +275,7 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
             {DEPLOY_TARGETS.map((target) => {
               const Icon = target.icon;
               const isSelected = selectedTarget === target.id;
-              const isAvailable = target.id === 'cloudflare-pages';
+              const isAvailable = true; // Phase 4.1: All targets now supported
               return (
                 <button
                   key={target.id}
@@ -175,11 +293,6 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
                     </span>
                     <p className="font-ui text-[10px] text-pablo-text-muted">{target.description}</p>
                   </div>
-                  {!isAvailable && (
-                    <span className="rounded bg-pablo-hover px-1.5 py-0.5 font-ui text-[9px] text-pablo-text-muted">
-                      Soon
-                    </span>
-                  )}
                   {isSelected && <CheckCircle2 size={14} className="text-pablo-gold" />}
                 </button>
               );

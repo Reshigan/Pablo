@@ -2,8 +2,15 @@
 // Loads domain knowledge and system prompt for context injection
 // Supports selectable domain packs (opt-in, locale-neutral by default)
 
-// Intentionally empty by default: locale/business-specific KB should be injected only when explicitly requested.
+import { ALL_KB_ENTRIES, KEYWORD_MAP } from './kbInit';
+
+// Populated from static KB at module load + any runtime domain packs
 const domainKB: { entries: DomainEntry[] } = { entries: [] };
+
+// Auto-register all static KB entries on module load
+for (const entry of ALL_KB_ENTRIES) {
+  domainKB.entries.push(entry);
+}
 
 // Available domain packs (registered at build time)
 interface DomainPack {
@@ -98,8 +105,8 @@ export function getRelevantKnowledge(userMessage: string): DomainEntry[] {
   const msg = userMessage.toLowerCase();
   const allEntries = (domainKB as { entries: DomainEntry[] }).entries;
 
-  // Keyword to domain ID mapping (optional; empty by default)
-  const keywordMap: Record<string, string[]> = {};
+  // Keyword to domain ID mapping (populated from kbInit)
+  const keywordMap = KEYWORD_MAP;
 
   const relevantIds = new Set<string>();
 

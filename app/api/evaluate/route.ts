@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
 import { evaluateRepo } from '@/lib/agents/repoEvaluator';
-import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { getEnvConfig } from '@/lib/env';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { loggers } from '@/lib/logger';
 import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
@@ -11,24 +11,7 @@ import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
  * SEC-02: API key stays server-side; client never sees OLLAMA_API_KEY.
  */
 
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
-
-async function getEnvConfig(): Promise<EnvConfig> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const cfEnv = ctx.env as Record<string, string>;
-    return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
-      OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
-    };
-  } catch {
-    return {
-      OLLAMA_URL: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
-    };
-  }
-}
+// getEnvConfig imported from @/lib/env
 
 interface EvaluateRequestBody {
   files: Array<{ path: string; content: string; language: string }>;
