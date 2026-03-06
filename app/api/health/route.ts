@@ -2,6 +2,7 @@
  * GET /api/health — ARCH-02: Public health endpoint for uptime monitoring.
  * Returns 200 with service status. No auth required (excluded from middleware).
  */
+import { OLLAMA_CLOUD_URL } from '@/lib/env';
 
 const START_TIME = Date.now();
 
@@ -55,11 +56,11 @@ export async function GET() {
     const ctx = await getCloudflareContext({ async: true });
     const cfEnv = ctx.env as Record<string, string>;
     const hasKey = !!(cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY);
-    const ollamaUrl = cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://api.ollama.ai/v1';
+    const ollamaUrl = cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL;
     status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: ollamaUrl };
   } catch {
     const hasKey = !!process.env.OLLAMA_API_KEY;
-    status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1' };
+    status.ollama = { status: hasKey ? 'configured' : 'missing_key', url: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL };
   }
 
   // Check GitHub OAuth configuration

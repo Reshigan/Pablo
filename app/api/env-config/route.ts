@@ -1,4 +1,5 @@
 import { auth } from '@/lib/auth';
+import { OLLAMA_CLOUD_URL } from '@/lib/env';
 
 /**
  * GET /api/env-config — returns LLM config with API key masked.
@@ -19,13 +20,13 @@ export async function GET() {
     const cfEnv = ctx.env as Record<string, string>;
     const apiKey = cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY || '';
     return Response.json({
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
+      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       hasApiKey: apiKey.length > 0,
     });
   } catch {
     const apiKey = process.env.OLLAMA_API_KEY || '';
     return Response.json({
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://api.ollama.ai/v1',
+      OLLAMA_URL: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
       hasApiKey: apiKey.length > 0,
     });
   }
