@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review' | 'analyze' | 'fix' | 'implement';
+export type PipelineStage = 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review' | 'analyze' | 'fix' | 'implement' | 'enterprise';
 
 export type PipelineMode = 'greenfield' | 'bug-fix' | 'add-feature' | 'refactor';
 export type StageStatus = 'pending' | 'running' | 'completed' | 'failed' | 'skipped';

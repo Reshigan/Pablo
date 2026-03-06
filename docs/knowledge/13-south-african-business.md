@@ -488,3 +488,77 @@ class POPIACompliance:
 # Multi-currency support (ZAR primary)
 # Aging analysis: Current, 30, 60, 90, 90+ days
 ```
+
+---
+
+## 10. POPIA — Technical Implementation Patterns
+
+### Data Classification
+```typescript
+// Tag every model field with its POPIA data class
+enum POPIADataClass {
+  PERSONAL = 'personal',        // Name, email, phone, address
+  SPECIAL = 'special',          // Health, biometric, race, religion, criminal
+  FINANCIAL = 'financial',      // Bank details, income, credit records
+  CHILDREN = 'children',        // Any data about persons under 18
+  PUBLIC = 'public',            // Not subject to POPIA restrictions
+}
+
+// Every personal data field must declare its class
+interface PersonSchema {
+  id: string;
+  name: string;           // POPIADataClass.PERSONAL
+  email: string;          // POPIADataClass.PERSONAL
+  id_number?: string;     // POPIADataClass.PERSONAL — SA ID number
+  health_notes?: string;  // POPIADataClass.SPECIAL — heightened protection
+  bank_account?: string;  // POPIADataClass.FINANCIAL
+}
+```
+
+### Consent Tracking
+```typescript
+// Every collection of personal data MUST have a consent record
+interface ConsentRecord {
+  id: string;
+  userId: string;
+  purpose: string;           // Why data is being collected
+  dataClasses: POPIADataClass[];  // What categories of data
+  consentedAt: Date;
+  expiresAt?: Date;          // Consent can expire
+  withdrawnAt?: Date;        // User can withdraw consent
+  source: 'web_form' | 'api' | 'import' | 'manual';
+}
+```
+
+### PII Masking in Logs
+```typescript
+// NEVER log raw PII — always mask before logging
+function maskPII(data: Record<string, unknown>): Record<string, unknown> {
+  const masked = { ...data };
+  const piiFields = ['email', 'phone', 'id_number', 'bank_account', 'name'];
+  for (const field of piiFields) {
+    if (masked[field] && typeof masked[field] === 'string') {
+      const val = masked[field] as string;
+      masked[field] = val.slice(0, 2) + '***' + val.slice(-2);
+    }
+  }
+  return masked;
+}
+```
+
+### Data Subject Access Request (DSAR)
+```typescript
+// Users can request all their data — you MUST be able to export it
+interface DSARResponse {
+  requestId: string;
+  userId: string;
+  requestedAt: Date;
+  completedAt?: Date;
+  dataExport: {
+    personalInfo: Record<string, unknown>;
+    activityLog: Array<{ action: string; timestamp: Date }>;
+    consentRecords: ConsentRecord[];
+    thirdPartySharing: Array<{ recipient: string; purpose: string; date: Date }>;
+  };
+}
+```
