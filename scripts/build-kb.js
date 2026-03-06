@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * build-kb.js — Pre-build script that reads all docs/knowledge/*.md files
  * and generates lib/domain-kb/staticKB.ts with a typed KB_FILES array.

@@ -86,6 +86,7 @@ export async function PATCH(request: NextRequest) {
     const session = await auth();
     if (!session) return new Response('Unauthorized', { status: 401 });
 
+    const userId = session.user?.email || 'anonymous';
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return Response.json({ error: 'Missing project id' }, { status: 400 });
 
@@ -108,6 +109,7 @@ export async function DELETE(request: NextRequest) {
     const session = await auth();
     if (!session) return new Response('Unauthorized', { status: 401 });
 
+    const userId = session.user?.email || 'anonymous';
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return Response.json({ error: 'Missing project id' }, { status: 400 });
 

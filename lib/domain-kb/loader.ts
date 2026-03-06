@@ -24,7 +24,7 @@ interface DomainPack {
 const registeredPacks: Map<string, DomainPack> = new Map();
 
 // Active packs (selected by the user at runtime)
-let activePacks: Set<string> = new Set();
+const activePacks: Set<string> = new Set();
 
 /**
  * Register a domain pack (call at app init or from settings)
