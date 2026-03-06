@@ -20,14 +20,17 @@ export function HeroPrompt() {
   const [prompt, setPrompt] = useState('');
   const [showTemplates, setShowTemplates] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const startRun = usePipelineStore(s => s.startRun);
+  const setPendingPrompt = usePipelineStore(s => s.setPendingPrompt);
 
   const handleGenerate = useCallback(() => {
     const text = prompt.trim();
     if (!text) return;
-    startRun(text);
+    // Queue the prompt for PipelineView to pick up and execute the full 9-stage pipeline.
+    // Previously this called startRun() which only created a run in the store
+    // without executing any stages — the pipeline would appear "stuck at 0%".
+    setPendingPrompt(text);
     setPrompt('');
-  }, [prompt, startRun]);
+  }, [prompt, setPendingPrompt]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
