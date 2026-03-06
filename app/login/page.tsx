@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { Github, Zap, Code2, GitBranch, Cpu, Rocket, Monitor } from 'lucide-react';
@@ -10,7 +10,7 @@ import { motion } from 'framer-motion';
  * Task 42: Login page polish — animated gradient bg, framer-motion card entrance,
  * auto-typing tagline, feature icons, showcase link.
  */
-export default function LoginPage() {
+function LoginContent() {
   const [devEmail, setDevEmail] = useState('dev@localhost');
   const [showDevLogin, setShowDevLogin] = useState(false);
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
@@ -142,5 +142,17 @@ export default function LoginPage() {
         </p>
       </motion.div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-pablo-bg">
+        <div className="animate-pulse text-pablo-text-muted font-ui text-sm">Loading...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

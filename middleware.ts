@@ -20,12 +20,15 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   // SEC-1: CSRF Origin validation — reject state-changing requests from third-party origins
   const origin = request.headers.get('origin');
-  const allowedOriginUrl = process.env.NEXTAUTH_URL || 'https://pablo.vantax.co.za';
+  const allowedOriginUrl = process.env.NEXTAUTH_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://pablo.vantax.co.za';
   const expectedOrigin = new URL(allowedOriginUrl).origin;
+  // Allow localhost origins in development (when NEXTAUTH_URL is not explicitly set)
+  const isLocalhostOrigin = origin && (origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1'));
   if (
     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
     origin &&
-    origin !== expectedOrigin
+    origin !== expectedOrigin &&
+    !isLocalhostOrigin
   ) {
     return NextResponse.json({ error: 'CSRF rejected' }, { status: 403 });
   }
