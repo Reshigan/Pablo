@@ -50,7 +50,7 @@ export function HeroPrompt() {
           What shall we build?
         </h2>
         <p className="max-w-md font-ui text-sm text-pablo-text-dim leading-relaxed">
-          Describe your feature and Pablo&apos;s 8-stage pipeline will plan, generate database schemas,
+          Describe your feature and Pablo&apos;s 9-stage pipeline will plan, generate database schemas,
           APIs, UI components, tests, and review the code — all in one go.
         </p>
       </div>

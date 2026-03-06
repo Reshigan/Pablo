@@ -229,7 +229,7 @@ export const INCREMENTAL_STAGES: { id: PipelineStage; label: string; description
 
 /**
  * Select pipeline stages based on the mode.
- * - greenfield: full 8-stage pipeline
+ * - greenfield: full 9-stage pipeline (includes enterprise audit)
  * - bug-fix: analyze → fix → review (3 stages)
  * - add-feature: analyze → plan → implement → tests → review (5 stages)
  * - refactor: analyze → plan → implement → review (4 stages)

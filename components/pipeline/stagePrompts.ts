@@ -171,6 +171,7 @@ export function buildStagePrompt(
   previousOutputs: string[],
   techStack?: TechStackHint,
   explicitHints?: Partial<TechStackHint>,
+  businessRulesPrompt?: string,
 ): string {
   const trimmedPrevious = previousOutputs.map((o) => truncateOutput(o, MAX_PREV_OUTPUT_CHARS));
 
@@ -228,10 +229,17 @@ Do NOT use any other framework, language, or library. Do NOT switch languages. E
     // Non-blocking — .pablo rules are optional
   }
 
+  // Enterprise: inject business rules into the prompt for enterprise + review stages
+  let rulesBlock = '';
+  if (businessRulesPrompt && (stage.id === 'enterprise' || stage.id === 'review')) {
+    rulesBlock = businessRulesPrompt;
+  }
+
   const parts = [
     `Feature: ${featureDescription}`,
     stackBlock,
     pabloRulesBlock,
+    rulesBlock,
     `\nYour task (${stage.label}): ${STAGE_INSTRUCTIONS[stage.id]}`,
     '\nOutput format: For any code, respond with markdown code blocks that include filenames with full paths (e.g. ```tsx src/components/Dashboard.tsx).',
   ];
