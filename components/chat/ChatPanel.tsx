@@ -601,9 +601,10 @@ export function ChatPanel() {
       if (isBinary) {
         const reader = new FileReader();
         reader.onload = () => {
+          const base64 = reader.result as string;
           setAttachments((prev) => [...prev, {
             name: file.name,
-            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]`,
+            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]\n\n${base64}`,
             type: file.type || `application/${ext}`,
           }]);
         };

@@ -113,10 +113,13 @@ export function getRelevantKnowledge(userMessage: string): DomainEntry[] {
   // Always include critical entries for code generation
   allEntries.filter(e => e.priority === 'critical').forEach(e => relevantIds.add(e.id));
 
-  // Match keywords
-  for (const [keyword, ids] of Object.entries(keywordMap)) {
+  // Match keywords — KEYWORD_MAP values are file-level IDs (e.g. '13-south-african-business')
+  // but entry IDs have section suffixes (e.g. '13-south-african-business-0'), so use prefix matching
+  for (const [keyword, fileIds] of Object.entries(keywordMap)) {
     if (msg.includes(keyword)) {
-      ids.forEach(id => relevantIds.add(id));
+      for (const fileId of fileIds) {
+        allEntries.filter(e => e.id.startsWith(fileId)).forEach(e => relevantIds.add(e.id));
+      }
     }
   }
 

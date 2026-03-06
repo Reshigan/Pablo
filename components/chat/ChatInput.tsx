@@ -77,15 +77,13 @@ export function ChatInput({
       const isBinary = BINARY_EXTENSIONS.has(ext) || file.type.startsWith('image/') || file.type === 'application/pdf';
 
       if (isBinary) {
-        // Read binary files as base64 for server-side extraction
+        // Read binary files as base64 — include actual data for LLM processing
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = reader.result as string;
           setAttachments((prev) => [...prev, {
             name: file.name,
-            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]
-
-Base64 data attached for server-side processing. File size: ${file.size} bytes.`,
+            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]\n\n${base64}`,
             type: file.type || `application/${ext}`,
           }]);
         };

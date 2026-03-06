@@ -137,6 +137,7 @@ export async function d1CreateProject(
  */
 export async function d1UpdateProject(
   projectId: string,
+  userId: string,
   updates: Partial<Pick<Project, 'name' | 'description' | 'repoFullName'>>,
 ): Promise<boolean> {
   const db = await getDBAsync();
@@ -153,9 +154,9 @@ export async function d1UpdateProject(
     if (sets.length === 0) return true;
 
     sets.push("updated_at = datetime('now')");
-    values.push(projectId);
+    values.push(projectId, userId);
 
-    await db.prepare(`UPDATE projects SET ${sets.join(', ')} WHERE id = ?`).bind(...values).run();
+    await db.prepare(`UPDATE projects SET ${sets.join(', ')} WHERE id = ? AND user_id = ?`).bind(...values).run();
     return true;
   } catch (err) {
     console.warn('[d1UpdateProject] Failed:', err instanceof Error ? err.message : err);
@@ -166,14 +167,18 @@ export async function d1UpdateProject(
 /**
  * Delete a project
  */
-export async function d1DeleteProject(projectId: string): Promise<boolean> {
+export async function d1DeleteProject(projectId: string, userId: string): Promise<boolean> {
   const db = await getDBAsync();
   if (!db) return false;
 
   try {
+    // Verify ownership before deleting
+    const project = await db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').bind(projectId, userId).first();
+    if (!project) return false;
+
     await db.batch([
       db.prepare('DELETE FROM project_sessions WHERE project_id = ?').bind(projectId),
-      db.prepare('DELETE FROM projects WHERE id = ?').bind(projectId),
+      db.prepare('DELETE FROM projects WHERE id = ? AND user_id = ?').bind(projectId, userId),
     ]);
     return true;
   } catch (err) {
@@ -222,11 +227,15 @@ export async function d1UnlinkSession(projectId: string, sessionId: string): Pro
 /**
  * Get sessions linked to a project
  */
-export async function d1GetProjectSessions(projectId: string): Promise<string[]> {
+export async function d1GetProjectSessions(projectId: string, userId: string): Promise<string[]> {
   const db = await getDBAsync();
   if (!db) return [];
 
   try {
+    // Verify ownership before returning sessions
+    const project = await db.prepare('SELECT id FROM projects WHERE id = ? AND user_id = ?').bind(projectId, userId).first();
+    if (!project) return [];
+
     const rows = await db.prepare(`
       SELECT session_id FROM project_sessions WHERE project_id = ? ORDER BY linked_at DESC
     `).bind(projectId).all<{ session_id: string }>();

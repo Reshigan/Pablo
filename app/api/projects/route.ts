@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     const projectId = request.nextUrl.searchParams.get('id');
 
     if (projectId) {
-      const sessions = await d1GetProjectSessions(projectId);
+      const sessions = await d1GetProjectSessions(projectId, userId);
       return Response.json({ sessions });
     }
 
@@ -90,7 +90,7 @@ export async function PATCH(request: NextRequest) {
     if (!id) return Response.json({ error: 'Missing project id' }, { status: 400 });
 
     const body = (await request.json()) as Record<string, string>;
-    const ok = await d1UpdateProject(id, {
+    const ok = await d1UpdateProject(id, userId, {
       name: body.name,
       description: body.description,
       repoFullName: body.repoFullName,
@@ -111,7 +111,7 @@ export async function DELETE(request: NextRequest) {
     const id = request.nextUrl.searchParams.get('id');
     if (!id) return Response.json({ error: 'Missing project id' }, { status: 400 });
 
-    const ok = await d1DeleteProject(id);
+    const ok = await d1DeleteProject(id, userId);
     return Response.json({ ok });
   } catch (err) {
     console.error('[projects/DELETE]', err);
