@@ -459,23 +459,25 @@ Rules:
     ...messages.filter((m) => m.role !== 'system'),
   ];
 
-  // Resolve model name: map legacy names to current Qwen model stack
+  // Resolve model name: map legacy names to available Ollama Cloud models
   const MODEL_ALIASES: Record<string, string> = {
-    'deepseek-r1': 'qwen3:32b',
-    'qwen3-coder-next': 'qwen2.5-coder:32b',
-    'deepseek-v3.2': 'qwen3:32b',
-    'qwen3-coder:480b': 'qwen2.5-coder:32b',
-    'devstral-2:123b': 'qwen2.5-coder:32b',
-    'gpt-oss:120b': 'qwen2.5:72b',
+    'deepseek-r1': 'qwen3-next:80b',
+    'qwen3-coder-next': 'devstral-2:123b',
+    'deepseek-v3.2': 'qwen3-next:80b',
+    'qwen3-coder:480b': 'devstral-2:123b',
+    'qwen3:32b': 'qwen3-next:80b',
+    'qwen2.5-coder:32b': 'devstral-2:123b',
+    'qwen2.5:72b': 'gpt-oss:20b',
+    'gpt-oss:120b': 'gpt-oss:20b',
   };
   const resolvedModel = modelOverride ? (MODEL_ALIASES[modelOverride] || modelOverride) : undefined;
 
-  // Fallback chain: Qwen model stack (32B-72B range, no long queues)
+  // Fallback chain: Ollama Cloud models verified available via ollama.com/api/tags
   const modelsToTry = [
     ...(resolvedModel ? [resolvedModel] : []),
-    'qwen2.5-coder:32b',
-    'qwen3:32b',
-    'qwen2.5:72b',
+    'devstral-2:123b',
+    'qwen3-next:80b',
+    'gpt-oss:20b',
   ];
   // De-duplicate in case resolvedModel is already in the fallback list
   const uniqueModels = [...new Set(modelsToTry)];
@@ -701,11 +703,11 @@ export async function GET() {
       'Post-generation validation (12 automated checks)',
       'Auto-fix loop (up to 3 iterations)',
     ],
-    provider: 'Ollama Cloud (api.ollama.ai)',
+    provider: 'Ollama Cloud (ollama.com/api)',
     models: {
-      reasoning: 'qwen3:32b',
-      code_generation: 'qwen2.5-coder:32b',
-      fast_chat: 'qwen2.5:72b',
+      reasoning: 'qwen3-next:80b',
+      code_generation: 'devstral-2:123b',
+      fast_chat: 'gpt-oss:20b',
     },
   });
 }
