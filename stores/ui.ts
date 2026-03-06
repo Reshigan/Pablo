@@ -147,6 +147,8 @@ export const useUIStore = create<UIState>()(
         chatOpen: state.chatOpen,
         chatWidth: state.chatWidth,
         activeWorkspaceTab: state.activeWorkspaceTab,
+        autoIterateEnabled: state.autoIterateEnabled,
+        iterationTargetScore: state.iterationTargetScore,
       }),
     },
   ),
