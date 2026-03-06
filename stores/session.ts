@@ -67,6 +67,8 @@ interface SessionState {
   saveSession: () => Promise<void>;
   /** Delete a session */
   deleteSession: (id: string) => Promise<void>;
+  /** FIX-4: Archive a session (set status to completed, stop auto-save) */
+  archiveSession: (id: string) => Promise<void>;
   /** Update session metadata (title, repo, status) */
   updateSessionMeta: (id: string, updates: Partial<Pick<AppSession, 'title' | 'repoFullName' | 'repoBranch' | 'status'>>) => Promise<void>;
   /** Set the current session ID without loading */
@@ -333,6 +335,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }
     } catch {
       // Non-blocking
+    }
+  },
+
+  // FIX-4: Archive a session — marks as completed and stops auto-save
+  archiveSession: async (id: string) => {
+    try {
+      await get().updateSessionMeta(id, { status: 'completed' });
+      if (get().currentSessionId === id) {
+        stopAutoSave();
+      }
+      toastSuccess('Session archived', 'Session marked as completed');
+    } catch {
+      toastError('Archive failed', 'Could not archive session');
     }
   },
 

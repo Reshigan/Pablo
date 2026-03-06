@@ -60,8 +60,45 @@ export const { handlers, signIn, signOut, auth } = NextAuth(() => {
   providers,
   pages: {
     signIn: '/login',
+    error: '/login',
   },
   callbacks: {
+    async signIn({ user, account }) {
+      // FIX-3: Team allowlist — restrict production access to approved emails/org
+      if (isDev) return true; // Allow all in dev mode
+      if (account?.provider === 'credentials') return true; // Dev login
+
+      const allowedEmails = (process.env.ALLOWED_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+      const allowedOrg = process.env.ALLOWED_GITHUB_ORG || '';
+
+      // If no allowlist configured, allow all (open access)
+      if (allowedEmails.length === 0 && !allowedOrg) return true;
+
+      // Check email allowlist
+      const userEmail = user.email?.toLowerCase() || '';
+      if (allowedEmails.length > 0 && allowedEmails.includes(userEmail)) return true;
+
+      // Check GitHub org membership (if configured and we have an access token)
+      if (allowedOrg && account?.access_token) {
+        try {
+          const res = await fetch(`https://api.github.com/user/orgs`, {
+            headers: {
+              Authorization: `Bearer ${account.access_token}`,
+              'User-Agent': 'Pablo-IDE',
+            },
+          });
+          if (res.ok) {
+            const orgs = (await res.json()) as Array<{ login: string }>;
+            if (orgs.some(o => o.login.toLowerCase() === allowedOrg.toLowerCase())) return true;
+          }
+        } catch {
+          // Org check failed — fall through to deny
+        }
+      }
+
+      // Deny access with error message
+      return '/login?error=AccessDenied';
+    },
     async jwt({ token, account }) {
       if (account) {
         token.accessToken = account.access_token;

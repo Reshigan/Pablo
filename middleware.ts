@@ -18,6 +18,17 @@ import type { NextRequest } from 'next/server';
  * when API routes call `auth()`.
  */
 export function middleware(request: NextRequest) {
+  // SEC-1: CSRF Origin validation — reject state-changing requests from third-party origins
+  const origin = request.headers.get('origin');
+  const allowedOrigin = process.env.NEXTAUTH_URL || 'https://pablo.vantax.co.za';
+  if (
+    ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method) &&
+    origin &&
+    !allowedOrigin.startsWith(origin)
+  ) {
+    return NextResponse.json({ error: 'CSRF rejected' }, { status: 403 });
+  }
+
   // NextAuth v5 session cookie names (checks both secure and non-secure variants)
   const hasSession =
     request.cookies.has('authjs.session-token') ||

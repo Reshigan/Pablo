@@ -1,7 +1,7 @@
 'use client';
 
 import { useSessionStore, type AppSession } from '@/stores/session';
-import { useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -14,6 +14,8 @@ import {
   Pause,
   CheckCircle2,
   AlertCircle,
+  Archive,
+  Search,
 } from 'lucide-react';
 
 const STATUS_ICONS = {
@@ -48,11 +50,13 @@ function SessionItem({
   isCurrent,
   onResume,
   onDelete,
+  onArchive,
 }: {
   session: AppSession;
   isCurrent: boolean;
   onResume: () => void;
   onDelete: () => void;
+  onArchive: () => void;
 }) {
   const StatusIcon = STATUS_ICONS[session.status];
   const statusColor = STATUS_COLORS[session.status];
@@ -95,17 +99,32 @@ function SessionItem({
             )}
           </div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-          className="shrink-0 rounded p-1 text-pablo-text-muted opacity-0 transition-opacity hover:bg-red-500/10 hover:text-red-400 group-hover:opacity-100"
-          aria-label={`Delete session ${session.title}`}
-          title="Delete session"
-        >
-          <Trash2 size={12} />
-        </button>
+        <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {session.status !== 'completed' && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive();
+              }}
+              className="rounded p-1 text-pablo-text-muted hover:bg-pablo-gold/10 hover:text-pablo-gold"
+              aria-label={`Archive session ${session.title}`}
+              title="Archive session"
+            >
+              <Archive size={12} />
+            </button>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            className="rounded p-1 text-pablo-text-muted hover:bg-red-500/10 hover:text-red-400"
+            aria-label={`Delete session ${session.title}`}
+            title="Delete session"
+          >
+            <Trash2 size={12} />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -120,8 +139,16 @@ export function SessionsPanel() {
     loadSessions,
     createSession,
     deleteSession,
+    archiveSession,
     saveSession,
   } = useSessionStore();
+
+  // ENH-4: Session search/filter
+  const [searchQuery, setSearchQuery] = useState('');
+  const filteredSessions = sessions.filter((s) =>
+    !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    s.repoFullName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   // Load sessions on mount
   useEffect(() => {
@@ -187,6 +214,20 @@ export function SessionsPanel() {
         </button>
       </div>
 
+      {/* ENH-4: Session search */}
+      {sessions.length > 3 && (
+        <div className="relative px-0.5">
+          <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-pablo-text-muted" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search sessions..."
+            className="w-full rounded-lg border border-pablo-border bg-pablo-input pl-7 pr-2 py-1 font-ui text-[11px] text-pablo-text outline-none placeholder:text-pablo-text-muted focus:border-pablo-gold/50"
+          />
+        </div>
+      )}
+
       {/* Sessions list */}
       {isLoading && sessions.length === 0 ? (
         <div className="flex items-center justify-center py-6">
@@ -203,15 +244,21 @@ export function SessionsPanel() {
         </div>
       ) : (
         <div className="flex flex-col gap-1.5">
-          {sessions.map((session) => (
+          {filteredSessions.map((session) => (
             <SessionItem
               key={session.id}
               session={session}
               isCurrent={session.id === currentSessionId}
               onResume={() => handleResume(session.id)}
               onDelete={() => handleDelete(session.id)}
+              onArchive={() => archiveSession(session.id)}
             />
           ))}
+          {filteredSessions.length === 0 && searchQuery && (
+            <p className="py-4 text-center font-ui text-[11px] text-pablo-text-muted">
+              No sessions match &quot;{searchQuery}&quot;
+            </p>
+          )}
         </div>
       )}
     </div>
