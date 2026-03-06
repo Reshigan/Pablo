@@ -461,11 +461,12 @@ Rules:
 
   // Resolve model name: map legacy names to available Ollama Cloud models
   const MODEL_ALIASES: Record<string, string> = {
-    'deepseek-r1': 'qwen3-next:80b',
+    'deepseek-r1': 'devstral-2:123b',
     'qwen3-coder-next': 'devstral-2:123b',
-    'deepseek-v3.2': 'qwen3-next:80b',
+    'deepseek-v3.2': 'devstral-2:123b',
     'qwen3-coder:480b': 'devstral-2:123b',
-    'qwen3:32b': 'qwen3-next:80b',
+    'qwen3:32b': 'devstral-2:123b',
+    'qwen3-next:80b': 'devstral-2:123b',
     'qwen2.5-coder:32b': 'devstral-2:123b',
     'qwen2.5:72b': 'gpt-oss:20b',
     'gpt-oss:120b': 'gpt-oss:20b',
@@ -476,7 +477,6 @@ Rules:
   const modelsToTry = [
     ...(resolvedModel ? [resolvedModel] : []),
     'devstral-2:123b',
-    'qwen3-next:80b',
     'gpt-oss:20b',
   ];
   // De-duplicate in case resolvedModel is already in the fallback list
@@ -705,7 +705,7 @@ export async function GET() {
     ],
     provider: 'Ollama Cloud (ollama.com/api)',
     models: {
-      reasoning: 'qwen3-next:80b',
+      reasoning: 'devstral-2:123b',
       code_generation: 'devstral-2:123b',
       fast_chat: 'gpt-oss:20b',
     },

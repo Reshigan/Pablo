@@ -37,11 +37,11 @@ export interface RouteDecision {
 const MODELS = {
   qwen3_reasoning: {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3-next:80b',
-    description: 'Qwen3-Next 80B - reasoning and planning',
+    model: 'devstral-2:123b',
+    description: 'Devstral-2 123B - reasoning and planning (no thinking mode)',
     max_tokens: 16384,
     temperature: 0.2,
-    estimated_speed: '20-40 TPS',
+    estimated_speed: '15-30 TPS',
   },
   qwen25_coder: {
     provider: 'ollama_cloud' as const,

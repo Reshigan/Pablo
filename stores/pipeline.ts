@@ -207,15 +207,15 @@ export function resolveTechStack(
 
 // Model selection: Ollama Cloud models verified available via ollama.com/api/tags
 export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: string; model: string }[] = [
-  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'qwen3-next:80b' },
+  { id: 'plan', label: 'Plan', description: 'Analyze requirements, recommend tech stack, create implementation plan', model: 'devstral-2:123b' },
   { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'devstral-2:123b' },
   { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'devstral-2:123b' },
   { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'devstral-2:123b' },
   { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'gpt-oss:20b' },
   { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'devstral-2:123b' },
   { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'devstral-2:123b' },
-  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'qwen3-next:80b' },
-  { id: 'enterprise', label: 'Enterprise', description: 'Enterprise production-readiness audit', model: 'qwen3-next:80b' },
+  { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'devstral-2:123b' },
+  { id: 'enterprise', label: 'Enterprise', description: 'Enterprise production-readiness audit', model: 'devstral-2:123b' },
 ];
 
 // ─── Incremental Pipeline Stages ────────────────────────────────────────────
