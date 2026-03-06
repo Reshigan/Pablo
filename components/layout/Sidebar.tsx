@@ -108,8 +108,8 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Task 35: Icon rail — always visible, 44px */}
-      <aside className="relative z-30 flex w-11 shrink-0 flex-col border-r border-pablo-border bg-pablo-surface-0">
+      {/* Task 35: Icon rail — hidden on mobile (<768px), visible on md+ */}
+      <aside className="relative z-30 hidden md:flex w-11 shrink-0 flex-col border-r border-pablo-border bg-pablo-surface-0">
         <div className="flex flex-col gap-0.5 pt-2">
           {tabs.map((tab, i) => (
             <Fragment key={tab.id}>
@@ -143,7 +143,7 @@ export function Sidebar() {
             onClick={toggleSidebar}
           />
           <div
-            className="fixed left-11 top-12 bottom-6 z-40 w-72 border-r border-pablo-border bg-pablo-surface-1 shadow-elevated panel-transition animate-slide-in overflow-hidden flex flex-col"
+            className="fixed top-12 z-40 border-r border-pablo-border bg-pablo-surface-1 shadow-elevated panel-transition animate-slide-in overflow-hidden flex flex-col left-0 right-0 bottom-14 md:left-11 md:right-auto md:bottom-6 md:w-72"
             style={{ borderRadius: '0 12px 12px 0' }}
           >
             {/* Panel header */}

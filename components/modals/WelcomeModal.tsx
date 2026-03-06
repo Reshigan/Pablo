@@ -43,7 +43,7 @@ export function WelcomeModal() {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="relative mx-4 w-full max-w-lg rounded-xl border border-pablo-border bg-pablo-panel p-6 shadow-2xl">
+      <div className="relative mx-3 w-full max-w-lg rounded-xl border border-pablo-border bg-pablo-panel p-4 md:p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Close button */}
         <button
           onClick={dismiss}
@@ -61,7 +61,7 @@ export function WelcomeModal() {
         </div>
 
         {/* Two-path choice */}
-        <div className="mb-5 grid grid-cols-2 gap-3">
+        <div className="mb-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
           {/* Path 1: Existing repo */}
           <button
             onClick={handleExistingRepo}
@@ -98,7 +98,7 @@ export function WelcomeModal() {
         </div>
 
         {/* Quick tips */}
-        <div className="mb-4 grid grid-cols-2 gap-2">
+        <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="flex items-start gap-2 rounded-lg border border-pablo-border bg-pablo-bg p-2.5">
             <MessageSquare size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
             <div>
@@ -121,7 +121,7 @@ export function WelcomeModal() {
             <Keyboard size={14} className="text-pablo-text-dim" />
             <span className="font-ui text-xs font-semibold text-pablo-text-dim">Keyboard Shortcuts</span>
           </div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
             {[
               ['\u2318\u21E7P', 'Command Palette'],
               ['\u2318K', 'Inline AI Edit'],

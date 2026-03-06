@@ -970,12 +970,12 @@ export function PipelineView() {
             ))}
           </div>
         )}
-        <div className="mt-1.5 flex items-center gap-2">
-          <span className="font-ui text-[10px] text-pablo-text-muted">{PIPELINE_STAGES.length}-Stage Pipeline:</span>
-          <div className="flex items-center gap-1">
+        <div className="mt-1.5 flex items-center gap-2 overflow-x-auto scrollbar-none">
+          <span className="font-ui text-[10px] text-pablo-text-muted shrink-0">{PIPELINE_STAGES.length}-Stage Pipeline:</span>
+          <div className="flex items-center gap-1 shrink-0">
             {PIPELINE_STAGES.map((s, i) => (
-              <span key={s.id} className="flex items-center gap-1">
-                <span className="font-ui text-[10px] text-pablo-gold">{s.label}</span>
+              <span key={s.id} className="flex items-center gap-1 shrink-0">
+                <span className="font-ui text-[10px] text-pablo-gold whitespace-nowrap">{s.label}</span>
                 {i < PIPELINE_STAGES.length - 1 && (
                   <span className="text-pablo-text-muted">&rarr;</span>
                 )}

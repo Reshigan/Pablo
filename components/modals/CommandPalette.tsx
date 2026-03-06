@@ -330,7 +330,7 @@ export function CommandPalette() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] md:pt-[15vh] px-3 md:px-0"
       onClick={() => {
         toggleCommandPalette();
         setQuery('');
@@ -341,7 +341,7 @@ export function CommandPalette() {
 
       {/* Palette */}
       <div
-        className="relative w-full max-w-lg rounded-xl border border-pablo-border bg-pablo-panel shadow-2xl"
+        className="relative w-full max-w-lg rounded-xl border border-pablo-border bg-pablo-panel shadow-2xl max-h-[80vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search input */}

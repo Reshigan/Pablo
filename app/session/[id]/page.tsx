@@ -209,7 +209,7 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
       {/* Main Area: Sidebar icon rail + Workspace (shrinks when chat is open) */}
       <div
         className="flex min-h-0 flex-1 transition-[margin] duration-200"
-        style={{ marginRight: chatOpen ? chatWidth : 0 }}
+        style={{ marginRight: chatOpen && !mobileMode ? chatWidth : 0 }}
       >
         {/* Sidebar — icon rail always visible, panel is overlay */}
         <ErrorBoundary name="Sidebar">
@@ -222,30 +222,34 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         </ErrorBoundary>
       </div>
 
-      {/* Task 37: Floating chat toggle button */}
+      {/* Task 37: Floating chat toggle button — higher on mobile to clear MobileTabBar */}
       {!chatOpen && (
         <button
           onClick={toggleChat}
-          className="fixed bottom-16 right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-pablo-gold text-pablo-bg shadow-lg transition-transform hover:scale-105 active:scale-95"
+          className={`fixed right-4 z-40 flex h-12 w-12 items-center justify-center rounded-full bg-pablo-gold text-pablo-bg shadow-lg transition-transform hover:scale-105 active:scale-95 ${mobileMode ? 'bottom-20' : 'bottom-16'}`}
           aria-label="Open chat"
         >
           <MessageSquare size={20} />
         </button>
       )}
 
-      {/* Task 37: Chat slide-over overlay */}
+      {/* Task 37: Chat slide-over overlay — fullscreen on mobile */}
       {chatOpen && (
         <div
-          className="fixed right-0 top-12 bottom-6 z-30 flex flex-col border-l border-pablo-border bg-pablo-surface-2/95 backdrop-blur-sm shadow-elevated"
-          style={{ width: chatWidth }}
+          className={`fixed right-0 top-12 z-30 flex flex-col border-l border-pablo-border bg-pablo-surface-2/95 backdrop-blur-sm shadow-elevated ${
+            mobileMode ? 'left-0 bottom-14' : 'bottom-6'
+          }`}
+          style={mobileMode ? undefined : { width: chatWidth }}
         >
-          {/* Absolutely positioned left-edge resize handle */}
-          <div className="absolute left-0 top-0 bottom-0 z-10">
-            <PanelResizer
-              direction="horizontal"
-              onResize={(delta) => setChatWidth(prev => prev - delta)}
-            />
-          </div>
+          {/* Absolutely positioned left-edge resize handle — hidden on mobile */}
+          {!mobileMode && (
+            <div className="absolute left-0 top-0 bottom-0 z-10">
+              <PanelResizer
+                direction="horizontal"
+                onResize={(delta) => setChatWidth(prev => prev - delta)}
+              />
+            </div>
+          )}
           <ErrorBoundary name="Chat">
             <ChatPanel />
           </ErrorBoundary>

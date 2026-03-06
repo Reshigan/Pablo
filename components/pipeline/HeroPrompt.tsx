@@ -43,16 +43,16 @@ export function HeroPrompt() {
   );
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 py-12">
+    <div className="flex flex-1 flex-col items-center justify-center gap-4 md:gap-6 px-4 md:px-6 py-6 md:py-12">
       {/* Icon + heading */}
       <div className="flex flex-col items-center gap-3 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pablo-gold/10 border border-pablo-gold/15">
           <Zap size={28} className="text-pablo-gold" />
         </div>
-        <h2 className="font-ui text-xl font-bold tracking-tight text-pablo-text">
+        <h2 className="font-ui text-lg md:text-xl font-bold tracking-tight text-pablo-text">
           What shall we build?
         </h2>
-        <p className="max-w-md font-ui text-sm text-pablo-text-dim leading-relaxed">
+        <p className="max-w-md font-ui text-xs md:text-sm text-pablo-text-dim leading-relaxed">
           Describe your feature and Pablo&apos;s 9-stage pipeline will plan, generate database schemas,
           APIs, UI components, tests, and review the code — all in one go.
         </p>
@@ -115,8 +115,8 @@ export function HeroPrompt() {
         )}
       </div>
 
-      {/* Keyboard hint */}
-      <p className="font-ui text-[10px] text-pablo-text-ghost">
+      {/* Keyboard hint — hidden on mobile */}
+      <p className="hidden sm:block font-ui text-[10px] text-pablo-text-ghost">
         <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">&#8984;&#9166;</kbd>{' '}
         to generate &middot;{' '}
         <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">&#8984;K</kbd>{' '}
