@@ -216,6 +216,7 @@ export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: s
   { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'qwen2.5-coder:32b' },
   { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'qwen2.5-coder:32b' },
   { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'qwen3:32b' },
+  { id: 'enterprise', label: 'Enterprise', description: 'Enterprise production-readiness audit', model: 'qwen3:32b' },
 ];
 
 // ─── Incremental Pipeline Stages ────────────────────────────────────────────
@@ -236,7 +237,7 @@ export const INCREMENTAL_STAGES: { id: PipelineStage; label: string; description
 export function selectStages(mode: PipelineMode): PipelineStage[] {
   switch (mode) {
     case 'greenfield':
-      return ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'];
+      return ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review', 'enterprise'];
     case 'bug-fix':
       return ['analyze', 'fix', 'review'];
     case 'add-feature':

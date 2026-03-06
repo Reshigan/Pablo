@@ -493,72 +493,113 @@ class POPIACompliance:
 
 ## 10. POPIA — Technical Implementation Patterns
 
-### Data Classification
-```typescript
-// Tag every model field with its POPIA data class
-enum POPIADataClass {
-  PERSONAL = 'personal',        // Name, email, phone, address
-  SPECIAL = 'special',          // Health, biometric, race, religion, criminal
-  FINANCIAL = 'financial',      // Bank details, income, credit records
-  CHILDREN = 'children',        // Any data about persons under 18
-  PUBLIC = 'public',            // Not subject to POPIA restrictions
-}
+### Consent Tracking Schema (MANDATORY for any SA system collecting PII)
+```sql
+CREATE TABLE consent_records (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES users(id),
+  purpose TEXT NOT NULL,
+  lawful_basis TEXT NOT NULL,  -- 'consent'|'contract'|'legal_obligation'
+  granted BOOLEAN NOT NULL,
+  granted_at TIMESTAMP,
+  withdrawn_at TIMESTAMP,
+  ip_address TEXT,             -- Masked to /24 subnet
+  version TEXT NOT NULL,       -- Privacy policy version at time of consent
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
 
-// Every personal data field must declare its class
-interface PersonSchema {
-  id: string;
-  name: string;           // POPIADataClass.PERSONAL
-  email: string;          // POPIADataClass.PERSONAL
-  id_number?: string;     // POPIADataClass.PERSONAL — SA ID number
-  health_notes?: string;  // POPIADataClass.SPECIAL — heightened protection
-  bank_account?: string;  // POPIADataClass.FINANCIAL
+### PII Masking for Logs (MANDATORY — never log raw PII)
+```typescript
+function maskEmail(email: string): string {
+  const [local, domain] = email.split("@");
+  return `${local[0]}***@${domain}`;
+}
+function maskPhone(phone: string): string {
+  return phone.replace(/(\+?\d{2,3})\d{6}(\d{4})/, "$1******$2");
+}
+function maskIdNumber(id: string): string { return `${id.slice(0, 6)}*******`; }
+```
+
+### Data Retention Schedules
+```typescript
+const RETENTION_SCHEDULES = {
+  user_sessions:        90,    // days
+  audit_logs:           1825,  // 5 years
+  financial_records:    2555,  // 7 years — SARS requirement
+  marketing_consents:   1095,  // 3 years after withdrawal
+  medical_records:      2190,  // 6 years — Health Act
+};
+```
+
+## 11. Financial Services — TerraVolt / Energy & PPA Patterns
+
+```sql
+-- All monetary values stored as INTEGER cents — never FLOAT
+CREATE TABLE ppa_agreements (
+  id TEXT PRIMARY KEY,
+  counterparty_id TEXT NOT NULL REFERENCES companies(id),
+  tariff_cents_per_kwh INTEGER NOT NULL, -- e.g. 95 = R0.95/kWh
+  escalation_rate_bps INTEGER NOT NULL,  -- basis points e.g. 600 = 6% p.a.
+  contract_start DATE NOT NULL,
+  contract_end DATE NOT NULL,
+  capacity_kw INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft',
+  is_active BOOLEAN NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE energy_readings (
+  id TEXT PRIMARY KEY,
+  agreement_id TEXT NOT NULL REFERENCES ppa_agreements(id),
+  period_start TIMESTAMP NOT NULL,
+  period_end TIMESTAMP NOT NULL,
+  generation_wh INTEGER NOT NULL,    -- Watt-hours as integer
+  exported_wh INTEGER NOT NULL,
+  invoice_amount_cents INTEGER,      -- Populated when invoice generated
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+```typescript
+-- NERSA compliance fields (required on all SA energy systems)
+interface EnergySystemCompliance {
+  nersa_licence_number: string;
+  nersa_licence_expiry: string;
+  municipality: string;
+  wheeling_agreement_ref?: string;
+  carbon_credits_project_id?: string;
 }
 ```
 
-### Consent Tracking
-```typescript
-// Every collection of personal data MUST have a consent record
-interface ConsentRecord {
-  id: string;
-  userId: string;
-  purpose: string;           // Why data is being collected
-  dataClasses: POPIADataClass[];  // What categories of data
-  consentedAt: Date;
-  expiresAt?: Date;          // Consent can expire
-  withdrawnAt?: Date;        // User can withdraw consent
-  source: 'web_form' | 'api' | 'import' | 'manual';
-}
+## 12. Medical / Med-Tech — Fybatex Patterns
+
+```sql
+-- ISO 13485 requirement: every device state change must be audited
+CREATE TABLE device_audit_log (
+  id TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  device_type TEXT NOT NULL,  -- 'curtain'|'uvc_robot'|'sensor'
+  action TEXT NOT NULL,       -- 'created'|'deployed'|'serviced'|'recalled'|'decommissioned'
+  performed_by TEXT NOT NULL REFERENCES users(id),
+  location TEXT,
+  batch_number TEXT,
+  previous_state TEXT,        -- JSON snapshot before change
+  new_state TEXT,             -- JSON snapshot after change
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-### PII Masking in Logs
 ```typescript
-// NEVER log raw PII — always mask before logging
-function maskPII(data: Record<string, unknown>): Record<string, unknown> {
-  const masked = { ...data };
-  const piiFields = ['email', 'phone', 'id_number', 'bank_account', 'name'];
-  for (const field of piiFields) {
-    if (masked[field] && typeof masked[field] === 'string') {
-      const val = masked[field] as string;
-      masked[field] = val.slice(0, 2) + '***' + val.slice(-2);
-    }
-  }
-  return masked;
-}
-```
-
-### Data Subject Access Request (DSAR)
-```typescript
-// Users can request all their data — you MUST be able to export it
-interface DSARResponse {
-  requestId: string;
-  userId: string;
-  requestedAt: Date;
-  completedAt?: Date;
-  dataExport: {
-    personalInfo: Record<string, unknown>;
-    activityLog: Array<{ action: string; timestamp: Date }>;
-    consentRecords: ConsentRecord[];
-    thirdPartySharing: Array<{ recipient: string; purpose: string; date: Date }>;
-  };
+-- OHS Act: field deployment safety record
+interface FieldDeploymentSafetyRecord {
+  deployment_id: string;
+  risk_assessment_completed: boolean;
+  ppe_confirmed: boolean;      // UV goggles, protective clothing, signage
+  area_cleared: boolean;
+  clearance_time_start: string;
+  clearance_time_end: string;  // Min 30 min post-UVC before re-entry
+  operator_signature: string;
+  supervisor_sign_off: string;
 }
 ```
