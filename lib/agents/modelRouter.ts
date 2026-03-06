@@ -121,7 +121,7 @@ const ROUTING_TABLE: Record<TaskType, RouteDecision> = {
     task_type: 'document',
     primary: MODELS.qwen25_fast,
     fallback: MODELS.qwen25_coder,
-    reasoning: 'Documentation via Qwen2.5 72B. Qwen2.5-Coder fallback.',
+    reasoning: 'Documentation via GPT-OSS 20B. Devstral-2 fallback.',
   },
 };
 
@@ -273,7 +273,7 @@ export async function callModel(request: LLMRequest, env: EnvConfig, userId?: st
 }
 
 interface OllamaCloudResult {
-  message?: { content?: string };
+  message?: { content?: string; thinking?: string };
   prompt_eval_count?: number;
   eval_count?: number;
 }
@@ -348,7 +348,7 @@ async function callOllamaCloud(request: LLMRequest, startTime: number, env: EnvC
   const promptTokens = data.prompt_eval_count || 0;
   const evalTokens = data.eval_count || 0;
   return {
-    content: data.message?.content || '',
+    content: data.message?.content || data.message?.thinking || '',
     model: request.model.model,
     provider: 'ollama_cloud',
     tokens_used: promptTokens + evalTokens,
