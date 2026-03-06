@@ -294,11 +294,11 @@ Return the COMPLETE fixed code in a single code block.`;
 
     const MODEL = {
       provider: 'ollama_cloud' as const,
-      model: 'qwen2.5-coder:32b',
+      model: 'devstral-2:123b',
       description: 'Code fixer',
       max_tokens: 16384,
       temperature: 0.1,
-      estimated_speed: '40-80 TPS',
+      estimated_speed: '15-30 TPS',
     };
 
     try {

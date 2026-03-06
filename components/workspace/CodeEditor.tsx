@@ -199,7 +199,7 @@ CODE TO EDIT:
 ${selectedText}`,
           }],
           mode: 'pipeline-stage',
-          model: 'qwen2.5-coder:32b',
+          model: 'devstral-2:123b',
           max_tokens: 4096,
         }),
       });

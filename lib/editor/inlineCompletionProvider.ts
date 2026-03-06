@@ -1,7 +1,7 @@
 /**
  * Inline AI Autocomplete — Feature 7
  * Registers a Monaco InlineCompletionProvider that suggests code completions
- * using the Ollama Cloud API (fast model: qwen2.5:72b).
+ * using the Ollama Cloud API (fast model: gpt-oss:20b).
  * Press Tab to accept, Escape or keep typing to dismiss.
  */
 
@@ -118,7 +118,7 @@ CODE AFTER CURSOR:
 ${textAfter}`,
                 }],
                 mode: 'pipeline-stage',
-                model: 'qwen2.5:72b',
+                model: 'gpt-oss:20b',
                 max_tokens: 200,
               }),
               signal: controller.signal,

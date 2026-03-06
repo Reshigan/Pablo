@@ -50,11 +50,11 @@ export class PMAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen3:32b',
-        description: 'Qwen3 32B for requirements analysis',
+        model: 'devstral-2:123b',
+        description: 'Devstral-2 123B for requirements analysis',
         max_tokens: 8192,
         temperature: 0.3,
-        estimated_speed: '40-80 TPS',
+        estimated_speed: '15-30 TPS',
       },
       fileScope: [], // PMAgent writes no files
       maxOutputTokens: 8192,

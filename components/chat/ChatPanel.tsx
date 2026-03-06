@@ -39,7 +39,7 @@ function ChatEmptyState() {
       </p>
       <p className="font-ui text-xs text-pablo-text-muted">
         Describe a feature, paste an error, or ask me to generate code.
-        I use DeepSeek-R1 for reasoning and Qwen3-Coder for implementation.
+        I use Devstral-2 for reasoning and code generation, and GPT-OSS for fast tasks.
       </p>
     </div>
   );
@@ -362,7 +362,7 @@ export function ChatPanel() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             messages: apiMessages,
-            model: 'deepseek-r1',
+            model: 'devstral-2:123b',
             temperature: 0.7,
             sessionId: currentSessionId || undefined,
             ollamaUrl: ollamaUrl || undefined,

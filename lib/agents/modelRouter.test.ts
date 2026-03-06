@@ -53,22 +53,22 @@ describe('classifyTask', () => {
 });
 
 describe('routeTask', () => {
-  it('routes generate tasks to Qwen2.5-Coder primary', () => {
+  it('routes generate tasks to Devstral-2 coder primary', () => {
     const decision = routeTask('Build a SaaS dashboard system');
     expect(decision.task_type).toBe('generate');
-    expect(decision.primary.model).toBe('qwen2.5-coder:32b');
+    expect(decision.primary.model).toBe('devstral-2:123b');
   });
 
-  it('routes plan tasks to Qwen3 reasoning primary', () => {
+  it('routes plan tasks to Devstral-2 reasoning primary', () => {
     const decision = routeTask('Plan the architecture');
     expect(decision.task_type).toBe('plan');
-    expect(decision.primary.model).toBe('qwen3:32b');
+    expect(decision.primary.model).toBe('devstral-2:123b');
   });
 
-  it('routes chat tasks to Qwen2.5 fast primary', () => {
+  it('routes chat tasks to GPT-OSS fast primary', () => {
     const decision = routeTask('hello there');
     expect(decision.task_type).toBe('chat');
-    expect(decision.primary.model).toBe('qwen2.5:72b');
+    expect(decision.primary.model).toBe('gpt-oss:20b');
   });
 
   it('always provides a fallback model', () => {

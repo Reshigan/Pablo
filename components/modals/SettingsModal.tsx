@@ -124,8 +124,8 @@ function ModelSettings() {
       <div className="rounded-lg border border-pablo-border bg-pablo-active p-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-ui text-xs font-medium text-pablo-text">DeepSeek-V3.2</p>
-            <p className="font-ui text-[10px] text-pablo-text-muted">Reasoning &amp; Planning</p>
+            <p className="font-ui text-xs font-medium text-pablo-text">Devstral-2:123B</p>
+            <p className="font-ui text-[10px] text-pablo-text-muted">Reasoning, Planning &amp; Code Generation</p>
           </div>
           <span className="rounded-full bg-pablo-green/20 px-2 py-0.5 font-code text-[10px] text-pablo-green">Active</span>
         </div>
@@ -150,8 +150,8 @@ function ModelSettings() {
       <div className="rounded-lg border border-pablo-border bg-pablo-active p-3">
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-ui text-xs font-medium text-pablo-text">Qwen3-Coder:480B</p>
-            <p className="font-ui text-[10px] text-pablo-text-muted">Code Generation</p>
+            <p className="font-ui text-xs font-medium text-pablo-text">GPT-OSS:20B</p>
+            <p className="font-ui text-[10px] text-pablo-text-muted">Fast Chat &amp; Documentation</p>
           </div>
           <span className="rounded-full bg-pablo-green/20 px-2 py-0.5 font-code text-[10px] text-pablo-green">Active</span>
         </div>

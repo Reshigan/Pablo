@@ -124,11 +124,11 @@ Create a minimal, targeted plan for this ${modeLabel.toLowerCase()}.`;
 
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3:32b',
+    model: 'devstral-2:123b',
     description: 'Incremental planner',
     max_tokens: 4096,
     temperature: 0.2,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '15-30 TPS',
   };
 
   const response = await callModel(
@@ -193,11 +193,11 @@ Return the COMPLETE updated file with the changes applied.`;
 
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'qwen2.5-coder:32b',
+    model: 'devstral-2:123b',
     description: 'Incremental implementer',
     max_tokens: 8192,
     temperature: 0.1,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '15-30 TPS',
   };
 
   const response = await callModel(
@@ -251,11 +251,11 @@ Generate the complete file content.`;
 
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'qwen2.5-coder:32b',
+    model: 'devstral-2:123b',
     description: 'File creator',
     max_tokens: 8192,
     temperature: 0.1,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '15-30 TPS',
   };
 
   const response = await callModel(
@@ -293,11 +293,11 @@ Summarize what was done and any important notes.`;
 
   const MODEL = {
     provider: 'ollama_cloud' as const,
-    model: 'qwen3:32b',
+    model: 'gpt-oss:20b',
     description: 'Change reviewer',
     max_tokens: 1024,
     temperature: 0.3,
-    estimated_speed: '40-80 TPS',
+    estimated_speed: '50-100 TPS',
   };
 
   try {

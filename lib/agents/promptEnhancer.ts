@@ -56,7 +56,7 @@ Keep it under 500 words. Output ONLY the enhanced specification, no preamble.`;
           { role: 'user', content: vaguePrompt },
         ],
         mode: 'pipeline-stage',
-        model: 'qwen2.5:72b',
+        model: 'gpt-oss:20b',
         max_tokens: 1024,
       }),
       signal: controller.signal,

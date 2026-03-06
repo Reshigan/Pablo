@@ -36,11 +36,11 @@ export class DocsAgent extends BaseAgent {
       systemPrompt: SYSTEM_PROMPT,
       model: {
         provider: 'ollama_cloud',
-        model: 'qwen2.5:72b',
-        description: 'Qwen2.5 72B for documentation generation',
+        model: 'gpt-oss:20b',
+        description: 'GPT-OSS 20B for documentation generation',
         max_tokens: 16384,
         temperature: 0.3,
-        estimated_speed: '30-60 TPS',
+        estimated_speed: '50-100 TPS',
       },
       fileScope: [
         /^README\.md$/,
