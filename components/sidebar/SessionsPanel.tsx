@@ -104,6 +104,9 @@ function SessionItem({
               <FolderGit2 size={10} className="text-pablo-text-muted shrink-0" />
               <span className="font-code text-[10px] text-pablo-text-muted truncate">
                 {session.repoFullName}
+                {session.repoBranch && session.repoBranch !== 'main' && (
+                  <span className="text-pablo-gold/70">:{session.repoBranch}</span>
+                )}
               </span>
             </div>
           )}

@@ -6,14 +6,18 @@ import {
   Settings,
   User,
   LogOut,
+  GitBranch,
 } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { useUIStore } from '@/stores/ui';
+import { useRepoStore } from '@/stores/repo';
 import { WorkspaceTabs } from '@/components/workspace/WorkspaceTabs';
 
 export function TopBar() {
   const { toggleCommandPalette, toggleSettings } = useUIStore();
+  const selectedRepo = useRepoStore((s) => s.selectedRepo);
+  const selectedBranch = useRepoStore((s) => s.selectedBranch);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -52,6 +56,19 @@ export function TopBar() {
           ⌘⇧P
         </kbd>
       </button>
+
+      {/* Repo indicator — shows selected repo and branch */}
+      {selectedRepo && (
+        <div className="hidden md:flex items-center gap-1.5 rounded-lg border border-pablo-border bg-pablo-surface-1 px-2.5 py-1 mx-2 shrink-0">
+          <GitBranch size={12} className="text-pablo-gold shrink-0" />
+          <span className="font-code text-[11px] text-pablo-text-dim truncate max-w-[160px]">
+            {selectedRepo.full_name}
+          </span>
+          <span className="font-code text-[10px] text-pablo-text-muted">
+            :{selectedBranch}
+          </span>
+        </div>
+      )}
 
       {/* Task 36: Pill tab switcher — right of search */}
       <div className="hidden md:flex">

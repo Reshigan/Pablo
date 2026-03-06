@@ -315,7 +315,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         }),
       });
       if (res.ok) {
-        set({ isSaving: false, lastSavedAt: new Date().toISOString() });
+        // Update local session state with repo info so sidebar shows it immediately
+        const repoFullName = repo.selectedRepo?.full_name ?? null;
+        const repoBranch = repo.selectedBranch;
+        set((state) => ({
+          isSaving: false,
+          lastSavedAt: new Date().toISOString(),
+          sessions: state.sessions.map((s) =>
+            s.id === savingSessionId
+              ? { ...s, repoFullName: repoFullName ?? s.repoFullName, repoBranch: repoBranch ?? s.repoBranch }
+              : s
+          ),
+        }));
       } else {
         set({ isSaving: false });
         toastError('Save failed', `Server returned ${res.status}`);

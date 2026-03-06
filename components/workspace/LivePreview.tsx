@@ -208,11 +208,12 @@ export function LivePreview() {
     }
   }, [inspectMode]);
 
-  // Static HTML preview
+  // Static HTML preview — use previewFiles (which falls back to pendingDiffs)
+  // instead of raw tabs, so srcdoc preview works even before diffs are accepted
   const previewHtml = useMemo(() => {
     if (runtime !== 'srcdoc') return null;
-    return assemblePreviewHtml(tabs);
-  }, [tabs, runtime]);
+    return assemblePreviewHtml(previewFiles);
+  }, [previewFiles, runtime]);
 
   const appendLog = useCallback((text: string) => {
     setTerminalLog(prev => prev + text);
