@@ -577,6 +577,74 @@ export function PipelineView() {
                 duration: 6000,
               });
             }
+
+            // Auto-iteration (Autonomy Spec — System 1)
+            const autoIterate = useUIStore.getState().autoIterateEnabled ?? false;
+            const targetScore = useUIStore.getState().iterationTargetScore ?? 95;
+            if (autoIterate && readinessResult.score < targetScore) {
+              useToastStore.getState().addToast({
+                type: 'info',
+                title: 'Auto-iterating...',
+                message: `Score ${readinessResult.score}/100 — iterating to reach ${targetScore}`,
+                duration: 4000,
+              });
+
+              try {
+                const { runIterationLoop } = await import('@/lib/agents/iterationEngine');
+                const iterResult = await runIterationLoop(
+                  readinessFiles,
+                  description,
+                  { targetScore, maxIterations: 5, autoApprove: true },
+                  (event) => {
+                    if (event.type === 'score_update') {
+                      toast(`Iteration ${event.iteration}: ${event.oldScore} → ${event.newScore} (${event.grade})`);
+                    } else if (event.type === 'converged') {
+                      toastSuccess('Target reached', `Score ${event.finalScore}/100 after ${event.iterations} iteration(s)`);
+                    } else if (event.type === 'stalled') {
+                      toastError('Iteration stalled', event.message);
+                    }
+                  },
+                  async (stageName, prompt, files) => {
+                    // Map stage name to a proper stage object for runStageWithChat
+                    const stageObj = PIPELINE_STAGES.find(s => s.id === stageName) || PIPELINE_STAGES[0];
+                    const abortCtrl = new AbortController();
+                    try {
+                      const stageResult = await runStageWithChat(prompt, stageObj, [], abortCtrl.signal);
+                      if (stageResult && stageResult.output) {
+                        return parseGeneratedFiles(stageResult.output).map(f => ({
+                          path: f.filename, content: f.content, language: f.language,
+                        }));
+                      }
+                    } catch {
+                      // Stage failed — return original files
+                    }
+                    return files;
+                  },
+                );
+
+                // Update the readiness score with the final iteration result
+                usePipelineStore.getState().setReadinessScore(runId, {
+                  ...readinessResult,
+                  score: iterResult.finalScore,
+                  grade: iterResult.finalScore >= 90 ? 'A' : iterResult.finalScore >= 80 ? 'B' : iterResult.finalScore >= 70 ? 'C' : iterResult.finalScore >= 60 ? 'D' : 'F',
+                });
+
+                // Add iterated files to editor
+                for (const file of iterResult.files) {
+                  const fileId = `iter-${file.path}`;
+                  const fileName = file.path.split('/').pop() || file.path;
+                  useEditorStore.getState().openFile({
+                    id: fileId,
+                    path: file.path,
+                    name: fileName,
+                    language: file.language,
+                    content: file.content,
+                  });
+                }
+              } catch {
+                // Non-blocking — auto-iteration failure shouldn't crash the pipeline
+              }
+            }
           } catch {
             // Non-blocking — readiness evaluation is optional
           }

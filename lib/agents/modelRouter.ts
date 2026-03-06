@@ -243,11 +243,19 @@ export async function callModelTracked(
 }
 
 export async function callModel(request: LLMRequest, env: EnvConfig, userId?: string): Promise<LLMResponse> {
+  // Circuit breaker check — pause LLM calls if error rate is too high
+  const { isCircuitOpen, recordLLMCall, openCircuit, getErrorRate } = await import('@/lib/selfDiagnostic');
+  if (isCircuitOpen()) {
+    throw new Error('Circuit breaker open — LLM calls paused due to high error rate. Retry in 60s.');
+  }
+
   const startTime = Date.now();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), NON_STREAMING_TIMEOUT_MS);
+  let success = false;
   try {
     const result = await callOllamaCloud(request, startTime, env, controller.signal);
+    success = true;
 
     // Cost tracking: log directly to D1 (works server-side, no relative URL needed)
     try {
@@ -267,7 +275,19 @@ export async function callModel(request: LLMRequest, env: EnvConfig, userId?: st
     }
 
     return result;
+  } catch (err) {
+    recordLLMCall(false);
+    if (getErrorRate() > 0.5) {
+      openCircuit();
+    }
+    throw err;
   } finally {
+    if (success) {
+      recordLLMCall(true);
+      if (getErrorRate() > 0.5) {
+        openCircuit();
+      }
+    }
     clearTimeout(timer);
   }
 }

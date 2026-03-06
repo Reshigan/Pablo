@@ -5,9 +5,10 @@
  * Extracted from RunCard in PipelineView.tsx (Task 28).
  */
 
-import { StopCircle, Timer } from 'lucide-react';
+import { StopCircle, Timer, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import type { PipelineRun } from '@/stores/pipeline';
+import { toastSuccess } from '@/stores/toast';
 
 /** ENH-3: Format elapsed time as mm:ss */
 function formatElapsed(ms: number): string {
@@ -101,6 +102,49 @@ export function PipelineProgress({
           </button>
         )}
       </div>
+
+      {/* Feedback buttons — thumbs up/down on completed runs (Autonomy Spec — System 2) */}
+      {run.status === 'completed' && (
+        <div className="flex items-center gap-1 border-b border-pablo-border px-3 py-1">
+          <span className="font-ui text-[10px] text-pablo-text-muted">Rate output:</span>
+          <button
+            onClick={() => {
+              import('@/lib/agents/feedbackLearner').then(({ processFeedback }) => {
+                void processFeedback({
+                  type: 'thumbs_up',
+                  sessionId: run.id,
+                  userMessage: run.featureDescription,
+                  generatedCode: run.stages.map(s => s.output ?? '').join('\n'),
+                  language: 'typescript',
+                });
+              }).catch(() => {/* non-blocking */});
+              toastSuccess('Feedback recorded', 'Positive feedback saved — patterns reinforced');
+            }}
+            className="rounded p-1 text-pablo-text-muted transition-colors hover:bg-pablo-green/10 hover:text-pablo-green"
+            title="Good output"
+          >
+            <ThumbsUp size={12} />
+          </button>
+          <button
+            onClick={() => {
+              import('@/lib/agents/feedbackLearner').then(({ processFeedback }) => {
+                void processFeedback({
+                  type: 'thumbs_down',
+                  sessionId: run.id,
+                  userMessage: run.featureDescription,
+                  generatedCode: run.stages.map(s => s.output ?? '').join('\n'),
+                  language: 'typescript',
+                });
+              }).catch(() => {/* non-blocking */});
+              toastSuccess('Feedback recorded', 'Negative feedback saved — anti-patterns logged');
+            }}
+            className="rounded p-1 text-pablo-text-muted transition-colors hover:bg-pablo-red/10 hover:text-pablo-red"
+            title="Bad output"
+          >
+            <ThumbsDown size={12} />
+          </button>
+        </div>
+      )}
 
       {/* Progress bar */}
       <div className="h-1 w-full bg-pablo-active">

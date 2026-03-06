@@ -79,9 +79,8 @@ export const useLearningStore = create<LearningState>((set, get) => ({
   hydrate: async () => {
     if (get().hydrated) return;
     try {
-      const res = await fetch('/api/patterns');
-      if (!res.ok) { set({ hydrated: true }); return; }
-      const rows = (await res.json()) as Array<{
+      // Try D1 direct first (works server-side), fall back to fetch API
+      let rows: Array<{
         id: string;
         type: PatternType;
         trigger: string;
@@ -91,27 +90,62 @@ export const useLearningStore = create<LearningState>((set, get) => ({
         lastUsedAt: string | null;
         metadata: string | null;
         createdAt: string;
-      }>;
-      const hydrated: Pattern[] = rows.map((r) => ({
-        id: r.id,
-        type: r.type,
-        trigger: r.trigger,
-        action: r.action,
-        context: r.metadata ?? '',
-        confidence: r.confidence,
-        usageCount: r.usageCount,
-        lastUsed: r.lastUsedAt ? new Date(r.lastUsedAt).getTime() : Date.now(),
-        createdAt: new Date(r.createdAt).getTime(),
-        tags: [r.type],
-      }));
-      set({
-        patterns: hydrated,
-        totalPatterns: hydrated.length,
-        avgConfidence: hydrated.length > 0
-          ? hydrated.reduce((s, p) => s + p.confidence, 0) / hydrated.length
-          : 0,
-        hydrated: true,
-      });
+      }> = [];
+
+      try {
+        const { d1GetPatterns } = await import('@/lib/db/d1-patterns');
+        const dbPatterns = await d1GetPatterns();
+        if (dbPatterns && dbPatterns.length > 0) {
+          rows = dbPatterns as typeof rows;
+        }
+      } catch {
+        // D1 direct failed — try fetch API fallback
+        try {
+          const res = await fetch('/api/patterns');
+          if (res.ok) {
+            rows = (await res.json()) as typeof rows;
+          }
+        } catch {
+          // Both failed — proceed with empty
+        }
+      }
+
+      if (rows.length > 0) {
+        // Merge DB patterns into store (dedup by trigger+action)
+        const existing = get().patterns;
+        const existingKeys = new Set(existing.map(p => `${p.trigger}::${p.action}`));
+        const hydrated: Pattern[] = [...existing];
+
+        for (const r of rows) {
+          const key = `${r.trigger}::${r.action}`;
+          if (!existingKeys.has(key)) {
+            hydrated.push({
+              id: r.id,
+              type: r.type,
+              trigger: r.trigger,
+              action: r.action,
+              context: r.metadata ?? '',
+              confidence: r.confidence,
+              usageCount: r.usageCount,
+              lastUsed: r.lastUsedAt ? new Date(r.lastUsedAt).getTime() : Date.now(),
+              createdAt: new Date(r.createdAt).getTime(),
+              tags: [r.type],
+            });
+            existingKeys.add(key);
+          }
+        }
+
+        set({
+          patterns: hydrated,
+          totalPatterns: hydrated.length,
+          avgConfidence: hydrated.length > 0
+            ? hydrated.reduce((s, p) => s + p.confidence, 0) / hydrated.length
+            : 0,
+          hydrated: true,
+        });
+      } else {
+        set({ hydrated: true });
+      }
     } catch {
       // Non-blocking — patterns stay empty if D1 is unavailable
       set({ hydrated: true });

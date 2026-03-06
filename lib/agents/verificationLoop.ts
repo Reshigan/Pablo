@@ -139,6 +139,22 @@ export async function runVerificationLoop(
       }
 
       callbacks.onOutput(`Fixed ${fixedFiles.length} files\n`);
+
+      // Self-Learning: record the fix pattern (Autonomy Spec — System 2)
+      try {
+        const { processFeedback } = await import('@/lib/agents/feedbackLearner');
+        void processFeedback({
+          type: 'fix',
+          sessionId: 'verification-loop',
+          userMessage: 'Verification loop auto-fix',
+          generatedCode: fileContents,
+          errorBefore: errorText,
+          fixedCode: fixContent,
+          language: currentFiles[0]?.language || 'typescript',
+        });
+      } catch {
+        // Non-blocking — feedback learning is optional
+      }
     } catch (error) {
       callbacks.onOutput(`Fix generation failed: ${error instanceof Error ? error.message : 'Unknown'}\n`);
     }
