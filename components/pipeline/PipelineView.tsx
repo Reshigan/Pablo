@@ -252,40 +252,34 @@ export function PipelineView() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-execute pipeline when HeroPrompt queues a prompt via pendingPrompt.
-  // HeroPrompt sets pendingPrompt, WorkspaceArea switches to PipelineView,
-  // and this effect picks up the prompt and triggers handleStart.
+  // HeroPrompt sets pendingPrompt → EditorPanel renders PipelineView →
+  // this effect picks up the prompt, sets featureInput, and directly calls
+  // handleStart which calls startRun() synchronously. Only AFTER startRun()
+  // creates a run (making runs.length > 0) do we clear pendingPrompt.
   //
-  // IMPORTANT: Do NOT clear pendingPrompt until AFTER startRun() is called.
-  // Otherwise EditorPanel sees pendingPrompt=null + runs.length=0 and flips
-  // back to HeroPrompt before the pipeline has a chance to start.
+  // This avoids the race condition where clearing pendingPrompt before
+  // startRun() would cause EditorPanel to see pendingPrompt=null +
+  // runs.length=0 and flip back to HeroPrompt.
   const pendingRef = useRef(false);
   useEffect(() => {
     if (pendingPrompt && !pendingRef.current && !isBuilding) {
       pendingRef.current = true;
       setFeatureInput(pendingPrompt);
-      // Don't clear pendingPrompt here — keep it truthy so EditorPanel
-      // continues to render PipelineView until startRun creates a run.
     }
   }, [pendingPrompt, isBuilding]);
 
-  // Once featureInput is set from pendingPrompt, auto-trigger handleStart.
-  // handleStart calls startRun() which adds a run to the store, making
-  // runs.length > 0 so EditorPanel keeps showing PipelineView even after
-  // pendingPrompt is cleared.
+  // Once featureInput is set from pendingPrompt, directly invoke handleStart.
+  // handleStart calls startRun() synchronously which adds a run to the store
+  // (runs.length > 0). We clear pendingPrompt AFTER startRun inside handleStart.
   useEffect(() => {
     if (pendingRef.current && featureInput && !isBuilding) {
       pendingRef.current = false;
-      // Clear pendingPrompt right before triggering start — startRun()
-      // inside handleStart will ensure runs.length > 0 immediately.
-      setPendingPrompt(null);
-      // Trigger handleStart on next tick to ensure state is settled
-      const timer = setTimeout(() => {
-        const btn = document.querySelector('[data-pipeline-start]') as HTMLButtonElement;
-        if (btn) btn.click();
-      }, 50);
-      return () => clearTimeout(timer);
+      // Call handleStart directly — no setTimeout, no DOM query.
+      // handleStart will call startRun() synchronously, then clear pendingPrompt.
+      handleStart();
     }
-  }, [featureInput, isBuilding, setPendingPrompt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [featureInput, isBuilding]);
 
   const handleZipDownload = useCallback(() => {
     const tabs = useEditorStore.getState().tabs;
@@ -341,6 +335,12 @@ export function PipelineView() {
     // Prompt enhancement runs concurrently with the Plan stage setup.
     console.log('[Pipeline] calling startRun');
     const runId = startRun(description);
+    // Clear pendingPrompt AFTER startRun so EditorPanel always sees
+    // runs.length > 0 before pendingPrompt becomes null — prevents
+    // the HeroPrompt flicker race condition.
+    if (pendingPrompt) {
+      setPendingPrompt(null);
+    }
     setFeatureInput('');
 
     // Feature 21: Activity tracking
@@ -783,7 +783,7 @@ export function PipelineView() {
     } finally {
       setIsBuilding(false);
     }
-  }, [featureInput, isBuilding, attachments, enhanceEnabled, selectedMentions, startRun, updateStage, advanceStage, completeRun]);
+  }, [featureInput, isBuilding, attachments, enhanceEnabled, selectedMentions, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
