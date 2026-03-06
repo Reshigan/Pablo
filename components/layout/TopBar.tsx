@@ -32,23 +32,23 @@ export function TopBar() {
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-pablo-border bg-pablo-surface-0 px-4">
       {/* Left: Logo */}
-      <div className="flex items-center gap-2 w-40">
+      <div className="flex items-center gap-2 w-auto md:w-40 shrink-0">
         <Zap size={18} className="text-pablo-gold" />
         <span className="font-ui text-sm font-bold tracking-tight text-pablo-text">
           PABLO
         </span>
       </div>
 
-      {/* Centre: Unified search bar */}
+      {/* Centre: Unified search bar — icon-only on mobile, full on md+ */}
       <button
         onClick={toggleCommandPalette}
-        className="flex h-8 w-full max-w-md items-center gap-2 rounded-lg border border-pablo-border bg-pablo-surface-1 px-3 text-left transition-all hover:border-pablo-border-hov hover:bg-pablo-surface-2 focus-visible:shadow-glow focus-visible:border-pablo-gold"
+        className="flex h-8 items-center gap-2 rounded-lg border border-pablo-border bg-pablo-surface-1 px-3 text-left transition-all hover:border-pablo-border-hov hover:bg-pablo-surface-2 focus-visible:shadow-glow focus-visible:border-pablo-gold w-8 md:w-full md:max-w-md"
       >
-        <Search size={14} className="text-pablo-text-muted" />
-        <span className="flex-1 font-ui text-xs text-pablo-text-muted">
+        <Search size={14} className="text-pablo-text-muted shrink-0" />
+        <span className="hidden md:inline flex-1 font-ui text-xs text-pablo-text-muted">
           Search or ask Pablo...
         </span>
-        <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1.5 py-0.5 font-code text-[10px] text-pablo-text-muted">
+        <kbd className="hidden md:inline rounded border border-pablo-border bg-pablo-surface-0 px-1.5 py-0.5 font-code text-[10px] text-pablo-text-muted">
           ⌘⇧P
         </kbd>
       </button>
@@ -59,7 +59,7 @@ export function TopBar() {
       </div>
 
       {/* Right: Actions */}
-      <div className="flex items-center gap-1 w-40 justify-end">
+      <div className="flex items-center gap-1 w-auto md:w-40 justify-end shrink-0">
         <button
           onClick={toggleSettings}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-pablo-text-muted transition-colors hover:bg-pablo-hover hover:text-pablo-text"

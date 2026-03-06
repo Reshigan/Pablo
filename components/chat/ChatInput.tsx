@@ -108,8 +108,8 @@ export function ChatInput({
 
   return (
     <div className="shrink-0 border-t border-pablo-border p-3">
-      {/* Mode selector */}
-      <div className="flex items-center gap-2 mb-2">
+      {/* Mode selector — scrollable on mobile */}
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-2 overflow-x-auto scrollbar-none">
         {(['auto', 'chat', 'build', 'evaluate', 'fix'] as const).map((mode) => (
           <button
             key={mode}

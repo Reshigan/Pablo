@@ -494,19 +494,19 @@ export function SettingsModal() {
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" />
 
-      {/* Modal */}
+      {/* Modal — fullscreen on mobile, centered on md+ */}
       <div
         ref={modalRef}
-        className="relative flex h-[70vh] w-full max-w-2xl overflow-hidden rounded-xl border border-pablo-border bg-pablo-panel shadow-2xl"
+        className="relative flex h-full w-full flex-col md:flex-row md:h-[70vh] md:max-w-2xl overflow-hidden md:rounded-xl border border-pablo-border bg-pablo-panel shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Sidebar */}
-        <div className="flex w-48 shrink-0 flex-col border-r border-pablo-border bg-pablo-bg">
-          <div className="flex items-center gap-2 border-b border-pablo-border px-3 py-3">
+        {/* Sidebar — horizontal scroll on mobile, vertical on md+ */}
+        <div className="flex shrink-0 flex-row overflow-x-auto md:flex-col md:w-48 border-b md:border-b-0 md:border-r border-pablo-border bg-pablo-bg">
+          <div className="hidden md:flex items-center gap-2 border-b border-pablo-border px-3 py-3">
             <Settings size={16} className="text-pablo-gold" />
             <span className="font-ui text-sm font-semibold text-pablo-text">Settings</span>
           </div>
-          <div className="flex flex-col gap-0.5 p-1">
+          <div className="flex flex-row md:flex-col gap-0.5 p-1">
             {SETTINGS_TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -520,7 +520,7 @@ export function SettingsModal() {
                   }`}
                 >
                   <Icon size={14} className="shrink-0" />
-                  <span className="font-ui text-xs">{tab.label}</span>
+                  <span className="font-ui text-xs whitespace-nowrap">{tab.label}</span>
                 </button>
               );
             })}
