@@ -70,7 +70,7 @@ interface SessionState {
   /** FIX-4: Archive a session (set status to completed, stop auto-save) */
   archiveSession: (id: string) => Promise<void>;
   /** Update session metadata (title, repo, status) */
-  updateSessionMeta: (id: string, updates: Partial<Pick<AppSession, 'title' | 'repoFullName' | 'repoBranch' | 'status'>>) => Promise<void>;
+  updateSessionMeta: (id: string, updates: Partial<Pick<AppSession, 'title' | 'repoFullName' | 'repoBranch' | 'status'>>) => Promise<boolean>;
   /** Set the current session ID without loading */
   setCurrentSessionId: (id: string | null) => void;
   /** Find existing session for a repo */
@@ -340,13 +340,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   // FIX-4: Archive a session — marks as completed and stops auto-save
   archiveSession: async (id: string) => {
-    try {
-      await get().updateSessionMeta(id, { status: 'completed' });
+    const ok = await get().updateSessionMeta(id, { status: 'completed' });
+    if (ok) {
       if (get().currentSessionId === id) {
         stopAutoSave();
       }
       toastSuccess('Session archived', 'Session marked as completed');
-    } catch {
+    } else {
       toastError('Archive failed', 'Could not archive session');
     }
   },
@@ -358,13 +358,14 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
-      if (!res.ok) return;
+      if (!res.ok) return false;
       const updated = mapApiSession(await res.json());
       set((state) => ({
         sessions: state.sessions.map((s) => (s.id === id ? updated : s)),
       }));
+      return true;
     } catch {
-      // Non-blocking
+      return false;
     }
   },
 
