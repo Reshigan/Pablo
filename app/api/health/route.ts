@@ -68,6 +68,15 @@ export async function GET() {
     oauth: (process.env.GITHUB_CLIENT_ID || process.env.AUTH_GITHUB_ID) ? 'configured' : 'missing',
   };
 
+  // Self-diagnostic (circuit breaker, error rate, cost anomaly)
+  try {
+    const { runDiagnostic } = await import('@/lib/selfDiagnostic');
+    const diagnostic = await runDiagnostic();
+    status.diagnostic = diagnostic;
+  } catch {
+    status.diagnostic = { status: 'unavailable' };
+  }
+
   return Response.json(status, {
     headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' },
   });

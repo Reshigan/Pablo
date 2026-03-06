@@ -65,6 +65,10 @@ interface UIState {
   mobileMode: boolean;
   tabletMode: boolean;
 
+  // Iteration settings (Autonomy Spec)
+  autoIterateEnabled: boolean;
+  iterationTargetScore: number;
+
   // Actions
   toggleSidebar: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
@@ -78,6 +82,8 @@ interface UIState {
   setAutoStartPreview: (v: boolean) => void;
   setMobileMode: (v: boolean) => void;
   setTabletMode: (v: boolean) => void;
+  setAutoIterate: (enabled: boolean) => void;
+  setIterationTargetScore: (score: number) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -108,6 +114,10 @@ export const useUIStore = create<UIState>()(
       mobileMode: false,
       tabletMode: false,
 
+      // Iteration settings (Autonomy Spec)
+      autoIterateEnabled: false,
+      iterationTargetScore: 95,
+
       // Actions
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarTab: (tab) => set({ sidebarTab: tab }),
@@ -123,6 +133,8 @@ export const useUIStore = create<UIState>()(
       setAutoStartPreview: (v) => set({ autoStartPreview: v }),
       setMobileMode: (v) => set({ mobileMode: v }),
       setTabletMode: (v) => set({ tabletMode: v }),
+      setAutoIterate: (enabled) => set({ autoIterateEnabled: enabled }),
+      setIterationTargetScore: (score) => set({ iterationTargetScore: Math.max(70, Math.min(100, score)) }),
     }),
     {
       name: 'pablo-ui-settings',

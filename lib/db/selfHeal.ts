@@ -15,7 +15,7 @@ let healed = false;
 /** BUG-01: Schema version sentinel — bump this when adding new tables/columns.
  * ensureSchema() compares this against the stored version in the `settings` table
  * and skips the full heal if the version matches, saving ~13 SQL round-trips. */
-const SCHEMA_VERSION = '5';
+const SCHEMA_VERSION = '7';
 
 /**
  * All required tables with their CREATE TABLE statements.
@@ -187,6 +187,45 @@ const TABLE_DEFINITIONS = [
     built_in INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  // ─── Autonomy Spec tables (v7) ───
+  `CREATE TABLE IF NOT EXISTS iteration_history (
+    id TEXT PRIMARY KEY,
+    pipeline_run_id TEXT NOT NULL,
+    iteration_number INTEGER NOT NULL,
+    score_before INTEGER NOT NULL,
+    score_after INTEGER NOT NULL,
+    issues_fixed INTEGER NOT NULL DEFAULT 0,
+    stages_run TEXT DEFAULT '[]',
+    tokens_used INTEGER DEFAULT 0,
+    duration_ms INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS feedback_events (
+    id TEXT PRIMARY KEY,
+    session_id TEXT,
+    event_type TEXT NOT NULL,
+    user_message TEXT,
+    pattern_ids TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE TABLE IF NOT EXISTS prompt_experiments (
+    id TEXT PRIMARY KEY,
+    stage TEXT NOT NULL,
+    variant TEXT NOT NULL DEFAULT 'baseline',
+    prompt_text TEXT NOT NULL,
+    avg_score REAL DEFAULT 0,
+    run_count INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_used_at TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS diagnostic_logs (
+    id TEXT PRIMARY KEY,
+    healthy INTEGER NOT NULL,
+    checks_json TEXT NOT NULL,
+    auto_recovery_json TEXT DEFAULT '[]',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
 ];
 

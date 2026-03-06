@@ -577,6 +577,61 @@ export function PipelineView() {
                 duration: 6000,
               });
             }
+
+            // Auto-iteration (Autonomy Spec — System 1)
+            const autoIterate = useUIStore.getState().autoIterateEnabled ?? false;
+            const targetScore = useUIStore.getState().iterationTargetScore ?? 95;
+            if (autoIterate && readinessResult.score < targetScore) {
+              useToastStore.getState().addToast({
+                type: 'info',
+                title: 'Auto-iterating...',
+                message: `Score ${readinessResult.score}/100 — iterating to reach ${targetScore}`,
+                duration: 4000,
+              });
+
+              try {
+                const { runIterationLoop } = await import('@/lib/agents/iterationEngine');
+                const iterResult = await runIterationLoop(
+                  readinessFiles,
+                  description,
+                  env,
+                  { targetScore, maxIterations: 5, autoApprove: true },
+                  (event) => {
+                    if (event.type === 'score_update') {
+                      toast(`Iteration ${event.iteration}: ${event.oldScore} → ${event.newScore} (${event.grade})`);
+                    } else if (event.type === 'converged') {
+                      toastSuccess('Target reached', `Score ${event.finalScore}/100 after ${event.iterations} iteration(s)`);
+                    } else if (event.type === 'stalled') {
+                      toastError('Iteration stalled', event.message);
+                    }
+                  },
+                  async (stage, prompt, files) => {
+                    const stageResult = await runStageWithChat(stage, prompt, env, runId);
+                    if (stageResult) {
+                      return parseGeneratedFiles(stageResult).map(f => ({
+                        path: f.filename, content: f.content, language: f.language,
+                      }));
+                    }
+                    return files;
+                  },
+                );
+
+                // Update the readiness score with the final iteration result
+                usePipelineStore.getState().setReadinessScore(runId, {
+                  ...readinessResult,
+                  score: iterResult.finalScore,
+                  grade: iterResult.finalScore >= 90 ? 'A' : iterResult.finalScore >= 80 ? 'B' : iterResult.finalScore >= 70 ? 'C' : iterResult.finalScore >= 60 ? 'D' : 'F',
+                });
+
+                // Add iterated files to editor
+                for (const file of iterResult.files) {
+                  const parsed = { filename: file.path, content: file.content, language: file.language };
+                  useEditorStore.getState().openFile(parsed.filename, parsed.content, parsed.language);
+                }
+              } catch {
+                // Non-blocking — auto-iteration failure shouldn't crash the pipeline
+              }
+            }
           } catch {
             // Non-blocking — readiness evaluation is optional
           }

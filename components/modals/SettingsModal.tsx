@@ -43,6 +43,8 @@ function GeneralSettings() {
   const [autoSave, setAutoSave] = usePersistedSetting('autoSave', 'After 1 second delay');
   const [shell, setShell] = usePersistedSetting('shell', '/bin/bash');
   const [telemetry, setTelemetry] = usePersistedSetting('telemetry', false);
+  const autoIterate = useUIStore((s) => s.autoIterateEnabled);
+  const targetScore = useUIStore((s) => s.iterationTargetScore);
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,6 +88,47 @@ function GeneralSettings() {
         >
           <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${telemetry ? 'left-[18px]' : 'left-0.5'}`} />
         </button>
+      </div>
+
+      {/* Iteration Settings (Autonomy Spec) */}
+      <div className="mt-2 border-t border-pablo-border pt-3">
+        <h4 className="mb-2 font-ui text-xs font-semibold text-pablo-text-dim">Auto-Iteration</h4>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-ui text-xs text-pablo-text-dim">Auto-Iterate to Target Score</p>
+            <p className="font-ui text-[10px] text-pablo-text-muted">
+              Automatically re-run pipeline stages until target score is reached
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              useUIStore.getState().setAutoIterate(!autoIterate);
+              toastSuccess('Setting saved', `Auto-iterate ${!autoIterate ? 'enabled' : 'disabled'}`);
+            }}
+            className={`relative h-5 w-9 rounded-full transition-colors ${autoIterate ? 'bg-pablo-gold' : 'bg-pablo-border'}`}
+          >
+            <div className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${autoIterate ? 'left-[18px]' : 'left-0.5'}`} />
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-col gap-1">
+          <label className="font-ui text-xs text-pablo-text-dim">Target Score (70-100)</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="range"
+              min={70}
+              max={100}
+              value={targetScore}
+              onChange={(e) => useUIStore.getState().setIterationTargetScore(Number(e.target.value))}
+              className="h-1 flex-1 accent-pablo-gold"
+            />
+            <span className="w-8 text-right font-code text-xs text-pablo-text-dim">{targetScore}</span>
+          </div>
+          <p className="font-ui text-[10px] text-pablo-text-muted">
+            Pipeline will auto-iterate up to 5 times to reach this score. Default: 95.
+          </p>
+        </div>
       </div>
     </div>
   );
