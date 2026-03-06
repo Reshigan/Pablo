@@ -6,7 +6,7 @@
  */
 
 import { StopCircle, Timer } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { PipelineRun } from '@/stores/pipeline';
 
 /** ENH-3: Format elapsed time as mm:ss */
@@ -23,13 +23,16 @@ const STAGE_TIMEOUT_MS = 300_000;
 /** ENH-3: Live timer for the currently running stage */
 function StageTimer({ startedAt }: { startedAt: number }) {
   const [elapsed, setElapsed] = useState(0);
+  const startedAtRef = useRef(startedAt);
+  startedAtRef.current = startedAt;
 
   useEffect(() => {
-    // Compute initial elapsed on mount (inside effect to avoid impure render)
-    setElapsed(Date.now() - startedAt);
-    const interval = setInterval(() => setElapsed(Date.now() - startedAt), 1000);
+    // Use ref to avoid re-creating interval when startedAt changes
+    const tick = () => setElapsed(Date.now() - startedAtRef.current);
+    tick(); // initial value
+    const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [startedAt]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pct = Math.min((elapsed / STAGE_TIMEOUT_MS) * 100, 100);
   const isNearTimeout = pct > 80;
