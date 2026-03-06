@@ -162,12 +162,10 @@ async function runStageWithChat(
             throw new Error(`Stream error: ${parsed.error}`);
           }
           if (parsed.content) {
-            // Thinking tokens keep the stream alive but are not part of
-            // the final stage output (the model's reasoning is internal).
-            // Only append actual content (non-thinking) to the output.
-            if (!parsed.thinking) {
-              output += parsed.content;
-            }
+            // For pipeline stages, include ALL content (including thinking
+            // tokens). Models like qwen3-next:80b put their entire response
+            // in the thinking field — filtering it would produce empty output.
+            output += parsed.content;
             if (!receivedFirstToken) {
               receivedFirstToken = true;
               resetIdleTimer(); // switch to shorter idle timeout now that tokens are flowing
