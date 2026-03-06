@@ -87,7 +87,7 @@ export const pipelineRuns = sqliteTable('pipeline_runs', {
     .notNull()
     .default('pending'),
   currentStage: text('current_stage', {
-    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'],
+    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review', 'enterprise'],
   }).default('plan'),
   planOutput: text('plan_output'), // JSON
   dbOutput: text('db_output'), // JSON
@@ -112,7 +112,7 @@ export const pipelineStages = sqliteTable('pipeline_stages', {
     .notNull()
     .references(() => pipelineRuns.id, { onDelete: 'cascade' }),
   stage: text('stage', {
-    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review'],
+    enum: ['plan', 'db', 'api', 'ui', 'ux_validation', 'tests', 'execute', 'review', 'enterprise'],
   }).notNull(),
   status: text('status', {
     enum: ['pending', 'running', 'completed', 'failed', 'skipped'],

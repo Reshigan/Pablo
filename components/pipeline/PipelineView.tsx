@@ -598,7 +598,7 @@ export function PipelineView() {
               sessionId: 'default',
               featureDescription: description,
               status: 'completed',
-              currentStage: completedRun.stages[completedRun.stages.length - 1]?.stage ?? 'enterprise',
+              currentStage: (completedRun.stages[completedRun.stages.length - 1]?.stage ?? 'enterprise') as 'plan' | 'db' | 'api' | 'ui' | 'ux_validation' | 'tests' | 'execute' | 'review' | 'enterprise',
               totalTokens: completedRun.totalTokens,
               totalDurationMs: completedRun.totalDurationMs,
             });
