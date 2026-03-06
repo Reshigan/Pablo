@@ -9,9 +9,11 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  GitBranch,
 } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { toastSuccess, toastError } from '@/stores/toast';
+import { useRepoStore } from '@/stores/repo';
 
 interface Column {
   name: string;
@@ -185,7 +187,10 @@ function TableCard({ table, isSelected, onClick, onDelete }: { table: TableSchem
 }
 
 export function DBDesigner() {
-  const [tables, setTables] = useState<TableSchema[]>(DRIZZLE_SCHEMA_TABLES);
+  const selectedRepo = useRepoStore((s) => s.selectedRepo);
+  // When a repo is selected, start with an empty schema so users design for their project.
+  // Only show Pablo's internal D1 schema when no repo is selected (introspection mode).
+  const [tables, setTables] = useState<TableSchema[]>(selectedRepo ? [] : DRIZZLE_SCHEMA_TABLES);
   const [selectedTable, setSelectedTable] = useState<string | null>(null);
   const [showSQL, setShowSQL] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -244,7 +249,9 @@ export function DBDesigner() {
         <Database size={40} className="text-pablo-text-muted" />
         <p className="font-ui text-sm text-pablo-text-dim">Database Designer</p>
         <p className="font-ui text-xs text-pablo-text-muted">
-          Design your schema visually. Tables will appear here.
+          {selectedRepo
+            ? `Design the database schema for ${selectedRepo.name}. Add tables below.`
+            : 'Design your schema visually. Tables will appear here.'}
         </p>
         {showAddForm ? (
           <div className="flex flex-col gap-2 w-full max-w-[240px]">
@@ -280,6 +287,12 @@ export function DBDesigner() {
         <span className="font-ui text-xs text-pablo-text-dim">
           {tables.length} table{tables.length !== 1 ? 's' : ''}
         </span>
+        {selectedRepo && (
+          <span className="flex items-center gap-1 rounded bg-pablo-surface-1 px-1.5 py-0.5 font-code text-[10px] text-pablo-text-muted">
+            <GitBranch size={9} className="text-pablo-gold" />
+            {selectedRepo.name}
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <button
             onClick={() => setShowSQL(!showSQL)}

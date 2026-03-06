@@ -254,19 +254,30 @@ export function PipelineView() {
   // Auto-execute pipeline when HeroPrompt queues a prompt via pendingPrompt.
   // HeroPrompt sets pendingPrompt, WorkspaceArea switches to PipelineView,
   // and this effect picks up the prompt and triggers handleStart.
+  //
+  // IMPORTANT: Do NOT clear pendingPrompt until AFTER startRun() is called.
+  // Otherwise EditorPanel sees pendingPrompt=null + runs.length=0 and flips
+  // back to HeroPrompt before the pipeline has a chance to start.
   const pendingRef = useRef(false);
   useEffect(() => {
     if (pendingPrompt && !pendingRef.current && !isBuilding) {
       pendingRef.current = true;
       setFeatureInput(pendingPrompt);
-      setPendingPrompt(null);
+      // Don't clear pendingPrompt here — keep it truthy so EditorPanel
+      // continues to render PipelineView until startRun creates a run.
     }
-  }, [pendingPrompt, isBuilding, setPendingPrompt]);
+  }, [pendingPrompt, isBuilding]);
 
-  // Once featureInput is set from pendingPrompt, auto-trigger handleStart
+  // Once featureInput is set from pendingPrompt, auto-trigger handleStart.
+  // handleStart calls startRun() which adds a run to the store, making
+  // runs.length > 0 so EditorPanel keeps showing PipelineView even after
+  // pendingPrompt is cleared.
   useEffect(() => {
     if (pendingRef.current && featureInput && !isBuilding) {
       pendingRef.current = false;
+      // Clear pendingPrompt right before triggering start — startRun()
+      // inside handleStart will ensure runs.length > 0 immediately.
+      setPendingPrompt(null);
       // Trigger handleStart on next tick to ensure state is settled
       const timer = setTimeout(() => {
         const btn = document.querySelector('[data-pipeline-start]') as HTMLButtonElement;
@@ -274,7 +285,7 @@ export function PipelineView() {
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [featureInput, isBuilding]);
+  }, [featureInput, isBuilding, setPendingPrompt]);
 
   const handleZipDownload = useCallback(() => {
     const tabs = useEditorStore.getState().tabs;
