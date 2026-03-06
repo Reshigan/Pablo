@@ -1,7 +1,7 @@
 'use client';
 
 import { useSessionStore, type AppSession } from '@/stores/session';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Plus,
@@ -16,7 +16,11 @@ import {
   AlertCircle,
   Archive,
   Search,
+  MoreVertical,
+  RotateCcw,
 } from 'lucide-react';
+
+type StatusFilter = 'all' | 'active' | 'completed';
 
 const STATUS_ICONS = {
   active: Play,
@@ -51,15 +55,31 @@ function SessionItem({
   onResume,
   onDelete,
   onArchive,
+  onReopen,
 }: {
   session: AppSession;
   isCurrent: boolean;
   onResume: () => void;
   onDelete: () => void;
   onArchive: () => void;
+  onReopen: () => void;
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const StatusIcon = STATUS_ICONS[session.status];
   const statusColor = STATUS_COLORS[session.status];
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <div
@@ -99,31 +119,59 @@ function SessionItem({
             )}
           </div>
         </div>
-        <div className="flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {session.status !== 'completed' && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onArchive();
-              }}
-              className="rounded p-1 text-pablo-text-muted hover:bg-pablo-gold/10 hover:text-pablo-gold"
-              aria-label={`Archive session ${session.title}`}
-              title="Archive session"
-            >
-              <Archive size={12} />
-            </button>
-          )}
+        {/* Kebab menu */}
+        <div className="relative shrink-0" ref={menuRef}>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              onDelete();
+              setMenuOpen(!menuOpen);
             }}
-            className="rounded p-1 text-pablo-text-muted hover:bg-red-500/10 hover:text-red-400"
-            aria-label={`Delete session ${session.title}`}
-            title="Delete session"
+            className="rounded p-1 text-pablo-text-muted opacity-0 group-hover:opacity-100 hover:bg-pablo-gold/10 hover:text-pablo-gold transition-opacity"
+            aria-label="Session actions"
+            title="More actions"
           >
-            <Trash2 size={12} />
+            <MoreVertical size={12} />
           </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-6 z-50 w-36 rounded-lg border border-pablo-border bg-pablo-panel shadow-lg py-1">
+              {session.status !== 'completed' ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onArchive();
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-pablo-text-dim hover:bg-pablo-hover"
+                >
+                  <CheckCircle2 size={12} />
+                  Mark done
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onReopen();
+                    setMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-pablo-text-dim hover:bg-pablo-hover"
+                >
+                  <RotateCcw size={12} />
+                  Reopen
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                  setMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-red-400 hover:bg-red-500/10"
+              >
+                <Trash2 size={12} />
+                Delete
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -143,12 +191,22 @@ export function SessionsPanel() {
     saveSession,
   } = useSessionStore();
 
+  // Phase 2.1: Status filter tabs
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   // ENH-4: Session search/filter
   const [searchQuery, setSearchQuery] = useState('');
-  const filteredSessions = sessions.filter((s) =>
-    !searchQuery || s.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    s.repoFullName?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+
+  const filteredSessions = sessions.filter((s) => {
+    // Status filter
+    if (statusFilter === 'active' && s.status === 'completed') return false;
+    if (statusFilter === 'completed' && s.status !== 'completed') return false;
+    // Search filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      return s.title.toLowerCase().includes(q) || s.repoFullName?.toLowerCase().includes(q);
+    }
+    return true;
+  });
 
   // Load sessions on mount
   useEffect(() => {
@@ -192,6 +250,38 @@ export function SessionsPanel() {
     [deleteSession, currentSessionId, router]
   );
 
+  const handleMarkComplete = useCallback(
+    async (sessionId: string) => {
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'completed' }),
+        });
+        loadSessions();
+      } catch (err) {
+        console.warn('[SessionsPanel] Mark complete failed:', err);
+      }
+    },
+    [loadSessions]
+  );
+
+  const handleReopen = useCallback(
+    async (sessionId: string) => {
+      try {
+        await fetch(`/api/sessions/${sessionId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'active' }),
+        });
+        loadSessions();
+      } catch (err) {
+        console.warn('[SessionsPanel] Reopen failed:', err);
+      }
+    },
+    [loadSessions]
+  );
+
   return (
     <div className="flex flex-col gap-2 p-2">
       {/* New Session + Refresh */}
@@ -212,6 +302,23 @@ export function SessionsPanel() {
         >
           <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
         </button>
+      </div>
+
+      {/* Phase 2.1: Filter tabs */}
+      <div className="flex rounded-lg border border-pablo-border bg-pablo-panel overflow-hidden">
+        {(['active', 'completed', 'all'] as StatusFilter[]).map((filter) => (
+          <button
+            key={filter}
+            onClick={() => setStatusFilter(filter)}
+            className={`flex-1 py-1 font-ui text-[10px] font-medium transition-colors ${
+              statusFilter === filter
+                ? 'bg-pablo-gold/20 text-pablo-gold'
+                : 'text-pablo-text-muted hover:text-pablo-text-dim hover:bg-pablo-hover'
+            }`}
+          >
+            {filter.charAt(0).toUpperCase() + filter.slice(1)}
+          </button>
+        ))}
       </div>
 
       {/* ENH-4: Session search */}
@@ -251,12 +358,13 @@ export function SessionsPanel() {
               isCurrent={session.id === currentSessionId}
               onResume={() => handleResume(session.id)}
               onDelete={() => handleDelete(session.id)}
-              onArchive={() => archiveSession(session.id)}
+              onArchive={() => handleMarkComplete(session.id)}
+              onReopen={() => handleReopen(session.id)}
             />
           ))}
-          {filteredSessions.length === 0 && searchQuery && (
+          {filteredSessions.length === 0 && (
             <p className="py-4 text-center font-ui text-[11px] text-pablo-text-muted">
-              No sessions match &quot;{searchQuery}&quot;
+              {searchQuery ? `No sessions match "${searchQuery}"` : `No ${statusFilter === 'all' ? '' : statusFilter} sessions`}
             </p>
           )}
         </div>

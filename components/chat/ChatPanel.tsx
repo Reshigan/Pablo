@@ -588,16 +588,35 @@ export function ChatPanel() {
     }
   };
 
+  // Phase: Document upload — support all file types including binary (PDF, DOCX, images)
+  const BINARY_EXTS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'odt', 'ods', 'odp', 'rtf', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'tiff']);
+
   const handleFileAttach = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
     Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = reader.result as string;
-        setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type }]);
-      };
-      reader.readAsText(file);
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const isBinary = BINARY_EXTS.has(ext) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+      if (isBinary) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = reader.result as string;
+          setAttachments((prev) => [...prev, {
+            name: file.name,
+            content: `[Binary file: ${file.name} (${(file.size / 1024).toFixed(1)}KB, type: ${file.type})]\n\n${base64}`,
+            type: file.type || `application/${ext}`,
+          }]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = reader.result as string;
+          setAttachments((prev) => [...prev, { name: file.name, content: text, type: file.type || `text/${ext}` }]);
+        };
+        reader.readAsText(file);
+      }
     });
     // Reset input so same file can be re-selected
     e.target.value = '';

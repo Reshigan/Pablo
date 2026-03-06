@@ -18,7 +18,7 @@
 import { NextRequest } from 'next/server';
 import { reviewPR, type PRReviewResult } from '@/lib/agents/prReview';
 import { runOrchestration, type OrchestratorEvent } from '@/lib/agents/orchestrator';
-import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { getEnvConfig } from '@/lib/env';
 import { createLogger } from '@/lib/logger';
 
 const log = createLogger('github-webhook');
@@ -49,22 +49,7 @@ async function verifyGitHubSignature(payload: string, signature: string): Promis
   return mismatch === 0;
 }
 
-async function getEnvConfig(): Promise<EnvConfig> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const cfEnv = ctx.env as Record<string, string>;
-    return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || '',
-    };
-  } catch {
-    return {
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY || '',
-    };
-  }
-}
+// getEnvConfig imported from @/lib/env
 
 export async function POST(request: NextRequest) {
   try {

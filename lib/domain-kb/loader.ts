@@ -2,8 +2,15 @@
 // Loads domain knowledge and system prompt for context injection
 // Supports selectable domain packs (opt-in, locale-neutral by default)
 
-// Intentionally empty by default: locale/business-specific KB should be injected only when explicitly requested.
+import { ALL_KB_ENTRIES, KEYWORD_MAP } from './kbInit';
+
+// Populated from static KB at module load + any runtime domain packs
 const domainKB: { entries: DomainEntry[] } = { entries: [] };
+
+// Auto-register all static KB entries on module load
+for (const entry of ALL_KB_ENTRIES) {
+  domainKB.entries.push(entry);
+}
 
 // Available domain packs (registered at build time)
 interface DomainPack {
@@ -17,7 +24,7 @@ interface DomainPack {
 const registeredPacks: Map<string, DomainPack> = new Map();
 
 // Active packs (selected by the user at runtime)
-let activePacks: Set<string> = new Set();
+const activePacks: Set<string> = new Set();
 
 /**
  * Register a domain pack (call at app init or from settings)
@@ -98,18 +105,21 @@ export function getRelevantKnowledge(userMessage: string): DomainEntry[] {
   const msg = userMessage.toLowerCase();
   const allEntries = (domainKB as { entries: DomainEntry[] }).entries;
 
-  // Keyword to domain ID mapping (optional; empty by default)
-  const keywordMap: Record<string, string[]> = {};
+  // Keyword to domain ID mapping (populated from kbInit)
+  const keywordMap = KEYWORD_MAP;
 
   const relevantIds = new Set<string>();
 
   // Always include critical entries for code generation
   allEntries.filter(e => e.priority === 'critical').forEach(e => relevantIds.add(e.id));
 
-  // Match keywords
-  for (const [keyword, ids] of Object.entries(keywordMap)) {
+  // Match keywords — KEYWORD_MAP values are file-level IDs (e.g. '13-south-african-business')
+  // but entry IDs have section suffixes (e.g. '13-south-african-business-0'), so use prefix matching
+  for (const [keyword, fileIds] of Object.entries(keywordMap)) {
     if (msg.includes(keyword)) {
-      ids.forEach(id => relevantIds.add(id));
+      for (const fileId of fileIds) {
+        allEntries.filter(e => e.id.startsWith(fileId)).forEach(e => relevantIds.add(e.id));
+      }
     }
   }
 

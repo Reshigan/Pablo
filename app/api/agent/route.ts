@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { type EnvConfig } from '@/lib/agents/modelRouter';
+import { getEnvConfig } from '@/lib/env';
 import {
   runAgentLoop,
   type AgentContext,
@@ -14,25 +14,7 @@ import { createLogger } from '@/lib/logger';
 
 const log = createLogger('agent-route');
 
-/**
- * Get environment config from Cloudflare Worker context or process.env
- */
-async function getEnvConfig(): Promise<EnvConfig> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const cfEnv = ctx.env as Record<string, string>;
-    return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
-    };
-  } catch {
-    return {
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
-    };
-  }
-}
+// getEnvConfig imported from @/lib/env
 
 interface AgentRequestBody {
   message: string;

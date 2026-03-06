@@ -5,13 +5,20 @@
 
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { d1GetCostSummary, d1LogLLMCall } from '@/lib/db/d1-costs';
+import { d1GetCostSummary, d1GetTeamCostSummary, d1LogLLMCall } from '@/lib/db/d1-costs';
 import { verifySessionOwnership } from '@/lib/db/ownership';
 
 export async function GET(request: NextRequest) {
   try {
     const session = await auth();
     if (!session) return new Response('Unauthorized', { status: 401 });
+
+    // Phase 2.2: team cost summary
+    const type = request.nextUrl.searchParams.get('type');
+    if (type === 'team') {
+      const teamSummary = await d1GetTeamCostSummary();
+      return Response.json(teamSummary);
+    }
 
     const days = parseInt(request.nextUrl.searchParams.get('days') || '30', 10);
     const summary = await d1GetCostSummary(days);

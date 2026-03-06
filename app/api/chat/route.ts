@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { auth } from '@/lib/auth';
-import { routeTask, shouldDecompose, type EnvConfig } from '@/lib/agents/modelRouter';
+import { routeTask, shouldDecompose } from '@/lib/agents/modelRouter';
+import { getEnvConfig, OLLAMA_CLOUD_URL, type EnvConfig } from '@/lib/env';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { checkDailyBudget } from '@/lib/db/d1-costs';
 import { loggers } from '@/lib/logger';
@@ -86,30 +87,7 @@ interface ChatRequestBody {
   ollamaApiKey?: string;
 }
 
-/**
- * Get environment config from Cloudflare Worker context or process.env
- */
-/** Canonical Ollama Cloud URL — used as fallback if env var is missing or misconfigured */
-const OLLAMA_CLOUD_URL = 'https://ollama.com/api';
-
-async function getEnvConfig(): Promise<EnvConfig> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const cfEnv = ctx.env as Record<string, string>;
-    return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
-      OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || process.env.OLLAMA_API_KEY,
-    };
-  } catch (err) {
-    // BUG-04: Log CF context fallback instead of silently swallowing
-    console.warn('[getEnvConfig] CF context unavailable, using process.env:', err instanceof Error ? err.message : err);
-    return {
-      OLLAMA_URL: process.env.OLLAMA_URL || OLLAMA_CLOUD_URL,
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY,
-    };
-  }
-}
+// getEnvConfig and OLLAMA_CLOUD_URL imported from @/lib/env
 
 /**
  * Try to use an external OpenAI-compatible or Ollama API with streaming.

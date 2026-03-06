@@ -18,29 +18,14 @@ import {
   type OrchestratorEvent,
   type OrchestrationPhase,
 } from '@/lib/agents/orchestrator';
-import type { EnvConfig } from '@/lib/agents/modelRouter';
+import { getEnvConfig } from '@/lib/env';
 import { checkRateLimit, getClientIP, rateLimitHeaders, RATE_LIMITS } from '@/lib/rateLimit';
 import { createLogger } from '@/lib/logger';
 import { checkBodySize, BODY_SIZE_LIMITS } from '@/lib/apiGuard';
 
 const log = createLogger('orchestrate-route');
 
-async function getEnvConfig(): Promise<EnvConfig> {
-  try {
-    const { getCloudflareContext } = await import('@opennextjs/cloudflare');
-    const ctx = await getCloudflareContext({ async: true });
-    const cfEnv = ctx.env as Record<string, string>;
-    return {
-      OLLAMA_URL: cfEnv.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: cfEnv.OLLAMA_API_KEY || '',
-    };
-  } catch {
-    return {
-      OLLAMA_URL: process.env.OLLAMA_URL || 'https://ollama.com/api',
-      OLLAMA_API_KEY: process.env.OLLAMA_API_KEY || '',
-    };
-  }
-}
+// getEnvConfig imported from @/lib/env
 
 const ALL_PHASES: OrchestrationPhase[] = ['understand', 'design', 'build', 'quality', 'ship', 'verify'];
 
