@@ -68,7 +68,7 @@ function LoginContent() {
           )}
 
           <button
-            onClick={() => signIn('github', { callbackUrl: '/' })}
+            onClick={() => signIn('github', { callbackUrl: searchParams.get('callbackUrl') || '/' })}
             className="flex w-full items-center justify-center gap-3 rounded-lg bg-white px-4 py-3 font-ui text-sm font-medium text-gray-900 transition-all duration-150 hover:bg-gray-100 active:scale-[0.98]"
           >
             <Github size={20} />
@@ -90,7 +90,7 @@ function LoginContent() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    signIn('dev-login', { email: devEmail, callbackUrl: '/' });
+                    signIn('dev-login', { email: devEmail, callbackUrl: searchParams.get('callbackUrl') || '/' });
                   }}
                   className="flex flex-col gap-2"
                 >
