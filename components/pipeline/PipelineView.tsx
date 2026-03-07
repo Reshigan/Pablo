@@ -62,11 +62,11 @@ import { quickReadinessCheck } from '@/lib/agents/productionReadiness';
 
 // ─── RunCard (uses extracted sub-components) ───────────────────────────
 
-function RunCard({ run, onCancel, onIterate }: { run: PipelineRun; onCancel?: () => void; onIterate?: (prompt: string) => void }) {
+function RunCard({ run, onCancel, onIterate, onRetryStage }: { run: PipelineRun; onCancel?: () => void; onIterate?: (prompt: string) => void; onRetryStage?: (stageName: PipelineStage) => void }) {
   return (
     <div className="rounded-lg border border-pablo-border bg-pablo-panel overflow-hidden">
       <PipelineProgress run={run} onCancel={onCancel} />
-      <PipelineOutputPanel run={run} />
+      <PipelineOutputPanel run={run} onRetryStage={onRetryStage} />
       {run.readinessScore && (
         <ProductionReadinessCard
           score={run.readinessScore}
@@ -937,6 +937,19 @@ export function PipelineView() {
     setSelectedMentions(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Issue 11: Retry a failed pipeline stage — re-run handleStart with that stage's context
+  const handleRetryStage = useCallback((stageName: PipelineStage) => {
+    const lastRun = runs[runs.length - 1];
+    if (!lastRun) return;
+    const failedStage = lastRun.stages.find(s => s.stage === stageName);
+    if (!failedStage) return;
+    // Reset the stage status so it can be re-run
+    updateStage(lastRun.id, stageName, { status: 'pending', output: '' });
+    // Re-trigger the pipeline from this stage using the original feature description
+    setFeatureInput(lastRun.featureDescription);
+    toast('Retrying Stage', `Re-running ${stageName}...`);
+  }, [runs, updateStage]);
+
   // Production Readiness: feed issues back as a new iteration prompt
   const handleIterate = useCallback((iterationPrompt: string) => {
     setFeatureInput(iterationPrompt);
@@ -1175,6 +1188,7 @@ export function PipelineView() {
                   completeRun(run.id, 'cancelled');
                 } : undefined}
                 onIterate={run.readinessScore ? handleIterate : undefined}
+                onRetryStage={run.status === 'failed' || run.status === 'completed' ? handleRetryStage : undefined}
               />
             ))}
 

@@ -9,7 +9,7 @@ import { useState, useCallback } from 'react';
 import { PipelineStageCard } from './PipelineStageCard';
 import { PIPELINE_STAGES, type PipelineStage, type PipelineRun } from '@/stores/pipeline';
 
-export function PipelineOutputPanel({ run }: { run: PipelineRun }) {
+export function PipelineOutputPanel({ run, onRetryStage }: { run: PipelineRun; onRetryStage?: (stageName: PipelineStage) => void }) {
   const [expandedStages, setExpandedStages] = useState<Set<PipelineStage>>(new Set());
 
   const toggleStage = useCallback((stage: PipelineStage) => {
@@ -33,6 +33,7 @@ export function PipelineOutputPanel({ run }: { run: PipelineRun }) {
             stageInfo={stageInfo}
             isExpanded={expandedStages.has(stage.stage)}
             onToggle={() => toggleStage(stage.stage)}
+            onRetry={onRetryStage}
           />
         );
       })}

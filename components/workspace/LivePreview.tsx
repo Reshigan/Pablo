@@ -12,6 +12,7 @@ import {
   Wrench,
   Crosshair,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
@@ -677,17 +678,15 @@ export function LivePreview() {
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                   title="WebContainer Preview"
                 />
-                {/* Issue 7: Preview error guidance overlay — pointer-events-none so it doesn't block iframe */}
-                <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-pablo-border bg-pablo-panel/95 px-3 py-2 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity pointer-events-none [&:hover]:pointer-events-auto">
-                  <p className="font-ui text-[10px] text-pablo-text-muted">
-                    Preview not loading? Try:
-                  </p>
-                  <ul className="mt-1 space-y-0.5 font-ui text-[10px] text-pablo-text-muted">
-                    <li>&bull; Click <strong className="text-pablo-gold">Refresh</strong> to reload</li>
-                    <li>&bull; Check the <strong className="text-pablo-gold">Terminal</strong> for build errors</li>
-                    <li>&bull; Accept pending diffs in the <strong className="text-pablo-gold">Review</strong> tab</li>
-                  </ul>
-                </div>
+                {/* Issue 7: Preview error guidance — small help icon that expands on click */}
+                <button
+                  onClick={() => setShowTerminal(s => !s)}
+                  className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-lg border border-pablo-border bg-pablo-panel/90 px-2 py-1 backdrop-blur-sm text-pablo-text-muted hover:text-pablo-gold transition-colors"
+                  title="Preview not loading? Check the terminal for errors"
+                >
+                  <AlertCircle size={10} />
+                  <span className="font-ui text-[9px]">Help</span>
+                </button>
               </div>
             ) : runtime === 'webcontainer' && !serverUrl ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
