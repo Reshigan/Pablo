@@ -26,7 +26,7 @@ export type ChatMode = 'auto' | 'chat' | 'evaluate' | 'fix';
 /** Detect build-like intent from input text (separate from ChatMode detection) */
 function isBuildLikeIntent(text: string): boolean {
   const lower = text.toLowerCase();
-  return /\b(build|create|generate|implement|make|scaffold|new\s+app|new\s+project)\b/.test(lower);
+  return /\b(build\s+(a|an|the|me|this|my)|create\s+(a|an|the|me|this|my)|generate\s+(a|an|the|me|this|my)|implement\s+(a|an|the|me|this|my)|make\s+(a|an|the|me|this|my)|scaffold|new\s+app|new\s+project)\b/.test(lower);
 }
 
 interface ChatInputProps {
