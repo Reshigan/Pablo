@@ -3,16 +3,18 @@ import type { ChatMessage } from './chat';
 import type { PipelineRun } from './pipeline';
 import type { FileTab, DiffHunk } from './editor';
 import type { GitHubRepo } from './repo';
+import type { WorkspaceTab } from './ui';
 import { toastSuccess, toastError } from './toast';
 
 // REL-03: lazy store accessors to avoid circular deps
 // Uses dynamic import() instead of require() for Workers ES-module compatibility.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _chatStore: any, _pipelineStore: any, _editorStore: any, _repoStore: any;
+let _chatStore: any, _pipelineStore: any, _editorStore: any, _repoStore: any, _uiStore: any;
 async function getChatStore() { if (!_chatStore) { _chatStore = (await import('./chat')).useChatStore; } return _chatStore; }
 async function getPipelineStore() { if (!_pipelineStore) { _pipelineStore = (await import('./pipeline')).usePipelineStore; } return _pipelineStore; }
 async function getEditorStore() { if (!_editorStore) { _editorStore = (await import('./editor')).useEditorStore; } return _editorStore; }
 async function getRepoStore() { if (!_repoStore) { _repoStore = (await import('./repo')).useRepoStore; } return _repoStore; }
+async function getUIStore() { if (!_uiStore) { _uiStore = (await import('./ui')).useUIStore; } return _uiStore; }
 
 // ─── Session Types ────────────────────────────────────────────────────────────
 
@@ -29,6 +31,8 @@ export interface SessionSnapshot {
   /** Selected repo info */
   selectedRepo: GitHubRepo | null;
   selectedBranch: string;
+  /** Active workspace tab (editor, pipeline, preview, etc.) */
+  activeWorkspaceTab?: WorkspaceTab;
 }
 
 export interface AppSession {
@@ -106,11 +110,13 @@ async function captureSnapshot(): Promise<SessionSnapshot> {
   const usePipelineStore = await getPipelineStore();
   const useEditorStore = await getEditorStore();
   const useRepoStore = await getRepoStore();
+  const useUIStore = await getUIStore();
 
   const chat = useChatStore.getState();
   const pipeline = usePipelineStore.getState();
   const editor = useEditorStore.getState();
   const repo = useRepoStore.getState();
+  const ui = useUIStore.getState();
 
   return {
     messages: chat.messages,
@@ -120,6 +126,7 @@ async function captureSnapshot(): Promise<SessionSnapshot> {
     pendingDiffs: editor.pendingDiffs,
     selectedRepo: repo.selectedRepo,
     selectedBranch: repo.selectedBranch,
+    activeWorkspaceTab: ui.activeWorkspaceTab,
   };
 }
 
@@ -155,6 +162,12 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
       selectedBranch: snapshot.selectedBranch,
     });
   }
+
+  // Restore workspace tab (e.g. if user was on pipeline view)
+  if (snapshot.activeWorkspaceTab) {
+    const useUIStore = await getUIStore();
+    useUIStore.setState({ activeWorkspaceTab: snapshot.activeWorkspaceTab });
+  }
 }
 
 // ─── Clear all stores (for session isolation) ────────────────────────────────
@@ -177,6 +190,10 @@ async function clearAllStores(): Promise<void> {
 
   // Clear repo selection (but keep the repos list so it doesn't need to reload)
   useRepoStore.getState().clearRepo();
+
+  // Reset workspace tab to default so previous session's tab doesn't leak
+  const useUIStore = await getUIStore();
+  useUIStore.setState({ activeWorkspaceTab: 'editor' });
 }
 
 // ─── Auto-save interval ──────────────────────────────────────────────────────
