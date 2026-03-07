@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, GitBranch, Rocket, Keyboard, ArrowRight, MessageSquare, Zap } from 'lucide-react';
+import { X, GitBranch, Rocket, Keyboard, ArrowRight, MessageSquare } from 'lucide-react';
+import { PabloLogo } from '@/components/shared/PabloLogo';
 import { useUIStore } from '@/stores/ui';
 
 const ONBOARDED_KEY = 'pablo-onboarded';
@@ -110,7 +111,7 @@ export function WelcomeModal() {
             </div>
           </div>
           <div className="flex items-start gap-2 rounded-lg border border-pablo-border bg-pablo-bg p-2.5">
-            <Zap size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
+            <PabloLogo size={14} />
             <div>
               <p className="font-ui text-[11px] font-medium text-pablo-text-dim">AI Pipeline</p>
               <p className="font-ui text-[10px] text-pablo-text-muted">Describe any app and Pablo builds it through a 9-stage AI pipeline</p>

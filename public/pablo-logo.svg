@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <!-- Primary gold gradient — warm and premium -->
+    <linearGradient id="gold" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F0D070"/>
+      <stop offset="35%" stop-color="#D4A843"/>
+      <stop offset="100%" stop-color="#A07828"/>
+    </linearGradient>
+    
+    <!-- Subtle highlight for depth -->
+    <linearGradient id="goldLight" x1="100" y1="80" x2="350" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FCEABB" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#D4A843" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Background deep navy -->
+    <radialGradient id="bgGrad" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#0F1320"/>
+      <stop offset="100%" stop-color="#08090E"/>
+    </radialGradient>
+
+    <!-- Glow filter for the accent shape -->
+    <filter id="outerGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="12" result="blur"/>
+      <feFlood flood-color="#D4A843" flood-opacity="0.25"/>
+      <feComposite in2="blur" operator="in"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 
+    LOGO CONCEPT: "The Convergence"
+    
+    Three overlapping angular planes that together form the letter P.
+    The negative space between them creates a forward-pointing arrow.
+    
+    Inspired by:
+    - Stripe: precision geometry with depth
+    - Linear: clean angular intersection
+    - Notion: meaningful negative space
+    - Vercel: bold, singular, unforgettable
+    
+    The three planes represent Pablo's trinity:
+    1. Plan (the thinking layer)
+    2. Build (the execution layer)  
+    3. Ship (the delivery layer)
+  -->
+
+  <!-- Background rounded square -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#bgGrad)"/>
+  
+  <!-- Subtle border -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#1E2640" stroke-width="1.5"/>
+
+  <!-- PLANE 1 (deepest): The vertical stem of the P — represents the foundation -->
+  <path 
+    d="M 152 108 L 200 108 L 200 404 L 152 404 Z" 
+    fill="url(#gold)" 
+    opacity="0.55"
+  />
+
+  <!-- PLANE 2 (middle): The bowl of the P sweeping right — represents building -->
+  <path 
+    d="M 186 108 L 320 108 C 382 108, 400 148, 400 196 C 400 250, 370 280, 310 280 L 186 280 Z"
+    fill="url(#gold)"
+    opacity="0.7"
+  />
+
+  <!-- PLANE 3 (front): The highlight shard — a sharp angular cut that gives dimension -->
+  <path 
+    d="M 200 130 L 304 130 C 354 130, 372 158, 372 196 C 372 236, 348 258, 296 258 L 200 258 L 200 208 L 280 208 C 300 208, 312 200, 312 190 C 312 178, 300 168, 280 168 L 200 168 Z"
+    fill="url(#goldLight)"
+    filter="url(#outerGlow)"
+  />
+
+  <!-- The stem's inner light strip — adds polish like Stripe's depth -->
+  <rect x="164" y="130" width="24" height="262" rx="4" fill="url(#goldLight)" opacity="0.5"/>
+
+  <!-- Bottom-right accent: tiny diamond — a maker's mark -->
+  <path d="M 380 370 L 394 384 L 380 398 L 366 384 Z" fill="url(#gold)" opacity="0.3"/>
+</svg>
