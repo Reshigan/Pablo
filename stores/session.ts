@@ -190,6 +190,10 @@ async function clearAllStores(): Promise<void> {
 
   // Clear repo selection (but keep the repos list so it doesn't need to reload)
   useRepoStore.getState().clearRepo();
+
+  // Reset workspace tab to default so previous session's tab doesn't leak
+  const useUIStore = await getUIStore();
+  useUIStore.setState({ activeWorkspaceTab: 'editor' });
 }
 
 // ─── Auto-save interval ──────────────────────────────────────────────────────
