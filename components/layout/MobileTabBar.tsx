@@ -10,7 +10,7 @@ import {
   MessageSquare,
   Code2,
   Play,
-  GitBranch,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 import { useUIStore, type SidebarTab } from '@/stores/ui';
@@ -47,29 +47,8 @@ export function MobileTabBar() {
     }
   };
 
+  /* CHANGE 9: Reorder — Build first, Code, Preview, Chat, Files. No "Editor" label. */
   const tabs: MobileTab[] = [
-    {
-      id: 'files',
-      icon: Files,
-      label: 'Files',
-      action: () => openSidebarPanel('files'),
-    },
-    {
-      id: 'git',
-      icon: GitBranch,
-      label: 'Git',
-      action: () => openSidebarPanel('git'),
-    },
-    {
-      id: 'editor',
-      icon: Code2,
-      label: 'Code',
-      action: () => {
-        // Close sidebar if open, then switch to editor
-        if (sidebarOpen) toggleSidebar();
-        setActiveWorkspaceTab('editor');
-      },
-    },
     {
       id: 'pipeline',
       icon: Play,
@@ -80,10 +59,34 @@ export function MobileTabBar() {
       },
     },
     {
+      id: 'editor',
+      icon: Code2,
+      label: 'Code',
+      action: () => {
+        if (sidebarOpen) toggleSidebar();
+        setActiveWorkspaceTab('editor');
+      },
+    },
+    {
+      id: 'preview',
+      icon: Globe,
+      label: 'Preview',
+      action: () => {
+        if (sidebarOpen) toggleSidebar();
+        setActiveWorkspaceTab('preview');
+      },
+    },
+    {
       id: 'chat',
       icon: MessageSquare,
       label: 'Chat',
       action: () => toggleChat(),
+    },
+    {
+      id: 'files',
+      icon: Files,
+      label: 'Files',
+      action: () => openSidebarPanel('files'),
     },
   ];
 
@@ -96,9 +99,9 @@ export function MobileTabBar() {
         const TabIcon = tab.icon;
         const isActive =
           (tab.id === 'files' && sidebarOpen && sidebarTab === 'files') ||
-          (tab.id === 'git' && sidebarOpen && sidebarTab === 'git') ||
           (tab.id === 'editor' && !sidebarOpen && activeWorkspaceTab === 'editor') ||
           (tab.id === 'pipeline' && !sidebarOpen && activeWorkspaceTab === 'pipeline') ||
+          (tab.id === 'preview' && !sidebarOpen && activeWorkspaceTab === 'preview') ||
           (tab.id === 'chat' && chatOpen);
         return (
           <button

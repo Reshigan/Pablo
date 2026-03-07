@@ -61,8 +61,8 @@ export function ChatPanel() {
   } = useChatStore();
 
   const [input, setInput] = useState('');
-  const [detectedIntent, setDetectedIntent] = useState<'chat' | 'build' | 'evaluate' | 'fix'>('chat');
-  const [manualMode, setManualMode] = useState<'auto' | 'chat' | 'build' | 'evaluate' | 'fix'>('auto');
+  const [detectedIntent, setDetectedIntent] = useState<'chat' | 'evaluate' | 'fix'>('chat');
+  const [manualMode, setManualMode] = useState<'auto' | 'chat' | 'evaluate' | 'fix'>('auto');
   const [evaluationResult, setEvaluationResult] = useState<EvaluationResult | null>(null);
   const [attachments, setAttachments] = useState<Array<{ name: string; content: string; type: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -573,9 +573,6 @@ export function ChatPanel() {
     } else if (shouldOrchestrate(rawMsg)) {
       // Complex multi-domain tasks (3+ requirement indicators) use multi-agent orchestration
       sendOrchestratedMessage(msg);
-    } else if (intent === 'build') {
-      // Build intent uses agent mode for full pipeline
-      sendAgentMessage(msg);
     } else {
       sendMessage(msg);
     }
@@ -809,22 +806,19 @@ export function ChatPanel() {
   /**
    * Detect user intent from input to auto-suggest mode
    */
-  const detectIntentFromInput = useCallback((text: string): 'chat' | 'build' | 'evaluate' | 'fix' => {
-    const lower = text.toLowerCase();
-    // Evaluate patterns
-    if (/\b(evaluate|audit|scan|health|review\s+repo|analyze\s+repo|check\s+quality)\b/.test(lower)) {
-      return 'evaluate';
-    }
-    // Fix patterns
-    if (/\b(fix|bug|error|crash|broken|not\s+work|fail|patch|debug|repair)\b/.test(lower)) {
-      return 'fix';
-    }
-    // Build patterns
-    if (/\b(build|create|generate|implement|make|scaffold|new\s+app|new\s+project)\b/.test(lower)) {
-      return 'build';
-    }
-    return 'chat';
-  }, []);
+    const detectIntentFromInput = useCallback((text: string): 'chat' | 'evaluate' | 'fix' => {
+      const lower = text.toLowerCase();
+      // Evaluate patterns
+      if (/\b(evaluate|audit|scan|health|review\s+repo|analyze\s+repo|check\s+quality)\b/.test(lower)) {
+        return 'evaluate';
+      }
+      // Fix patterns
+      if (/\b(fix|bug|error|crash|broken|not\s+work|fail|patch|debug|repair)\b/.test(lower)) {
+        return 'fix';
+      }
+      // CHANGE 5: Build intent now nudges to pipeline tab instead of chat mode
+      return 'chat';
+    }, []);
 
   /**
    * Handle Evaluate mode: load repo files → run evaluateRepo → show report
@@ -1122,7 +1116,7 @@ export function ChatPanel() {
                   if (intent === 'evaluate') handleEvaluate(lastUserMsg.content);
                   else if (intent === 'fix') handleFix(lastUserMsg.content);
                   else if (shouldOrchestrate(lastUserMsg.content)) sendOrchestratedMessage(lastUserMsg.content);
-                  else if (intent === 'build') sendAgentMessage(lastUserMsg.content);
+                  // Build intent removed — nudges to pipeline tab instead
                   else sendMessage(lastUserMsg.content);
                 }
               }}

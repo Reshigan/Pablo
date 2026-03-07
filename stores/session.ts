@@ -191,9 +191,9 @@ async function clearAllStores(): Promise<void> {
   // Clear repo selection (but keep the repos list so it doesn't need to reload)
   useRepoStore.getState().clearRepo();
 
-  // Reset workspace tab to default so previous session's tab doesn't leak
+  // Reset workspace tab to default (pipeline/Build) so previous session's tab doesn't leak
   const useUIStore = await getUIStore();
-  useUIStore.setState({ activeWorkspaceTab: 'editor' });
+  useUIStore.setState({ activeWorkspaceTab: 'pipeline' });
 }
 
 // ─── Auto-save interval ──────────────────────────────────────────────────────
@@ -279,12 +279,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
       const session = mapApiSession(await res.json());
 
-      // Clear all stores first so stale state from previous session is removed
-      await clearAllStores();
-
-      // Restore snapshot if present (otherwise stores stay clean)
+      // FIX 1 (Session UX): Atomic restore — if snapshot exists, restoreSnapshot
+      // overwrites all store slices in one go (no clearAllStores flash).
+      // Only clearAllStores when there's NO snapshot (truly fresh session).
       if (session.snapshot) {
         await restoreSnapshot(session.snapshot);
+      } else {
+        await clearAllStores();
       }
 
       set((state) => ({

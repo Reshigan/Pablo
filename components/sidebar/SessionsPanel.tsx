@@ -14,10 +14,12 @@ import {
   Pause,
   CheckCircle2,
   AlertCircle,
-  Archive,
   Search,
   MoreVertical,
   RotateCcw,
+  FileCode2,
+  Gauge,
+  Pencil,
 } from 'lucide-react';
 
 type StatusFilter = 'all' | 'active' | 'completed';
@@ -32,7 +34,7 @@ const STATUS_ICONS = {
 const STATUS_COLORS = {
   active: 'text-green-400',
   paused: 'text-yellow-400',
-  completed: 'text-pablo-text-muted',
+  completed: 'text-amber-400',
   error: 'text-red-400',
 } as const;
 
@@ -52,22 +54,41 @@ function formatTimeAgo(dateStr: string): string {
 function SessionItem({
   session,
   isCurrent,
+  isLoadingThis,
   onResume,
   onDelete,
   onArchive,
   onReopen,
+  onRename,
 }: {
   session: AppSession;
   isCurrent: boolean;
+  isLoadingThis: boolean;
   onResume: () => void;
   onDelete: () => void;
   onArchive: () => void;
   onReopen: () => void;
+  onRename: (newTitle: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(session.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const renameRef = useRef<HTMLInputElement>(null);
   const StatusIcon = STATUS_ICONS[session.status];
   const statusColor = STATUS_COLORS[session.status];
+  const isCompleted = session.status === 'completed';
+
+  // FIX 2: Extract metadata from snapshot for rich cards
+  const snapshot = session.snapshot;
+  const fileCount = snapshot?.editorTabs?.length ?? 0;
+  const pipelineScore = snapshot?.pipelineRuns?.[0]?.readinessScore?.score ?? null;
+  const promptPreview = snapshot?.pipelineRuns?.[0]?.featureDescription
+    ? (snapshot.pipelineRuns[0].featureDescription.length > 60
+      ? snapshot.pipelineRuns[0].featureDescription.slice(0, 60) + '...'
+      : snapshot.pipelineRuns[0].featureDescription)
+    : null;
 
   // Close menu on outside click
   useEffect(() => {
@@ -75,30 +96,76 @@ function SessionItem({
     const handleClickOutside = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setMenuOpen(false);
+        setConfirmDelete(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [menuOpen]);
 
+  // FIX 3: Focus rename input when entering rename mode
+  useEffect(() => {
+    if (isRenaming) renameRef.current?.focus();
+  }, [isRenaming]);
+
+  const handleRenameSubmit = () => {
+    const trimmed = renameValue.trim();
+    if (trimmed && trimmed !== session.title) {
+      onRename(trimmed);
+    }
+    setIsRenaming(false);
+  };
+
   return (
     <div
-      className={`group relative rounded-lg border px-3 py-2.5 transition-colors cursor-pointer ${
+      className={`group relative rounded-lg border px-3 py-2.5 transition-all cursor-pointer ${
         isCurrent
           ? 'border-pablo-gold/40 bg-pablo-gold/5'
-          : 'border-pablo-border bg-pablo-panel hover:border-pablo-gold/20 hover:bg-pablo-hover'
+          : isCompleted
+            ? 'border-amber-500/20 bg-amber-500/5 hover:border-amber-400/40 hover:bg-amber-500/10'
+            : 'border-pablo-border bg-pablo-panel hover:border-pablo-gold/20 hover:bg-pablo-hover'
       }`}
       onClick={onResume}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === 'Enter') onResume(); }}
+      title={isCompleted && !isCurrent ? 'Click to reopen' : undefined}
     >
+      {/* FIX 6: Loading spinner overlay when switching to this session */}
+      {isLoadingThis && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-pablo-panel/80 backdrop-blur-sm">
+          <Loader2 size={16} className="animate-spin text-pablo-gold" />
+        </div>
+      )}
       <div className="flex items-start gap-2">
         <StatusIcon size={14} className={`mt-0.5 shrink-0 ${statusColor}`} />
         <div className="min-w-0 flex-1">
-          <p className="font-ui text-xs font-medium text-pablo-text truncate">
-            {session.title}
-          </p>
+          {/* FIX 3: Inline rename */}
+          {isRenaming ? (
+            <input
+              ref={renameRef}
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') handleRenameSubmit();
+                if (e.key === 'Escape') setIsRenaming(false);
+              }}
+              onBlur={handleRenameSubmit}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full rounded border border-pablo-gold/50 bg-pablo-input px-1.5 py-0.5 font-ui text-xs text-pablo-text outline-none focus:border-pablo-gold"
+            />
+          ) : (
+            <p className="font-ui text-xs font-medium text-pablo-text truncate">
+              {session.title}
+            </p>
+          )}
+          {/* FIX 2: Prompt preview */}
+          {promptPreview && !isRenaming && (
+            <p className="mt-0.5 font-ui text-[10px] text-pablo-text-muted truncate italic">
+              &ldquo;{promptPreview}&rdquo;
+            </p>
+          )}
           {session.repoFullName && (
             <div className="mt-0.5 flex items-center gap-1">
               <FolderGit2 size={10} className="text-pablo-text-muted shrink-0" />
@@ -110,14 +177,36 @@ function SessionItem({
               </span>
             </div>
           )}
-          <div className="mt-1 flex items-center gap-2">
+          <div className="mt-1 flex items-center gap-2 flex-wrap">
             <span className="flex items-center gap-0.5 font-code text-[10px] text-pablo-text-muted">
               <Clock size={9} />
               {formatTimeAgo(session.updatedAt)}
             </span>
+            {/* FIX 2: Rich metadata — file count */}
+            {fileCount > 0 && (
+              <span className="flex items-center gap-0.5 font-code text-[10px] text-pablo-text-muted">
+                <FileCode2 size={9} />
+                {fileCount} file{fileCount !== 1 ? 's' : ''}
+              </span>
+            )}
+            {/* FIX 2: Rich metadata — pipeline score */}
+            {pipelineScore !== null && (
+              <span className={`flex items-center gap-0.5 font-code text-[10px] ${
+                pipelineScore >= 80 ? 'text-pablo-green' : pipelineScore >= 50 ? 'text-pablo-gold' : 'text-pablo-red'
+              }`}>
+                <Gauge size={9} />
+                {pipelineScore}%
+              </span>
+            )}
             {isCurrent && (
               <span className="rounded-full bg-pablo-gold/20 px-1.5 py-0.5 font-ui text-[9px] font-medium text-pablo-gold">
                 CURRENT
+              </span>
+            )}
+            {/* FIX 7: Completed sessions hint */}
+            {isCompleted && !isCurrent && (
+              <span className="font-ui text-[9px] text-amber-400/70">
+                Click to reopen
               </span>
             )}
           </div>
@@ -128,6 +217,7 @@ function SessionItem({
             onClick={(e) => {
               e.stopPropagation();
               setMenuOpen(!menuOpen);
+              setConfirmDelete(false);
             }}
             className="rounded p-1 text-pablo-text-muted opacity-0 group-hover:opacity-100 hover:bg-pablo-gold/10 hover:text-pablo-gold transition-opacity"
             aria-label="Session actions"
@@ -136,7 +226,20 @@ function SessionItem({
             <MoreVertical size={12} />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-6 z-50 w-36 rounded-lg border border-pablo-border bg-pablo-panel shadow-lg py-1">
+            <div className="absolute right-0 top-6 z-50 w-40 rounded-lg border border-pablo-border bg-pablo-panel shadow-lg py-1">
+              {/* FIX 3: Rename action */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setRenameValue(session.title);
+                  setIsRenaming(true);
+                  setMenuOpen(false);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-pablo-text-dim hover:bg-pablo-hover"
+              >
+                <Pencil size={12} />
+                Rename
+              </button>
               {session.status !== 'completed' ? (
                 <button
                   onClick={(e) => {
@@ -162,17 +265,32 @@ function SessionItem({
                   Reopen
                 </button>
               )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                  setMenuOpen(false);
-                }}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-red-400 hover:bg-red-500/10"
-              >
-                <Trash2 size={12} />
-                Delete
-              </button>
+              {/* FIX 4: Two-click delete confirmation */}
+              {!confirmDelete ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(true);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] text-red-400 hover:bg-red-500/10"
+                >
+                  <Trash2 size={12} />
+                  Delete
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                    setMenuOpen(false);
+                    setConfirmDelete(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20"
+                >
+                  <Trash2 size={12} />
+                  Confirm delete?
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -190,14 +308,16 @@ export function SessionsPanel() {
     loadSessions,
     createSession,
     deleteSession,
-    archiveSession,
     saveSession,
+    updateSessionMeta,
   } = useSessionStore();
 
   // Phase 2.1: Status filter tabs
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
   // ENH-4: Session search/filter
   const [searchQuery, setSearchQuery] = useState('');
+  // FIX 6: Track which session is currently being loaded
+  const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
 
   const filteredSessions = sessions.filter((s) => {
     // Status filter
@@ -233,6 +353,8 @@ export function SessionsPanel() {
   const handleResume = useCallback(
     async (sessionId: string) => {
       if (sessionId === currentSessionId) return;
+      // FIX 6: Show loading spinner on the clicked card
+      setLoadingSessionId(sessionId);
       // Save current session before switching
       if (currentSessionId) {
         await saveSession().catch(() => { /* non-blocking */ });
@@ -240,6 +362,14 @@ export function SessionsPanel() {
       router.push(`/session/${sessionId}`);
     },
     [currentSessionId, saveSession, router]
+  );
+
+  // FIX 3: Rename handler
+  const handleRename = useCallback(
+    async (sessionId: string, newTitle: string) => {
+      await updateSessionMeta(sessionId, { title: newTitle });
+    },
+    [updateSessionMeta]
   );
 
   const handleDelete = useCallback(
@@ -359,10 +489,12 @@ export function SessionsPanel() {
               key={session.id}
               session={session}
               isCurrent={session.id === currentSessionId}
+              isLoadingThis={loadingSessionId === session.id}
               onResume={() => handleResume(session.id)}
               onDelete={() => handleDelete(session.id)}
               onArchive={() => handleMarkComplete(session.id)}
               onReopen={() => handleReopen(session.id)}
+              onRename={(newTitle) => handleRename(session.id, newTitle)}
             />
           ))}
           {filteredSessions.length === 0 && (

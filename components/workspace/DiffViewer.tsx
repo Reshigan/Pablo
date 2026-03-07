@@ -1,6 +1,6 @@
 'use client';
 
-import { GitCommit, ChevronDown, ChevronRight, Plus, Minus, Check, X, CheckCheck, XCircle } from 'lucide-react';
+import { GitCommit, ChevronDown, ChevronRight, Plus, Minus, Check, X, CheckCheck, XCircle, Globe } from 'lucide-react';
 import { useState, useMemo, useCallback } from 'react';
 import { useEditorStore, type DiffHunk } from '@/stores/editor';
 import { useUIStore } from '@/stores/ui';
@@ -238,27 +238,23 @@ export function DiffViewer() {
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden bg-pablo-bg">
-      {/* Header */}
-      <div className="flex items-center gap-3 border-b border-pablo-border bg-pablo-panel px-3 py-1.5">
-        <span className="font-ui text-xs text-pablo-text-dim">
-          {pendingDiffs.length} file{pendingDiffs.length !== 1 ? 's' : ''} changed
-        </span>
-        {pendingCount > 0 && (
-          <span className="font-ui text-[10px] text-pablo-gold">{pendingCount} pending</span>
-        )}
-        {acceptedCount > 0 && (
-          <span className="font-ui text-[10px] text-pablo-green">{acceptedCount} accepted</span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
+      {/* CHANGE 8: Sticky header with pending diffs count + Accept All & Preview */}
+      <div className="sticky top-0 z-10 flex flex-col border-b border-pablo-border bg-pablo-panel">
+        <div className="flex items-center gap-3 px-3 py-1.5">
+          <span className="font-ui text-xs text-pablo-text-dim">
+            {pendingDiffs.length} file{pendingDiffs.length !== 1 ? 's' : ''} changed
+          </span>
           {pendingCount > 0 && (
-            <>
-              <button
-                onClick={handleAcceptAll}
-                className="flex h-6 items-center gap-1 rounded bg-pablo-green/10 px-2 font-ui text-[10px] font-medium text-pablo-green transition-colors hover:bg-pablo-green/20"
-              >
-                <CheckCheck size={12} />
-                Accept All
-              </button>
+            <span className="flex items-center gap-1 font-ui text-[10px] text-pablo-gold">
+              <span className="h-1.5 w-1.5 rounded-full bg-pablo-gold animate-pulse" />
+              {pendingCount} pending review
+            </span>
+          )}
+          {acceptedCount > 0 && (
+            <span className="font-ui text-[10px] text-pablo-green">{acceptedCount} accepted</span>
+          )}
+          <div className="ml-auto flex items-center gap-2">
+            {pendingCount > 0 && (
               <button
                 onClick={handleRejectAll}
                 className="flex h-6 items-center gap-1 rounded bg-pablo-red/10 px-2 font-ui text-[10px] font-medium text-pablo-red transition-colors hover:bg-pablo-red/20"
@@ -266,17 +262,33 @@ export function DiffViewer() {
                 <XCircle size={12} />
                 Reject All
               </button>
-            </>
-          )}
-          {pendingCount === 0 && (
-            <button
-              onClick={clearDiffs}
-              className="flex h-6 items-center gap-1 rounded bg-pablo-hover px-2 font-ui text-[10px] text-pablo-text-muted transition-colors hover:text-pablo-text-dim"
-            >
-              Clear
-            </button>
-          )}
+            )}
+            {pendingCount === 0 && (
+              <button
+                onClick={clearDiffs}
+                className="flex h-6 items-center gap-1 rounded bg-pablo-hover px-2 font-ui text-[10px] text-pablo-text-muted transition-colors hover:text-pablo-text-dim"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
+        {/* Prominent Accept All & Preview button */}
+        {pendingCount > 0 && (
+          <div className="flex items-center gap-2 border-t border-pablo-border/50 px-3 py-1.5 bg-pablo-gold/5">
+            <button
+              onClick={handleAcceptAll}
+              className="flex h-7 items-center gap-1.5 rounded-lg bg-pablo-gold px-3 font-ui text-xs font-medium text-pablo-bg transition-colors hover:bg-pablo-gold-dim"
+            >
+              <CheckCheck size={13} />
+              Accept All & Preview
+              <Globe size={11} className="ml-0.5" />
+            </button>
+            <span className="font-ui text-[10px] text-pablo-text-muted">
+              Accepts all {pendingCount} pending diff{pendingCount !== 1 ? 's' : ''} and opens live preview
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Diff list */}
