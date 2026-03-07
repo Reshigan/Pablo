@@ -29,11 +29,13 @@ export function MobileTabBar() {
     setActiveWorkspaceTab,
     toggleSidebar,
     toggleChat,
+    chatOpen,
+    sidebarOpen,
+    sidebarTab,
+    setSidebarTab,
   } = useUIStore();
 
   if (!mobileMode) return null;
-
-  const { sidebarOpen, sidebarTab, setSidebarTab } = useUIStore();
 
   /** Open a specific sidebar panel (or toggle if already showing that panel) */
   const openSidebarPanel = (tab: SidebarTab) => {
@@ -97,7 +99,7 @@ export function MobileTabBar() {
           (tab.id === 'git' && sidebarOpen && sidebarTab === 'git') ||
           (tab.id === 'editor' && !sidebarOpen && activeWorkspaceTab === 'editor') ||
           (tab.id === 'pipeline' && !sidebarOpen && activeWorkspaceTab === 'pipeline') ||
-          (tab.id === 'chat' && useUIStore.getState().chatOpen);
+          (tab.id === 'chat' && chatOpen);
         return (
           <button
             key={tab.id}
