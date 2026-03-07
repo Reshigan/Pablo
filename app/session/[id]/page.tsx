@@ -127,6 +127,28 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, []);
 
+  // Auto-save immediately when a pipeline run completes (don't wait for 30s auto-save)
+  useEffect(() => {
+    let prevStatuses: Record<string, string> = {};
+    const unsub = usePipelineStore.subscribe((state) => {
+      const newStatuses: Record<string, string> = {};
+      for (const run of state.runs) {
+        newStatuses[run.id] = run.status;
+      }
+      // Check if any run just transitioned to completed/failed/cancelled
+      for (const [id, status] of Object.entries(newStatuses)) {
+        const prev = prevStatuses[id];
+        if (prev === 'running' && (status === 'completed' || status === 'failed' || status === 'cancelled')) {
+          // Pipeline just finished — trigger immediate save
+          useSessionStore.getState().saveSession().catch(() => { /* non-blocking */ });
+          break;
+        }
+      }
+      prevStatuses = newStatuses;
+    });
+    return unsub;
+  }, []);
+
   // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -284,6 +306,7 @@ function captureSnapshotSync(): Record<string, unknown> | null {
     const pipeline = usePipelineStore.getState();
     const editor = useEditorStore.getState();
     const repo = useRepoStore.getState();
+    const ui = useUIStore.getState();
 
     return {
       messages: chat.messages,
@@ -293,6 +316,7 @@ function captureSnapshotSync(): Record<string, unknown> | null {
       pendingDiffs: editor.pendingDiffs,
       selectedRepo: repo.selectedRepo,
       selectedBranch: repo.selectedBranch,
+      activeWorkspaceTab: ui.activeWorkspaceTab,
     };
   } catch {
     return null;
