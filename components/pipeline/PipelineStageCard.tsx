@@ -10,6 +10,7 @@ import {
   Zap,
   ChevronDown,
   ChevronRight,
+  RotateCcw,
 } from 'lucide-react';
 import type { PipelineStage, StageStatus } from '@/stores/pipeline';
 
@@ -34,11 +35,13 @@ export function PipelineStageCard({
   stageInfo,
   isExpanded,
   onToggle,
+  onRetry,
 }: {
   stage: { stage: PipelineStage; status: StageStatus; output: string; durationMs?: number; tokens?: number; model?: string };
   stageInfo: { label: string; description: string; model: string };
   isExpanded: boolean;
   onToggle: () => void;
+  onRetry?: (stageName: PipelineStage) => void;
 }) {
   const Icon = STATUS_ICONS[stage.status];
   const color = STATUS_COLORS[stage.status];
@@ -100,6 +103,21 @@ export function PipelineStageCard({
           ) : null}
         </div>
       </button>
+      {/* Issue 11: Retry button on failed stages */}
+      {stage.status === 'failed' && onRetry && (
+        <div className="px-3 py-1.5 border-t border-pablo-border">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onRetry(stage.stage);
+            }}
+            className="flex items-center gap-1 rounded bg-orange-500/10 px-2 py-0.5 font-ui text-[10px] text-orange-400 transition-colors hover:bg-orange-500/20"
+          >
+            <RotateCcw size={10} />
+            Retry this stage
+          </button>
+        </div>
+      )}
       {isExpanded && stage.output && (
         <div className="border-t border-pablo-border bg-pablo-bg px-3 py-2">
           <pre className="max-h-60 overflow-auto whitespace-pre-wrap font-code text-[11px] text-pablo-text-dim leading-relaxed">

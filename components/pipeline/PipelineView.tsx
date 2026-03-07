@@ -19,6 +19,7 @@ import {
   RefreshCw,
   GitCompareArrows,
   Globe,
+  GitBranch,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MentionDropdown, resolveMentions, type MentionItem } from '@/components/pipeline/MentionDropdown';
@@ -61,11 +62,11 @@ import { quickReadinessCheck } from '@/lib/agents/productionReadiness';
 
 // ─── RunCard (uses extracted sub-components) ───────────────────────────
 
-function RunCard({ run, onCancel, onIterate }: { run: PipelineRun; onCancel?: () => void; onIterate?: (prompt: string) => void }) {
+function RunCard({ run, onCancel, onIterate, onRetryStage }: { run: PipelineRun; onCancel?: () => void; onIterate?: (prompt: string) => void; onRetryStage?: (stageName: PipelineStage) => void }) {
   return (
     <div className="rounded-lg border border-pablo-border bg-pablo-panel overflow-hidden">
       <PipelineProgress run={run} onCancel={onCancel} />
-      <PipelineOutputPanel run={run} />
+      <PipelineOutputPanel run={run} onRetryStage={onRetryStage} />
       {run.readinessScore && (
         <ProductionReadinessCard
           score={run.readinessScore}
@@ -257,7 +258,7 @@ const HERO_TEMPLATES = [
 ];
 
 export function PipelineView() {
-  const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt } = usePipelineStore();
+  const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt, pendingSavePrompt, setPendingSavePrompt } = usePipelineStore();
   const agentStore = useAgentStore();
   const [featureInput, setFeatureInput] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
@@ -325,7 +326,24 @@ export function PipelineView() {
 
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
+
     setIsBuilding(true); // Immediately prevent double-clicks
+
+    // Issue 4: Pre-flight API key check before pipeline starts
+    try {
+      const healthRes = await fetch('/api/health');
+      if (healthRes.ok) {
+        const health = await healthRes.json() as { ollama?: { status: string } };
+        if (health.ollama?.status === 'missing_key') {
+          toast('AI Not Configured', 'Ollama API key is missing. Ask your admin to set OLLAMA_API_KEY in Cloudflare Worker secrets.');
+          if (pendingPrompt) setPendingPrompt(null);
+          setIsBuilding(false);
+          return;
+        }
+      }
+    } catch {
+      // Health check failed — try anyway, the pipeline will show specific errors
+    }
     try {
     console.log('[Pipeline] handleStart fired');
     let description = featureInput.trim();
@@ -752,6 +770,14 @@ export function PipelineView() {
             // Non-blocking — readiness evaluation is optional
           }
 
+          // Issue 2: Save Your Work prompt — if no repo selected and files were generated
+          try {
+            const hasRepo = !!useRepoStore.getState().selectedRepo;
+            if (!hasRepo && allParsedFiles.length > 0) {
+              usePipelineStore.getState().setPendingSavePrompt(runId);
+            }
+          } catch { /* non-blocking */ }
+
           // Auto-capture patterns from generated code (Self-Learning)
           try {
             const learningStore = useLearningStore.getState();
@@ -913,6 +939,16 @@ export function PipelineView() {
     setSelectedMentions(prev => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Issue 11: Retry a failed pipeline stage — start a new full run with the same description
+  const handleRetryStage = useCallback((runId: string, stageName: PipelineStage) => {
+    const targetRun = runs.find(r => r.id === runId);
+    if (!targetRun) return;
+    // Set the feature input from the original run's description and auto-trigger
+    setFeatureInput(targetRun.featureDescription);
+    pendingRef.current = true;
+    toast('Retrying', `Starting new pipeline run (failed at ${stageName})...`);
+  }, [runs]);
+
   // Production Readiness: feed issues back as a new iteration prompt
   const handleIterate = useCallback((iterationPrompt: string) => {
     setFeatureInput(iterationPrompt);
@@ -929,7 +965,12 @@ export function PipelineView() {
       <TemplatePickerModal
         open={showTemplates}
         onClose={() => setShowTemplates(false)}
-        onSelect={(prompt) => setFeatureInput(prompt)}
+        onSelect={(prompt) => {
+          setFeatureInput(prompt);
+          // Issue 10: Auto-start pipeline after template selection
+          // Use pendingRef which the existing useEffect already handles
+          pendingRef.current = true;
+        }}
       />
 
       {/* Header */}
@@ -1146,8 +1187,56 @@ export function PipelineView() {
                   completeRun(run.id, 'cancelled');
                 } : undefined}
                 onIterate={run.readinessScore ? handleIterate : undefined}
+                onRetryStage={run.status === 'failed' || run.status === 'completed' ? (stageName) => handleRetryStage(run.id, stageName) : undefined}
               />
             ))}
+
+            {/* Issue 2: Save Your Work prompt when no repo selected */}
+            {runs.length > 0 && runs[0].status === 'completed' && pendingSavePrompt === runs[0].id && (
+              <div className="mx-0 my-1 rounded-xl border border-orange-500/30 bg-orange-500/5 p-4">
+                <h3 className="font-ui text-sm font-semibold text-orange-400 mb-1">
+                  Your code isn&apos;t saved to GitHub yet
+                </h3>
+                <p className="font-ui text-xs text-pablo-text-muted mb-3">
+                  Files were generated. Choose how to save them:
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button
+                    onClick={() => {
+                      useUIStore.getState().setSidebarTab('git');
+                      if (!useUIStore.getState().sidebarOpen) useUIStore.getState().toggleSidebar();
+                      setPendingSavePrompt(null);
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-pablo-border bg-pablo-bg px-3 py-2 text-left transition-colors hover:border-pablo-gold/40"
+                  >
+                    <GitBranch size={14} className="text-pablo-gold shrink-0" />
+                    <div>
+                      <p className="font-ui text-xs font-medium text-pablo-text">Push to GitHub</p>
+                      <p className="font-ui text-[10px] text-pablo-text-muted">Create a new repo or push to existing</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleZipDownload();
+                      setPendingSavePrompt(null);
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-pablo-border bg-pablo-bg px-3 py-2 text-left transition-colors hover:border-pablo-gold/40"
+                  >
+                    <Download size={14} className="text-blue-400 shrink-0" />
+                    <div>
+                      <p className="font-ui text-xs font-medium text-pablo-text">Download as ZIP</p>
+                      <p className="font-ui text-[10px] text-pablo-text-muted">Save to your local machine</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setPendingSavePrompt(null)}
+                    className="font-ui text-[10px] text-pablo-text-muted hover:text-pablo-text-dim text-center py-1"
+                  >
+                    Skip — I&apos;ll save later
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* CHANGE 4: Post-pipeline "Next Steps" guided flow */}
             {runs.length > 0 && runs[runs.length - 1].status === 'completed' && (

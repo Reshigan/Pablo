@@ -12,6 +12,7 @@ import {
   Wrench,
   Crosshair,
   CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { useEditorStore } from '@/stores/editor';
@@ -668,14 +669,25 @@ export function LivePreview() {
 
             {/* WebContainer: show iframe pointing to dev server */}
             {runtime === 'webcontainer' && serverUrl ? (
-              <iframe
-                key={`wc-${iframeKey}`}
-                ref={iframeRef}
-                src={serverUrl}
-                className="h-full w-full rounded-lg"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                title="WebContainer Preview"
-              />
+              <div className="relative h-full w-full">
+                <iframe
+                  key={`wc-${iframeKey}`}
+                  ref={iframeRef}
+                  src={serverUrl}
+                  className="h-full w-full rounded-lg"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  title="WebContainer Preview"
+                />
+                {/* Issue 7: Preview error guidance — small help icon that expands on click */}
+                <button
+                  onClick={() => setShowTerminal(s => !s)}
+                  className="absolute bottom-3 right-3 z-10 flex items-center gap-1 rounded-lg border border-pablo-border bg-pablo-panel/90 px-2 py-1 backdrop-blur-sm text-pablo-text-muted hover:text-pablo-gold transition-colors"
+                  title="Preview not loading? Check the terminal for errors"
+                >
+                  <AlertCircle size={10} />
+                  <span className="font-ui text-[9px]">Help</span>
+                </button>
+              </div>
             ) : runtime === 'webcontainer' && !serverUrl ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
                 {isRunning ? (

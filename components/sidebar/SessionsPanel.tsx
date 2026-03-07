@@ -1,6 +1,7 @@
 'use client';
 
 import { useSessionStore, type AppSession } from '@/stores/session';
+import { useEditorStore } from '@/stores/editor';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
@@ -278,18 +279,39 @@ function SessionItem({
                   Delete
                 </button>
               ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDelete();
-                    setMenuOpen(false);
-                    setConfirmDelete(false);
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left font-ui text-[11px] font-medium text-red-400 bg-red-500/10 hover:bg-red-500/20"
-                >
-                  <Trash2 size={12} />
-                  Confirm delete?
-                </button>
+                <div className="px-3 py-1.5">
+                  <p className="font-ui text-[10px] text-red-400 mb-1">
+                    Delete &ldquo;{session.title}&rdquo;?
+                  </p>
+                  {(fileCount > 0 || pipelineScore !== null) && (
+                    <p className="font-ui text-[9px] text-pablo-text-muted mb-1">
+                      This will permanently delete{fileCount > 0 ? ` ${fileCount} file(s)` : ''}
+                      {pipelineScore !== null ? ` and pipeline results (${pipelineScore}/100)` : ''}
+                    </p>
+                  )}
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDelete(false);
+                      }}
+                      className="rounded px-2 py-0.5 font-ui text-[10px] text-pablo-text-muted hover:bg-pablo-hover"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete();
+                        setMenuOpen(false);
+                        setConfirmDelete(false);
+                      }}
+                      className="rounded bg-red-500/20 px-2 py-0.5 font-ui text-[10px] font-medium text-red-400 hover:bg-red-500/30"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -358,6 +380,20 @@ export function SessionsPanel() {
   const handleResume = useCallback(
     async (sessionId: string) => {
       if (sessionId === currentSessionId) return;
+
+      // Issue 3: Unsaved changes warning — check for pending diffs or dirty tabs
+      const editorState = useEditorStore.getState();
+      const pendingDiffs = editorState.pendingDiffs.filter(d => d.status === 'pending');
+      const dirtyTabs = editorState.tabs.filter(t => t.isDirty);
+      if (pendingDiffs.length > 0 || dirtyTabs.length > 0) {
+        const msg = pendingDiffs.length > 0
+          ? `You have ${pendingDiffs.length} unreviewed generated file(s). They will be saved in the session snapshot, but review them first to avoid losing changes.`
+          : `You have ${dirtyTabs.length} unsaved file(s).`;
+        if (!window.confirm(`${msg}\n\nSwitch session anyway?`)) {
+          return;
+        }
+      }
+
       // FIX 6: Show loading spinner on the clicked card
       setLoadingSessionId(sessionId);
       // Save current session before switching
