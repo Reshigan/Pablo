@@ -20,9 +20,12 @@ export default function SessionPickerPage() {
 
   useEffect(() => {
     fetch('/api/sessions')
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data: SessionSummary[]) => {
-        setSessions(data);
+        setSessions(Array.isArray(data) ? data : []);
         setLoading(false);
       })
       .catch(() => setLoading(false));
