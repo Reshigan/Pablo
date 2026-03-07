@@ -109,60 +109,66 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
       }
 
       if (selectedTarget === 'cloudflare-pages') {
-        // Use existing Cloudflare Pages deploy API
+        // Deploy to GitHub repo (Cloudflare Pages connects via GitHub integration)
+        const repoName = selectedRepo?.full_name;
         const res = await fetch('/api/deploy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files, project_name: name }),
+          body: JSON.stringify({
+            files,
+            project_name: name,
+            ...(repoName ? { repo: repoName, branch: 'main' } : {}),
+          }),
         });
 
         if (!res.ok) {
           const errData = await res.json().catch(() => ({})) as { error?: string };
-          throw new Error(errData.error || `Deploy failed: ${res.status}`);
+          const errMsg = errData.error || `Deploy failed with status ${res.status}`;
+          // Provide actionable guidance for common errors
+          if (res.status === 401) {
+            throw new Error('Not authenticated. Please sign in with GitHub first.');
+          } else if (errMsg.includes('already exists')) {
+            throw new Error(`Repository "${name}" already exists. Try a different project name.`);
+          }
+          throw new Error(errMsg);
         }
 
-        const data = (await res.json()) as { url?: string; project_name?: string };
-        const url = data.url || `https://${name}.pages.dev`;
+        const data = (await res.json()) as { url?: string; repo?: string; message?: string };
+        const url = data.url || (data.repo ? `https://github.com/${data.repo}` : undefined);
 
         addDeployEntry({
           id: `deploy-${Date.now()}`,
           status: 'live',
-          url,
+          url: url || '',
           projectName: name,
           timestamp: Date.now(),
+          log: data.message,
         });
 
-        setResult({ url });
-      } else if (selectedTarget === 'vercel') {
-        // Phase 4.1: Vercel deploy via GitHub integration
+        setResult({ url: url || undefined });
+      } else if (selectedTarget === 'vercel' || selectedTarget === 'netlify') {
+        // Deploy via GitHub — Vercel/Netlify connect via GitHub integration
+        const repoName = selectedRepo?.full_name;
         const res = await fetch('/api/deploy', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files, project_name: name, target: 'vercel' }),
+          body: JSON.stringify({
+            files,
+            project_name: name,
+            ...(repoName ? { repo: repoName, branch: 'main' } : {}),
+          }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => ({})) as { error?: string };
-          throw new Error(errData.error || `Vercel deploy failed: ${res.status}`);
+          const errMsg = errData.error || `${selectedTarget} deploy failed: ${res.status}`;
+          if (res.status === 401) throw new Error('Not authenticated. Please sign in with GitHub first.');
+          if (errMsg.includes('already exists')) throw new Error(`Repository "${name}" already exists. Try a different project name.`);
+          throw new Error(errMsg);
         }
-        const data = (await res.json()) as { url?: string; message?: string };
-        const url = data.url || `https://${name}.vercel.app`;
-        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url, projectName: name, timestamp: Date.now() });
-        setResult({ url });
-      } else if (selectedTarget === 'netlify') {
-        // Phase 4.1: Netlify deploy
-        const res = await fetch('/api/deploy', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ files, project_name: name, target: 'netlify' }),
-        });
-        if (!res.ok) {
-          const errData = await res.json().catch(() => ({})) as { error?: string };
-          throw new Error(errData.error || `Netlify deploy failed: ${res.status}`);
-        }
-        const data = (await res.json()) as { url?: string; message?: string };
-        const url = data.url || `https://${name}.netlify.app`;
-        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url, projectName: name, timestamp: Date.now() });
-        setResult({ url });
+        const data = (await res.json()) as { url?: string; repo?: string; message?: string };
+        const url = data.url || (data.repo ? `https://github.com/${data.repo}` : undefined);
+        addDeployEntry({ id: `deploy-${Date.now()}`, status: 'live', url: url || '', projectName: name, timestamp: Date.now(), log: data.message });
+        setResult({ url: url || undefined });
       } else if (selectedTarget === 'github-pages') {
         // Phase 4.1: GitHub Pages — commit to gh-pages branch
         if (!selectedRepo) {
