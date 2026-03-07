@@ -10,10 +10,10 @@ import {
   MessageSquare,
   Code2,
   Play,
-  Settings,
+  GitBranch,
   type LucideIcon,
 } from 'lucide-react';
-import { useUIStore, type WorkspaceTab } from '@/stores/ui';
+import { useUIStore, type SidebarTab } from '@/stores/ui';
 
 interface MobileTab {
   id: string;
@@ -29,41 +29,59 @@ export function MobileTabBar() {
     setActiveWorkspaceTab,
     toggleSidebar,
     toggleChat,
-    toggleSettings,
   } = useUIStore();
 
   if (!mobileMode) return null;
+
+  const { sidebarOpen, sidebarTab, setSidebarTab } = useUIStore();
+
+  /** Open a specific sidebar panel (or toggle if already showing that panel) */
+  const openSidebarPanel = (tab: SidebarTab) => {
+    if (sidebarOpen && sidebarTab === tab) {
+      toggleSidebar(); // close
+    } else {
+      setSidebarTab(tab);
+      if (!sidebarOpen) toggleSidebar();
+    }
+  };
 
   const tabs: MobileTab[] = [
     {
       id: 'files',
       icon: Files,
       label: 'Files',
-      action: () => toggleSidebar(),
+      action: () => openSidebarPanel('files'),
+    },
+    {
+      id: 'git',
+      icon: GitBranch,
+      label: 'Git',
+      action: () => openSidebarPanel('git'),
     },
     {
       id: 'editor',
       icon: Code2,
-      label: 'Editor',
-      action: () => setActiveWorkspaceTab('editor'),
+      label: 'Code',
+      action: () => {
+        // Close sidebar if open, then switch to editor
+        if (sidebarOpen) toggleSidebar();
+        setActiveWorkspaceTab('editor');
+      },
     },
     {
       id: 'pipeline',
       icon: Play,
       label: 'Build',
-      action: () => setActiveWorkspaceTab('pipeline'),
+      action: () => {
+        if (sidebarOpen) toggleSidebar();
+        setActiveWorkspaceTab('pipeline');
+      },
     },
     {
       id: 'chat',
       icon: MessageSquare,
       label: 'Chat',
       action: () => toggleChat(),
-    },
-    {
-      id: 'settings',
-      icon: Settings,
-      label: 'Settings',
-      action: () => toggleSettings(),
     },
   ];
 
@@ -75,8 +93,11 @@ export function MobileTabBar() {
       {tabs.map((tab) => {
         const TabIcon = tab.icon;
         const isActive =
-          (tab.id === 'editor' && activeWorkspaceTab === 'editor') ||
-          (tab.id === 'pipeline' && activeWorkspaceTab === 'pipeline');
+          (tab.id === 'files' && sidebarOpen && sidebarTab === 'files') ||
+          (tab.id === 'git' && sidebarOpen && sidebarTab === 'git') ||
+          (tab.id === 'editor' && !sidebarOpen && activeWorkspaceTab === 'editor') ||
+          (tab.id === 'pipeline' && !sidebarOpen && activeWorkspaceTab === 'pipeline') ||
+          (tab.id === 'chat' && useUIStore.getState().chatOpen);
         return (
           <button
             key={tab.id}

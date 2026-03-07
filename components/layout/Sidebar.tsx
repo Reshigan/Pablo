@@ -78,7 +78,7 @@ const panelComponents: Partial<Record<SidebarTab, React.ComponentType>> = {
 };
 
 export function Sidebar() {
-  const { sidebarOpen, sidebarTab, setSidebarTab, toggleSidebar } = useUIStore();
+  const { sidebarOpen, sidebarTab, setSidebarTab, toggleSidebar, mobileMode } = useUIStore();
   const dirtyCount = useEditorStore((s) => s.tabs.filter((t) => t.isDirty).length);
   const ActivePanel = panelComponents[sidebarTab];
 
@@ -146,14 +146,38 @@ export function Sidebar() {
             className="fixed top-12 z-40 border-r border-pablo-border bg-pablo-surface-1 shadow-elevated panel-transition animate-slide-in overflow-hidden flex flex-col left-0 right-0 bottom-14 md:left-11 md:right-auto md:bottom-6 md:w-72"
             style={{ borderRadius: '0 12px 12px 0' }}
           >
-            {/* Panel header */}
+            {/* Panel header — on mobile, show scrollable tab switcher since icon rail is hidden */}
             <div className="flex h-10 shrink-0 items-center justify-between border-b border-pablo-border px-3">
-              <span className="font-ui text-xs font-semibold text-pablo-text-secondary uppercase tracking-wider">
-                {tabs.find(t => t.id === sidebarTab)?.label}
-              </span>
+              {/* Mobile: horizontal tab pills */}
+              {mobileMode ? (
+                <div className="flex items-center gap-1 overflow-x-auto flex-1 mr-2 scrollbar-hide">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = sidebarTab === tab.id;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setSidebarTab(tab.id)}
+                        className={`flex items-center gap-1 shrink-0 rounded-full px-2.5 py-1 font-ui text-[10px] font-medium transition-colors ${
+                          isActive
+                            ? 'bg-pablo-gold/15 text-pablo-gold'
+                            : 'text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text-dim'
+                        }`}
+                      >
+                        <Icon size={12} />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <span className="font-ui text-xs font-semibold text-pablo-text-secondary uppercase tracking-wider">
+                  {tabs.find(t => t.id === sidebarTab)?.label}
+                </span>
+              )}
               <button
                 onClick={toggleSidebar}
-                className="flex h-6 w-6 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text"
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-pablo-text-muted hover:bg-pablo-hover hover:text-pablo-text"
               >
                 <X size={14} />
               </button>
