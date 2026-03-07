@@ -23,6 +23,12 @@ import { useUIStore } from '@/stores/ui';
 
 export type ChatMode = 'auto' | 'chat' | 'evaluate' | 'fix';
 
+/** Detect build-like intent from input text (separate from ChatMode detection) */
+function isBuildLikeIntent(text: string): boolean {
+  const lower = text.toLowerCase();
+  return /\b(build|create|generate|implement|make|scaffold|new\s+app|new\s+project)\b/.test(lower);
+}
+
 interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
@@ -131,8 +137,8 @@ export function ChatInput({
               {mode.charAt(0).toUpperCase() + mode.slice(1)}
             </button>
           ))}
-          {/* CHANGE 5: Pipeline nudge when build-like intent detected */}
-          {manualMode === 'auto' && detectedIntent !== 'chat' && (
+          {/* CHANGE 5: Pipeline nudge when build-like intent detected (not evaluate/fix) */}
+          {manualMode === 'auto' && isBuildLikeIntent(input) && (
             <button
               type="button"
               onClick={() => useUIStore.getState().setActiveWorkspaceTab('pipeline')}
