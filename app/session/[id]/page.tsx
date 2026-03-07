@@ -136,8 +136,8 @@ export default function SessionPage({ params }: { params: Promise<{ id: string }
         newStatuses[run.id] = run.status;
       }
       // Check if any run just transitioned to completed/failed/cancelled
-      for (const [id, status] of Object.entries(newStatuses)) {
-        const prev = prevStatuses[id];
+      for (const [runId, status] of Object.entries(newStatuses)) {
+        const prev = prevStatuses[runId];
         if (prev === 'running' && (status === 'completed' || status === 'failed' || status === 'cancelled')) {
           // Pipeline just finished — trigger immediate save
           useSessionStore.getState().saveSession().catch(() => { /* non-blocking */ });

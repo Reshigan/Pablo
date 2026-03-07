@@ -9,11 +9,12 @@ import { toastSuccess, toastError } from './toast';
 // REL-03: lazy store accessors to avoid circular deps
 // Uses dynamic import() instead of require() for Workers ES-module compatibility.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _chatStore: any, _pipelineStore: any, _editorStore: any, _repoStore: any;
+let _chatStore: any, _pipelineStore: any, _editorStore: any, _repoStore: any, _uiStore: any;
 async function getChatStore() { if (!_chatStore) { _chatStore = (await import('./chat')).useChatStore; } return _chatStore; }
 async function getPipelineStore() { if (!_pipelineStore) { _pipelineStore = (await import('./pipeline')).usePipelineStore; } return _pipelineStore; }
 async function getEditorStore() { if (!_editorStore) { _editorStore = (await import('./editor')).useEditorStore; } return _editorStore; }
 async function getRepoStore() { if (!_repoStore) { _repoStore = (await import('./repo')).useRepoStore; } return _repoStore; }
+async function getUIStore() { if (!_uiStore) { _uiStore = (await import('./ui')).useUIStore; } return _uiStore; }
 
 // ─── Session Types ────────────────────────────────────────────────────────────
 
@@ -109,7 +110,7 @@ async function captureSnapshot(): Promise<SessionSnapshot> {
   const usePipelineStore = await getPipelineStore();
   const useEditorStore = await getEditorStore();
   const useRepoStore = await getRepoStore();
-  const { useUIStore } = await import('./ui');
+  const useUIStore = await getUIStore();
 
   const chat = useChatStore.getState();
   const pipeline = usePipelineStore.getState();
@@ -164,7 +165,7 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
 
   // Restore workspace tab (e.g. if user was on pipeline view)
   if (snapshot.activeWorkspaceTab) {
-    const { useUIStore } = await import('./ui');
+    const useUIStore = await getUIStore();
     useUIStore.setState({ activeWorkspaceTab: snapshot.activeWorkspaceTab });
   }
 }
