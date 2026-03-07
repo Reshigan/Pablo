@@ -937,18 +937,15 @@ export function PipelineView() {
     setSelectedMentions(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  // Issue 11: Retry a failed pipeline stage — re-run handleStart with that stage's context
-  const handleRetryStage = useCallback((stageName: PipelineStage) => {
-    const lastRun = runs[runs.length - 1];
-    if (!lastRun) return;
-    const failedStage = lastRun.stages.find(s => s.stage === stageName);
-    if (!failedStage) return;
-    // Reset the stage status so it can be re-run
-    updateStage(lastRun.id, stageName, { status: 'pending', output: '' });
-    // Re-trigger the pipeline from this stage using the original feature description
-    setFeatureInput(lastRun.featureDescription);
-    toast('Retrying Stage', `Re-running ${stageName}...`);
-  }, [runs, updateStage]);
+  // Issue 11: Retry a failed pipeline stage — start a new full run with the same description
+  const handleRetryStage = useCallback((runId: string, stageName: PipelineStage) => {
+    const targetRun = runs.find(r => r.id === runId);
+    if (!targetRun) return;
+    // Set the feature input from the original run's description and auto-trigger
+    setFeatureInput(targetRun.featureDescription);
+    pendingRef.current = true;
+    toast('Retrying', `Starting new pipeline run (failed at ${stageName})...`);
+  }, [runs]);
 
   // Production Readiness: feed issues back as a new iteration prompt
   const handleIterate = useCallback((iterationPrompt: string) => {
@@ -1188,12 +1185,12 @@ export function PipelineView() {
                   completeRun(run.id, 'cancelled');
                 } : undefined}
                 onIterate={run.readinessScore ? handleIterate : undefined}
-                onRetryStage={run.status === 'failed' || run.status === 'completed' ? handleRetryStage : undefined}
+                onRetryStage={run.status === 'failed' || run.status === 'completed' ? (stageName) => handleRetryStage(run.id, stageName) : undefined}
               />
             ))}
 
             {/* Issue 2: Save Your Work prompt when no repo selected */}
-            {runs.length > 0 && runs[runs.length - 1].status === 'completed' && pendingSavePrompt === runs[runs.length - 1].id && (
+            {runs.length > 0 && runs[0].status === 'completed' && pendingSavePrompt === runs[0].id && (
               <div className="mx-0 my-1 rounded-xl border border-orange-500/30 bg-orange-500/5 p-4">
                 <h3 className="font-ui text-sm font-semibold text-orange-400 mb-1">
                   Your code isn&apos;t saved to GitHub yet

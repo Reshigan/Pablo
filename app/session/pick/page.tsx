@@ -35,6 +35,7 @@ export default function SessionPickerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: 'Untitled Session' }),
       });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const session = (await res.json()) as { id: string };
       router.push(`/session/${session.id}`);
     } catch {
