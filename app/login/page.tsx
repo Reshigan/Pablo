@@ -3,7 +3,8 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { signIn } from 'next-auth/react';
-import { Github, Zap, Code2, GitBranch, Cpu, Rocket, Monitor } from 'lucide-react';
+import { Github, Code2, GitBranch, Cpu, Rocket, Monitor } from 'lucide-react';
+import { PabloLogo } from '@/components/shared/PabloLogo';
 import { motion } from 'framer-motion';
 
 /**
@@ -35,9 +36,7 @@ function LoginContent() {
       >
         {/* Logo */}
         <div className="flex flex-col items-center gap-3">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-pablo-gold/10 border border-pablo-gold/20 shadow-glow">
-            <Zap size={32} className="text-pablo-gold" />
-          </div>
+          <PabloLogo size="lg" animate />
           <h1 className="font-ui text-3xl font-bold tracking-tight text-pablo-text">
             Pablo
           </h1>

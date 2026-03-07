@@ -15,7 +15,6 @@ import {
   Cloud,
   ImageIcon,
   Cpu,
-  Zap,
   ArrowRight,
   RefreshCw,
   GitCompareArrows,
@@ -47,6 +46,7 @@ import { enhancePrompt } from '@/lib/agents/promptEnhancer';
 import { useActivityStore } from '@/stores/activity';
 import { TemplatePickerModal } from '@/components/pipeline/TemplatePickerModal';
 import { downloadProjectZip } from '@/lib/export/zipExport';
+import { PabloLogo } from '@/components/shared/PabloLogo';
 
 // Extracted sub-components (Task 28)
 import { PipelineProgress } from './PipelineProgress';
@@ -1110,9 +1110,7 @@ export function PipelineView() {
           /* CHANGE 2: Inline hero prompt — no separate HeroPrompt component */
           <div className="flex flex-1 flex-col items-center justify-center gap-4 md:gap-6 px-2 md:px-4 py-6 md:py-12">
             <div className="flex flex-col items-center gap-3 text-center">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pablo-gold/10 border border-pablo-gold/15">
-                <Zap size={28} className="text-pablo-gold" />
-              </div>
+              <PabloLogo size="md" animate />
               <h2 className="font-ui text-lg md:text-xl font-bold tracking-tight text-pablo-text">
                 What shall we build?
               </h2>

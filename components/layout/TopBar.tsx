@@ -1,13 +1,13 @@
 'use client';
 
 import {
-  Zap,
   Search,
   Settings,
   User,
   LogOut,
   GitBranch,
 } from 'lucide-react';
+import { PabloLogo } from '@/components/shared/PabloLogo';
 import { useState, useRef, useEffect } from 'react';
 import { signOut } from 'next-auth/react';
 import { useUIStore } from '@/stores/ui';
@@ -37,7 +37,7 @@ export function TopBar() {
     <header className="flex h-12 shrink-0 items-center justify-between border-b border-pablo-border bg-pablo-surface-0 px-4">
       {/* Left: Logo */}
       <div className="flex items-center gap-2 w-auto md:w-40 shrink-0">
-        <Zap size={18} className="text-pablo-gold" />
+        <PabloLogo size="sm" />
         <span className="font-ui text-sm font-bold tracking-tight text-pablo-text">
           PABLO
         </span>
