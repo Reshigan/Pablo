@@ -165,11 +165,10 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
     });
   }
 
-  // Restore workspace tab (e.g. if user was on pipeline view)
-  if (snapshot.activeWorkspaceTab) {
-    const useUIStore = await getUIStore();
-    useUIStore.setState({ activeWorkspaceTab: snapshot.activeWorkspaceTab });
-  }
+  // Restore workspace tab (default to 'pipeline' if snapshot doesn't have one,
+  // to prevent previous session's tab from leaking)
+  const useUIStore = await getUIStore();
+  useUIStore.setState({ activeWorkspaceTab: snapshot.activeWorkspaceTab || 'pipeline' });
 }
 
 // ─── Clear all stores (for session isolation) ────────────────────────────────

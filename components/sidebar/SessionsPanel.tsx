@@ -319,6 +319,11 @@ export function SessionsPanel() {
   // FIX 6: Track which session is currently being loaded
   const [loadingSessionId, setLoadingSessionId] = useState<string | null>(null);
 
+  // Clear loading spinner once session switch completes (currentSessionId changes)
+  useEffect(() => {
+    setLoadingSessionId(null);
+  }, [currentSessionId]);
+
   const filteredSessions = sessions.filter((s) => {
     // Status filter
     if (statusFilter === 'active' && s.status === 'completed') return false;
