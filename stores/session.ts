@@ -136,9 +136,10 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
   const useEditorStore = await getEditorStore();
   const useRepoStore = await getRepoStore();
 
-  // Restore chat
+  // Restore chat (clear isStreaming to prevent leak from previous session)
   const chatStore = useChatStore.getState();
   chatStore.clearMessages();
+  useChatStore.setState({ isStreaming: false });
   for (const msg of snapshot.messages) {
     chatStore.addMessage({ role: msg.role, content: msg.content, model: msg.model, tokens: msg.tokens });
   }
@@ -155,7 +156,8 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
     pendingDiffs: snapshot.pendingDiffs,
   });
 
-  // Restore repo selection
+  // Restore repo selection (always clear first to prevent stale repo leak)
+  useRepoStore.getState().clearRepo();
   if (snapshot.selectedRepo) {
     useRepoStore.setState({
       selectedRepo: snapshot.selectedRepo,

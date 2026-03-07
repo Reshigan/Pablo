@@ -32,7 +32,8 @@ export function WelcomeModal() {
   const handleExistingRepo = () => {
     dismiss();
     setSidebarTab('git');
-    toggleSidebar();
+    // Only open sidebar if it's currently closed (default is open, so toggle would close it)
+    if (!useUIStore.getState().sidebarOpen) toggleSidebar();
     setActiveWorkspaceTab('editor');
   };
 
