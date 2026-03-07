@@ -90,7 +90,7 @@ function LoginContent() {
                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
-                    signIn('dev-login', { email: devEmail, callbackUrl: '/' });
+                    signIn('dev-login', { email: devEmail, callbackUrl: searchParams.get('callbackUrl') || '/' });
                   }}
                   className="flex flex-col gap-2"
                 >
