@@ -1,6 +1,6 @@
 -- Seed Pablo's knowledge base with Devin's accumulated learnings
 -- Source: Cross-session patterns from 111+ PRs of Pablo development
--- Run via: wrangler d1 execute pablo-db --file=./migrations/0002_seed_devin_knowledge.sql
+-- Run via: wrangler d1 execute pablo-db --file=./migrations/0009_seed_devin_knowledge.sql
 
 -- ==========================================
 -- CODE PATTERNS (8 entries)
