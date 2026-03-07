@@ -668,14 +668,27 @@ export function LivePreview() {
 
             {/* WebContainer: show iframe pointing to dev server */}
             {runtime === 'webcontainer' && serverUrl ? (
-              <iframe
-                key={`wc-${iframeKey}`}
-                ref={iframeRef}
-                src={serverUrl}
-                className="h-full w-full rounded-lg"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-                title="WebContainer Preview"
-              />
+              <div className="relative h-full w-full">
+                <iframe
+                  key={`wc-${iframeKey}`}
+                  ref={iframeRef}
+                  src={serverUrl}
+                  className="h-full w-full rounded-lg"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  title="WebContainer Preview"
+                />
+                {/* Issue 7: Preview error guidance overlay */}
+                <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-pablo-border bg-pablo-panel/95 px-3 py-2 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity">
+                  <p className="font-ui text-[10px] text-pablo-text-muted">
+                    Preview not loading? Try:
+                  </p>
+                  <ul className="mt-1 space-y-0.5 font-ui text-[10px] text-pablo-text-muted">
+                    <li>&bull; Click <strong className="text-pablo-gold">Refresh</strong> to reload</li>
+                    <li>&bull; Check the <strong className="text-pablo-gold">Terminal</strong> for build errors</li>
+                    <li>&bull; Accept pending diffs in the <strong className="text-pablo-gold">Review</strong> tab</li>
+                  </ul>
+                </div>
+              </div>
             ) : runtime === 'webcontainer' && !serverUrl ? (
               <div className="flex h-full flex-col items-center justify-center gap-3">
                 {isRunning ? (

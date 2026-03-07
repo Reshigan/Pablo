@@ -261,6 +261,8 @@ interface PipelineState {
   activeRunId: string | null;
   /** Prompt queued by HeroPrompt — PipelineView picks it up and executes the stages */
   pendingPrompt: string | null;
+  /** Run ID that needs a "Save Your Work" prompt (no repo selected after pipeline) */
+  pendingSavePrompt: string | null;
 
   startRun: (featureDescription: string, mode?: PipelineMode) => string;
   updateStage: (runId: string, stage: PipelineStage, updates: Partial<StageResult>) => void;
@@ -271,6 +273,7 @@ interface PipelineState {
   setActiveRun: (runId: string | null) => void;
   getActiveRun: () => PipelineRun | undefined;
   setPendingPrompt: (prompt: string | null) => void;
+  setPendingSavePrompt: (runId: string | null) => void;
 }
 
 let runCounter = 0;
@@ -279,6 +282,7 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   runs: [],
   activeRunId: null,
   pendingPrompt: null,
+  pendingSavePrompt: null,
 
   startRun: (featureDescription: string, mode: PipelineMode = 'greenfield') => {
     runCounter += 1;
@@ -383,6 +387,8 @@ export const usePipelineStore = create<PipelineState>((set, get) => ({
   setActiveRun: (runId) => set({ activeRunId: runId }),
 
   setPendingPrompt: (prompt) => set({ pendingPrompt: prompt }),
+
+  setPendingSavePrompt: (runId) => set({ pendingSavePrompt: runId }),
 
   getActiveRun: () => {
     const state = get();

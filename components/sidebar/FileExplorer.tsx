@@ -17,10 +17,12 @@ import {
   Loader2,
   Star,
   AlertCircle,
+  Files,
 } from 'lucide-react';
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useEditorStore } from '@/stores/editor';
 import { useRepoStore, type GitHubRepo, type RepoFileNode } from '@/stores/repo';
+import { useUIStore } from '@/stores/ui';
 import { toast } from '@/stores/toast';
 
 function getFileIcon(name: string): string {
@@ -488,7 +490,36 @@ export function FileExplorer() {
     }
   }, [selectedRepo, selectedBranch, setFileTree, setFileTreeLoading, setFileTreeError]);
 
-  if (!selectedRepo) return <RepoSelector />;
+  // Issue 12: Actionable empty state when no repo selected
+  if (!selectedRepo) {
+    const editorTabs = useEditorStore.getState().tabs;
+    if (editorTabs.length === 0) {
+      return (
+        <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
+          <Files size={24} className="text-pablo-text-muted" />
+          <p className="font-ui text-xs text-pablo-text-muted">No files yet</p>
+          <p className="font-ui text-[10px] text-pablo-text-muted leading-relaxed max-w-[200px]">
+            Files will appear here after you run the Build pipeline, or you can connect a GitHub repo.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => useUIStore.getState().setActiveWorkspaceTab('pipeline')}
+              className="rounded-lg bg-pablo-gold/10 px-3 py-1.5 font-ui text-[10px] text-pablo-gold hover:bg-pablo-gold/20 transition-colors"
+            >
+              Build something
+            </button>
+            <button
+              onClick={() => useUIStore.getState().setSidebarTab('git')}
+              className="rounded-lg bg-pablo-surface-2 px-3 py-1.5 font-ui text-[10px] text-pablo-text-dim hover:bg-pablo-hover transition-colors"
+            >
+              Open a repo
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return <RepoSelector />;
+  }
 
   return (
     <div className="flex flex-col">
