@@ -327,6 +327,8 @@ export function PipelineView() {
   const handleStart = useCallback(async () => {
     if (!featureInput.trim() || isBuilding) return;
 
+    setIsBuilding(true); // Immediately prevent double-clicks
+
     // Issue 4: Pre-flight API key check before pipeline starts
     try {
       const healthRes = await fetch('/api/health');
@@ -334,14 +336,14 @@ export function PipelineView() {
         const health = await healthRes.json() as { ollama?: { status: string } };
         if (health.ollama?.status === 'missing_key') {
           toast('AI Not Configured', 'Ollama API key is missing. Ask your admin to set OLLAMA_API_KEY in Cloudflare Worker secrets.');
+          if (pendingPrompt) setPendingPrompt(null);
+          setIsBuilding(false);
           return;
         }
       }
     } catch {
       // Health check failed — try anyway, the pipeline will show specific errors
     }
-
-    setIsBuilding(true); // Immediately prevent double-clicks
     try {
     console.log('[Pipeline] handleStart fired');
     let description = featureInput.trim();
