@@ -258,7 +258,7 @@ const HERO_TEMPLATES = [
 ];
 
 export function PipelineView() {
-  const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt } = usePipelineStore();
+  const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt, pendingSavePrompt, setPendingSavePrompt } = usePipelineStore();
   const agentStore = useAgentStore();
   const [featureInput, setFeatureInput] = useState('');
   const [isBuilding, setIsBuilding] = useState(false);
@@ -956,7 +956,8 @@ export function PipelineView() {
         onSelect={(prompt) => {
           setFeatureInput(prompt);
           // Issue 10: Auto-start pipeline after template selection
-          setTimeout(() => handleStart(), 50);
+          // Use pendingRef which the existing useEffect already handles
+          pendingRef.current = true;
         }}
       />
 
@@ -1178,7 +1179,7 @@ export function PipelineView() {
             ))}
 
             {/* Issue 2: Save Your Work prompt when no repo selected */}
-            {runs.length > 0 && runs[runs.length - 1].status === 'completed' && usePipelineStore.getState().pendingSavePrompt === runs[runs.length - 1].id && (
+            {runs.length > 0 && runs[runs.length - 1].status === 'completed' && pendingSavePrompt === runs[runs.length - 1].id && (
               <div className="mx-0 my-1 rounded-xl border border-orange-500/30 bg-orange-500/5 p-4">
                 <h3 className="font-ui text-sm font-semibold text-orange-400 mb-1">
                   Your code isn&apos;t saved to GitHub yet
@@ -1191,7 +1192,7 @@ export function PipelineView() {
                     onClick={() => {
                       useUIStore.getState().setSidebarTab('git');
                       if (!useUIStore.getState().sidebarOpen) useUIStore.getState().toggleSidebar();
-                      usePipelineStore.getState().setPendingSavePrompt(null);
+                      setPendingSavePrompt(null);
                     }}
                     className="flex items-center gap-2 rounded-lg border border-pablo-border bg-pablo-bg px-3 py-2 text-left transition-colors hover:border-pablo-gold/40"
                   >
@@ -1204,7 +1205,7 @@ export function PipelineView() {
                   <button
                     onClick={() => {
                       handleZipDownload();
-                      usePipelineStore.getState().setPendingSavePrompt(null);
+                      setPendingSavePrompt(null);
                     }}
                     className="flex items-center gap-2 rounded-lg border border-pablo-border bg-pablo-bg px-3 py-2 text-left transition-colors hover:border-pablo-gold/40"
                   >
@@ -1215,7 +1216,7 @@ export function PipelineView() {
                     </div>
                   </button>
                   <button
-                    onClick={() => usePipelineStore.getState().setPendingSavePrompt(null)}
+                    onClick={() => setPendingSavePrompt(null)}
                     className="font-ui text-[10px] text-pablo-text-muted hover:text-pablo-text-dim text-center py-1"
                   >
                     Skip — I&apos;ll save later

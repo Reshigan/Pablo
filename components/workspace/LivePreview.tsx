@@ -677,8 +677,8 @@ export function LivePreview() {
                   sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
                   title="WebContainer Preview"
                 />
-                {/* Issue 7: Preview error guidance overlay */}
-                <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-pablo-border bg-pablo-panel/95 px-3 py-2 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity">
+                {/* Issue 7: Preview error guidance overlay — pointer-events-none so it doesn't block iframe */}
+                <div className="absolute bottom-3 left-3 right-3 z-10 rounded-lg border border-pablo-border bg-pablo-panel/95 px-3 py-2 backdrop-blur-sm opacity-0 hover:opacity-100 transition-opacity pointer-events-none [&:hover]:pointer-events-auto">
                   <p className="font-ui text-[10px] text-pablo-text-muted">
                     Preview not loading? Try:
                   </p>

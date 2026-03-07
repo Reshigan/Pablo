@@ -476,6 +476,9 @@ export function FileExplorer() {
     clearRepo, setFileTree, setFileTreeLoading, setFileTreeError, selectedBranch,
   } = useRepoStore();
 
+  // Issue 12: Track editor tab count reactively for empty state
+  const editorTabCount = useEditorStore((s) => s.tabs.length);
+
   const handleRefresh = useCallback(async () => {
     if (!selectedRepo) return;
     setFileTreeLoading(true);
@@ -492,8 +495,7 @@ export function FileExplorer() {
 
   // Issue 12: Actionable empty state when no repo selected
   if (!selectedRepo) {
-    const editorTabs = useEditorStore.getState().tabs;
-    if (editorTabs.length === 0) {
+    if (editorTabCount === 0) {
       return (
         <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
           <Files size={24} className="text-pablo-text-muted" />
