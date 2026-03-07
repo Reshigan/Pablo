@@ -136,9 +136,10 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
   const useEditorStore = await getEditorStore();
   const useRepoStore = await getRepoStore();
 
-  // Restore chat
+  // Restore chat (clear isStreaming to prevent leak from previous session)
   const chatStore = useChatStore.getState();
   chatStore.clearMessages();
+  useChatStore.setState({ isStreaming: false });
   for (const msg of snapshot.messages) {
     chatStore.addMessage({ role: msg.role, content: msg.content, model: msg.model, tokens: msg.tokens });
   }
@@ -155,7 +156,8 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
     pendingDiffs: snapshot.pendingDiffs,
   });
 
-  // Restore repo selection
+  // Restore repo selection (always clear first to prevent stale repo leak)
+  useRepoStore.getState().clearRepo();
   if (snapshot.selectedRepo) {
     useRepoStore.setState({
       selectedRepo: snapshot.selectedRepo,
@@ -191,9 +193,9 @@ async function clearAllStores(): Promise<void> {
   // Clear repo selection (but keep the repos list so it doesn't need to reload)
   useRepoStore.getState().clearRepo();
 
-  // Reset workspace tab to default so previous session's tab doesn't leak
+  // Reset workspace tab to default (pipeline/Build) so previous session's tab doesn't leak
   const useUIStore = await getUIStore();
-  useUIStore.setState({ activeWorkspaceTab: 'editor' });
+  useUIStore.setState({ activeWorkspaceTab: 'pipeline' });
 }
 
 // ─── Auto-save interval ──────────────────────────────────────────────────────
@@ -279,12 +281,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
       const session = mapApiSession(await res.json());
 
-      // Clear all stores first so stale state from previous session is removed
-      await clearAllStores();
-
-      // Restore snapshot if present (otherwise stores stay clean)
+      // FIX 1 (Session UX): Atomic restore — if snapshot exists, restoreSnapshot
+      // overwrites all store slices in one go (no clearAllStores flash).
+      // Only clearAllStores when there's NO snapshot (truly fresh session).
       if (session.snapshot) {
         await restoreSnapshot(session.snapshot);
+      } else {
+        await clearAllStores();
       }
 
       set((state) => ({

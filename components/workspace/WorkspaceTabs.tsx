@@ -19,17 +19,17 @@ interface TabConfig {
   showWhen?: 'always' | 'has-repo' | 'has-diffs' | 'has-pipeline';
 }
 
-/** Primary tabs — always visible */
+/** Primary tabs — Build first, then Code, Preview. Review auto-promotes when diffs exist. */
 const PRIMARY_TABS: TabConfig[] = [
-  { id: 'editor', label: 'Editor', icon: Code2, showWhen: 'always' },
+  { id: 'pipeline', label: 'Build', icon: Play, showWhen: 'always' },
+  { id: 'editor', label: 'Code', icon: Code2, showWhen: 'always' },
   { id: 'preview', label: 'Preview', icon: Globe, showWhen: 'always' },
-  { id: 'terminal', label: 'Terminal', icon: Terminal, showWhen: 'always' },
 ];
 
 /** Overflow tabs — shown progressively based on context */
 const OVERFLOW_TABS: TabConfig[] = [
-  { id: 'diff', label: 'Diff', icon: GitCompareArrows, showWhen: 'has-diffs' },
-  { id: 'pipeline', label: 'Pipeline', icon: Play, showWhen: 'has-pipeline' },
+  { id: 'diff', label: 'Review', icon: GitCompareArrows, showWhen: 'has-diffs' },
+  { id: 'terminal', label: 'Terminal', icon: Terminal, showWhen: 'always' },
   { id: 'db-designer', label: 'DB Designer', icon: Database, showWhen: 'has-repo' },
   { id: 'api-tester', label: 'API Tester', icon: TestTube2, showWhen: 'has-repo' },
   { id: 'dependencies', label: 'Packages', icon: Package, showWhen: 'has-repo' },
@@ -71,8 +71,8 @@ export function WorkspaceTabs() {
   const runs = usePipelineStore(s => s.runs);
   const hasPipeline = runs.length > 0;
 
-  // Auto-show diff tab when diffs are pending
-  const showDiffAsPrimary = pendingDiffCount > 0;
+  // Auto-promote Review tab when diffs are pending
+  const showReviewAsPrimary = pendingDiffCount > 0;
 
   /** Progressive disclosure: filter overflow tabs by context */
   const contextualOverflow = useMemo(() => {
@@ -89,10 +89,10 @@ export function WorkspaceTabs() {
   const visibleTabs = useMemo(() => {
     const tabs = [...PRIMARY_TABS];
 
-    // Auto-promote diff tab when diffs pending
-    if (showDiffAsPrimary) {
-      const diffTab = contextualOverflow.find(t => t.id === 'diff');
-      if (diffTab) tabs.splice(1, 0, diffTab); // After editor
+    // Auto-promote Review tab when diffs pending (after Preview)
+    if (showReviewAsPrimary) {
+      const reviewTab = contextualOverflow.find(t => t.id === 'diff');
+      if (reviewTab) tabs.push(reviewTab);
     }
 
     // If active tab is in overflow, promote it to visible
@@ -102,7 +102,7 @@ export function WorkspaceTabs() {
     }
 
     return tabs;
-  }, [activeWorkspaceTab, showDiffAsPrimary, contextualOverflow]);
+  }, [activeWorkspaceTab, showReviewAsPrimary, contextualOverflow]);
 
   // Overflow tabs = contextual overflow tabs minus the ones already visible
   const overflowTabs = useMemo(() => {
@@ -122,7 +122,7 @@ export function WorkspaceTabs() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [overflowOpen]);
 
-  /* Task 36: Pill-style tab switcher */
+  /* Pill-style tab switcher */
   return (
     <div className="flex items-center gap-0.5 rounded-lg border border-pablo-border bg-pablo-surface-0 p-0.5">
       {visibleTabs.map((tab) => {

@@ -15,6 +15,11 @@ import {
   Cloud,
   ImageIcon,
   Cpu,
+  Zap,
+  ArrowRight,
+  RefreshCw,
+  GitCompareArrows,
+  Globe,
 } from 'lucide-react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { MentionDropdown, resolveMentions, type MentionItem } from '@/components/pipeline/MentionDropdown';
@@ -50,7 +55,7 @@ import { PipelineDeploySection } from './PipelineDeploySection';
 import { ProductionReadinessCard } from './ProductionReadinessCard';
 import { AgentRunCard } from './AgentRunCard';
 import { buildStagePrompt } from './stagePrompts';
-import { HeroPrompt } from './HeroPrompt';
+import { useSessionStore } from '@/stores/session';
 import { quickReadinessCheck } from '@/lib/agents/productionReadiness';
 
 
@@ -234,6 +239,23 @@ const SUGGESTED_ACTIONS = [
   { label: 'Download ZIP', icon: Download, prompt: '__ZIP_DOWNLOAD__' },
 ];
 
+/** CHANGE 4: Post-pipeline "Next Steps" guided flow */
+const NEXT_STEPS = [
+  { label: 'Review diffs', icon: GitCompareArrows, tab: 'diff' as const },
+  { label: 'Preview app', icon: Globe, tab: 'preview' as const },
+  { label: 'Iterate to improve', icon: RefreshCw, tab: null },
+];
+
+/** Hero prompt templates for empty pipeline state */
+const HERO_TEMPLATES = [
+  'SaaS Dashboard',
+  'REST API',
+  'Landing Page',
+  'E-commerce Store',
+  'Blog Platform',
+  'Admin Panel',
+];
+
 export function PipelineView() {
   const { runs, startRun, updateStage, advanceStage, completeRun, pendingPrompt, setPendingPrompt } = usePipelineStore();
   const agentStore = useAgentStore();
@@ -335,6 +357,16 @@ export function PipelineView() {
     // Prompt enhancement runs concurrently with the Plan stage setup.
     console.log('[Pipeline] calling startRun');
     const runId = startRun(description);
+
+    // FIX 5 (Session UX): Auto-update session title from feature description
+    try {
+      const sessionStore = useSessionStore.getState();
+      const sessionId = sessionStore.currentSessionId;
+      if (sessionId) {
+        const smartTitle = description.length > 57 ? description.slice(0, 57) + '...' : description;
+        sessionStore.updateSessionMeta(sessionId, { title: smartTitle }).catch(() => { /* non-blocking */ });
+      }
+    } catch { /* non-blocking */ }
     // Clear pendingPrompt AFTER startRun so EditorPanel always sees
     // runs.length > 0 before pendingPrompt becomes null — prevents
     // the HeroPrompt flicker race condition.
@@ -541,10 +573,14 @@ export function PipelineView() {
             duration: 5000,
           });
 
-          // Ensure we're on the Diff tab
-          if (!navigatedToDiff) {
-            useUIStore.getState().setActiveWorkspaceTab('diff');
-          }
+          // CHANGE 6: Auto-switch to Review (diff) tab 1.5s after pipeline completes
+          setTimeout(() => {
+            const editorState = useEditorStore.getState();
+            const hasPendingDiffs = editorState.pendingDiffs.some(d => d.status === 'pending');
+            if (hasPendingDiffs) {
+              useUIStore.getState().setActiveWorkspaceTab('diff');
+            }
+          }, 1500);
 
           // Auto-commit generated files to GitHub repo if one is selected
           try {
@@ -1068,10 +1104,39 @@ export function PipelineView() {
         </div>
       )}
 
-      {/* Pipeline Runs list */}
+      {/* Pipeline Runs list OR Hero Prompt */}
       <div className="flex-1 overflow-y-auto p-3">
-        {runs.length === 0 && agentStore.runs.length === 0 ? (
-          <HeroPrompt />
+        {runs.length === 0 && agentStore.runs.length === 0 && !pendingPrompt && !isBuilding ? (
+          /* CHANGE 2: Inline hero prompt — no separate HeroPrompt component */
+          <div className="flex flex-1 flex-col items-center justify-center gap-4 md:gap-6 px-2 md:px-4 py-6 md:py-12">
+            <div className="flex flex-col items-center gap-3 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-pablo-gold/10 border border-pablo-gold/15">
+                <Zap size={28} className="text-pablo-gold" />
+              </div>
+              <h2 className="font-ui text-lg md:text-xl font-bold tracking-tight text-pablo-text">
+                What shall we build?
+              </h2>
+              <p className="max-w-md font-ui text-xs md:text-sm text-pablo-text-dim leading-relaxed">
+                Describe your feature and Pablo&apos;s 9-stage pipeline will plan, generate database schemas,
+                APIs, UI components, tests, and review the code — all in one go.
+              </p>
+            </div>
+            {/* Quick-start template chips */}
+            <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+              {HERO_TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl}
+                  onClick={() => setFeatureInput(`Build a ${tpl.toLowerCase()}`)}
+                  className="rounded-full border border-pablo-border bg-pablo-surface-2 px-3 py-1 font-ui text-xs text-pablo-text-dim transition-colors hover:border-pablo-gold/30 hover:text-pablo-gold"
+                >
+                  {tpl}
+                </button>
+              ))}
+            </div>
+            <p className="hidden sm:block font-ui text-[10px] text-pablo-text-ghost">
+              Type above and press <kbd className="rounded border border-pablo-border bg-pablo-surface-0 px-1 py-0.5 font-code">Enter</kbd> to build
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             {runs.map((run) => (
@@ -1086,10 +1151,47 @@ export function PipelineView() {
               />
             ))}
 
-            {/* Feature 20: Suggested Next Actions */}
+            {/* CHANGE 4: Post-pipeline "Next Steps" guided flow */}
+            {runs.length > 0 && runs[runs.length - 1].status === 'completed' && (
+              <div className="rounded-lg border border-pablo-gold/30 bg-pablo-gold/5 p-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-pablo-gold/20">
+                    <ArrowRight size={12} className="text-pablo-gold" />
+                  </div>
+                  <p className="font-ui text-sm font-semibold text-pablo-gold">Pipeline Complete — Next Steps</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {NEXT_STEPS.map((step) => {
+                    const StepIcon = step.icon;
+                    return (
+                      <button
+                        key={step.label}
+                        onClick={() => {
+                          if (step.tab) {
+                            useUIStore.getState().setActiveWorkspaceTab(step.tab);
+                            if (step.tab === 'preview') {
+                              useUIStore.getState().setAutoStartPreview(true);
+                            }
+                          } else {
+                            // "Iterate" — focus the feature input
+                            textareaRef.current?.focus();
+                          }
+                        }}
+                        className="flex items-center gap-1.5 rounded-lg border border-pablo-gold/30 bg-pablo-gold/10 px-3 py-1.5 font-ui text-xs font-medium text-pablo-gold transition-colors hover:bg-pablo-gold/20"
+                      >
+                        <StepIcon size={13} />
+                        {step.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Suggested Next Actions (for iterate) */}
             {runs.length > 0 && runs[runs.length - 1].status !== 'running' && (
               <div className="rounded-lg border border-pablo-border bg-pablo-bg p-3">
-                <p className="mb-2 font-ui text-[10px] font-medium text-pablo-text-dim">Suggested Next Actions</p>
+                <p className="mb-2 font-ui text-[10px] font-medium text-pablo-text-dim">Quick Actions</p>
                 <div className="flex flex-wrap gap-1.5">
                   {SUGGESTED_ACTIONS.map((action) => {
                     const ActionIcon = action.icon;

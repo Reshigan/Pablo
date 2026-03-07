@@ -13,22 +13,23 @@ import {
   X,
   FileText,
   MessageSquare,
-  Rocket,
   Search,
   Wrench,
   Mic,
   Cpu,
+  Play,
 } from 'lucide-react';
+import { useUIStore } from '@/stores/ui';
 
-export type ChatMode = 'auto' | 'chat' | 'build' | 'evaluate' | 'fix';
+export type ChatMode = 'auto' | 'chat' | 'evaluate' | 'fix';
 
 interface ChatInputProps {
   input: string;
   setInput: (value: string) => void;
   manualMode: ChatMode;
   setManualMode: (mode: ChatMode) => void;
-  detectedIntent: 'chat' | 'build' | 'evaluate' | 'fix';
-  setDetectedIntent: (intent: 'chat' | 'build' | 'evaluate' | 'fix') => void;
+  detectedIntent: 'chat' | 'evaluate' | 'fix';
+  setDetectedIntent: (intent: 'chat' | 'evaluate' | 'fix') => void;
   attachments: Array<{ name: string; content: string; type: string }>;
   setAttachments: React.Dispatch<React.SetStateAction<Array<{ name: string; content: string; type: string }>>>;
   isStreaming: boolean;
@@ -36,7 +37,7 @@ interface ChatInputProps {
   onSubmit: (e: React.FormEvent) => void;
   onStop: () => void;
   onToggleVoice: () => void;
-  detectIntentFromInput: (text: string) => 'chat' | 'build' | 'evaluate' | 'fix';
+  detectIntentFromInput: (text: string) => 'chat' | 'evaluate' | 'fix';
   inputRef: React.RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -110,33 +111,37 @@ export function ChatInput({
     <div className="shrink-0 border-t border-pablo-border p-3">
       {/* Mode selector — scrollable on mobile */}
       <div className="flex items-center gap-1.5 sm:gap-2 mb-2 overflow-x-auto scrollbar-none">
-        {(['auto', 'chat', 'build', 'evaluate', 'fix'] as const).map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            onClick={() => setManualMode(mode)}
-            className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-ui text-[10px] font-medium transition-colors ${
-              manualMode === mode
-                ? mode === 'build' ? 'bg-pablo-gold/20 text-pablo-gold'
-                  : mode === 'evaluate' ? 'bg-blue-500/20 text-blue-400'
-                  : mode === 'fix' ? 'bg-orange-500/20 text-orange-400'
-                  : 'bg-pablo-hover text-pablo-text'
-                : 'text-pablo-text-muted hover:text-pablo-text-dim hover:bg-pablo-hover/50'
-            }`}
-          >
-            {mode === 'build' && <Rocket size={10} />}
-            {mode === 'evaluate' && <Search size={10} />}
-            {mode === 'fix' && <Wrench size={10} />}
-            {mode === 'auto' && <Cpu size={10} />}
-            {mode === 'chat' && <MessageSquare size={10} />}
-            {mode.charAt(0).toUpperCase() + mode.slice(1)}
-          </button>
-        ))}
-        {manualMode === 'auto' && detectedIntent !== 'chat' && (
-          <span className="ml-1 font-ui text-[10px] text-pablo-text-muted">
-            detected: {detectedIntent}
-          </span>
-        )}
+          {(['auto', 'chat', 'evaluate', 'fix'] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setManualMode(mode)}
+              className={`flex items-center gap-1 rounded-full px-2 py-0.5 font-ui text-[10px] font-medium transition-colors ${
+                manualMode === mode
+                  ? mode === 'evaluate' ? 'bg-blue-500/20 text-blue-400'
+                    : mode === 'fix' ? 'bg-orange-500/20 text-orange-400'
+                    : 'bg-pablo-hover text-pablo-text'
+                  : 'text-pablo-text-muted hover:text-pablo-text-dim hover:bg-pablo-hover/50'
+              }`}
+            >
+              {mode === 'evaluate' && <Search size={10} />}
+              {mode === 'fix' && <Wrench size={10} />}
+              {mode === 'auto' && <Cpu size={10} />}
+              {mode === 'chat' && <MessageSquare size={10} />}
+              {mode.charAt(0).toUpperCase() + mode.slice(1)}
+            </button>
+          ))}
+          {/* CHANGE 5: Pipeline nudge when build-like intent detected */}
+          {manualMode === 'auto' && detectedIntent !== 'chat' && (
+            <button
+              type="button"
+              onClick={() => useUIStore.getState().setActiveWorkspaceTab('pipeline')}
+              className="ml-1 flex items-center gap-1 rounded-full bg-pablo-gold/10 px-2 py-0.5 font-ui text-[10px] font-medium text-pablo-gold hover:bg-pablo-gold/20 transition-colors"
+            >
+              <Play size={10} />
+              Use Build tab
+            </button>
+          )}
       </div>
 
       <form onSubmit={onSubmit} className="flex flex-col gap-2">
@@ -154,7 +159,6 @@ export function ChatInput({
             }}
             onKeyDown={handleKeyDown}
             placeholder={
-              manualMode === 'build' ? 'Describe the app you want to build...' :
               manualMode === 'evaluate' ? 'Which repo or code should I evaluate?' :
               manualMode === 'fix' ? 'Describe the bug or paste the error...' :
               'Ask anything, describe a feature, or paste an error...'

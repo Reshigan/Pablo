@@ -8,7 +8,7 @@ const ONBOARDED_KEY = 'pablo-onboarded';
 
 export function WelcomeModal() {
   const [visible, setVisible] = useState(false);
-  const { setSidebarTab } = useUIStore();
+  const { setSidebarTab, setActiveWorkspaceTab, toggleSidebar } = useUIStore();
 
   useEffect(() => {
     try {
@@ -32,11 +32,14 @@ export function WelcomeModal() {
   const handleExistingRepo = () => {
     dismiss();
     setSidebarTab('git');
+    // Only open sidebar if it's currently closed (default is open, so toggle would close it)
+    if (!useUIStore.getState().sidebarOpen) toggleSidebar();
+    setActiveWorkspaceTab('editor');
   };
 
   const handleNewBuild = () => {
     dismiss();
-    // Focus on chat for new build — auto-routing will detect "build" intent
+    setActiveWorkspaceTab('pipeline');
   };
 
   if (!visible) return null;
@@ -103,7 +106,7 @@ export function WelcomeModal() {
             <MessageSquare size={14} className="mt-0.5 shrink-0 text-pablo-gold" />
             <div>
               <p className="font-ui text-[11px] font-medium text-pablo-text-dim">Chat Modes</p>
-              <p className="font-ui text-[10px] text-pablo-text-muted">Auto, Chat, Build, Evaluate, Fix — pick your mode above the input</p>
+              <p className="font-ui text-[10px] text-pablo-text-muted">Auto, Chat, Evaluate, Fix — pick your mode above the input</p>
             </div>
           </div>
           <div className="flex items-start gap-2 rounded-lg border border-pablo-border bg-pablo-bg p-2.5">

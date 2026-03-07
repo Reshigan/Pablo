@@ -98,8 +98,8 @@ export const useUIStore = create<UIState>()(
       chatOpen: true,
       chatWidth: 420,
 
-      // Workspace
-      activeWorkspaceTab: 'editor',
+      // Workspace — CHANGE 3: Default to Build (pipeline) tab
+      activeWorkspaceTab: 'pipeline',
 
       // Command palette
       commandPaletteOpen: false,
