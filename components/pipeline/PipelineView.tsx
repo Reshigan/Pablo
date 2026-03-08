@@ -649,10 +649,15 @@ export function PipelineView() {
               } else {
                 let errDetail = `HTTP ${commitResp.status}`;
                 try {
-                  const errJson = await commitResp.json() as { error?: string };
-                  errDetail = errJson.error ?? errDetail;
+                  const errText = await commitResp.text();
+                  try {
+                    const errJson = JSON.parse(errText) as { error?: string };
+                    errDetail = errJson.error ?? (errText || errDetail);
+                  } catch {
+                    errDetail = errText || errDetail;
+                  }
                 } catch {
-                  errDetail = await commitResp.text().catch(() => errDetail);
+                  // body read failed entirely
                 }
                 console.error('[Pipeline] Auto-commit failed:', commitResp.status, errDetail);
                 useToastStore.getState().addToast({

@@ -529,7 +529,7 @@ export function LivePreview() {
   const prevPreviewHashRef = useRef<string>('');
   useEffect(() => {
     if (runtime !== 'srcdoc' || previewFiles.length === 0) return;
-    const hash = JSON.stringify(previewFiles.map(f => f.path + f.content.length));
+    const hash = JSON.stringify(previewFiles.map(f => f.path + ':' + f.content));
     if (prevPreviewHashRef.current && prevPreviewHashRef.current !== hash) {
       // Files changed — bump iframe key to force re-render
       setIframeKey(k => k + 1);
