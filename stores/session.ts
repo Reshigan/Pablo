@@ -146,8 +146,43 @@ async function restoreSnapshot(snapshot: SessionSnapshot): Promise<void> {
 
   // Restore pipeline runs (replace entire runs array)
   // Set activeRunId to the most recent run so EditorPanel shows PipelineView
-  const lastRunId = snapshot.pipelineRuns.length > 0 ? snapshot.pipelineRuns[0].id : null;
-  usePipelineStore.setState({ runs: snapshot.pipelineRuns, activeRunId: lastRunId });
+  //
+  // Auto-recovery: Any run with status 'running' on cold restore is stuck
+  // (no active stream exists). Mark it as failed and set pendingPrompt to
+  // auto-trigger a fresh pipeline run with the same feature description.
+  const stuckDescriptions: string[] = [];
+  const recoveredRuns = snapshot.pipelineRuns.map((run) => {
+    if (run.status !== 'running') return run;
+    // This run was stuck — recover it
+    const stuckStage = run.stages.find((s) => s.status === 'running');
+    console.log(`[Session] Auto-recovering stuck run ${run.id} (stuck at ${stuckStage?.stage ?? 'unknown'})`);
+    stuckDescriptions.push(run.featureDescription);
+    const completedAt = Date.now();
+    return {
+      ...run,
+      status: 'failed' as const,
+      currentStage: null,
+      completedAt,
+      totalDurationMs: completedAt - run.createdAt,
+      stages: run.stages.map((s) =>
+        s.status === 'running'
+          ? { ...s, status: 'failed' as const, error: 'Session recovered — auto-retrying', completedAt }
+          : s.status === 'pending'
+          ? { ...s, status: 'skipped' as const }
+          : s
+      ),
+    };
+  });
+  const lastRunId = recoveredRuns.length > 0 ? recoveredRuns[0].id : null;
+  usePipelineStore.setState({ runs: recoveredRuns, activeRunId: lastRunId });
+
+  // If a stuck run was found, set pendingPrompt to auto-trigger a new pipeline run.
+  // PipelineView's useEffect will pick this up and call handleStart automatically.
+  if (stuckDescriptions.length > 0) {
+    const resumePrompt = stuckDescriptions[0];
+    console.log('[Session] Setting pendingPrompt for auto-resume:', resumePrompt.slice(0, 80));
+    usePipelineStore.setState({ pendingPrompt: resumePrompt });
+  }
 
   // Restore editor tabs
   useEditorStore.setState({
