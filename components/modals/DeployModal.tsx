@@ -80,7 +80,7 @@ interface DeployModalProps {
 }
 
 export function DeployModal({ open, onClose }: DeployModalProps) {
-  const [selectedTarget, setSelectedTarget] = useState<DeployTarget>('cloudflare-pages');
+  const [selectedTarget, setSelectedTarget] = useState<DeployTarget | null>(null);
   const [projectName, setProjectName] = useState('');
   const [deploying, setDeploying] = useState(false);
   const [result, setResult] = useState<{ url?: string; error?: string } | null>(null);
@@ -91,6 +91,7 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
   if (!open) return null;
 
   const handleDeploy = async () => {
+    if (!selectedTarget) return;
     setDeploying(true);
     setResult(null);
 
@@ -328,13 +329,18 @@ export function DeployModal({ open, onClose }: DeployModalProps) {
         {/* Deploy button */}
         <button
           onClick={handleDeploy}
-          disabled={deploying}
+          disabled={deploying || !selectedTarget}
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-pablo-gold py-2 font-ui text-sm font-semibold text-pablo-bg transition-colors hover:bg-pablo-gold-dim disabled:opacity-50"
         >
           {deploying ? (
             <>
               <Loader2 size={14} className="animate-spin" />
               Deploying...
+            </>
+          ) : !selectedTarget ? (
+            <>
+              <Rocket size={14} />
+              Select a deploy target
             </>
           ) : (
             <>
