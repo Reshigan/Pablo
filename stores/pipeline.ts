@@ -211,7 +211,7 @@ export const PIPELINE_STAGES: { id: PipelineStage; label: string; description: s
   { id: 'db', label: 'Database', description: 'Design schema and write migrations', model: 'devstral-2:123b' },
   { id: 'api', label: 'API', description: 'Generate API routes and business logic', model: 'devstral-2:123b' },
   { id: 'ui', label: 'UI', description: 'Build frontend components and pages', model: 'devstral-2:123b' },
-  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'gpt-oss:20b' },
+  { id: 'ux_validation', label: 'UX Validation', description: 'Verify UI/UX wiring, accessibility, and integration', model: 'devstral-2:123b' },
   { id: 'tests', label: 'Tests', description: 'Write unit and integration tests', model: 'devstral-2:123b' },
   { id: 'execute', label: 'Execute', description: 'Generate configs, setup, and seed data', model: 'devstral-2:123b' },
   { id: 'review', label: 'Review', description: 'AI code review and quality check', model: 'devstral-2:123b' },
