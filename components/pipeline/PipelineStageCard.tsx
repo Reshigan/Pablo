@@ -52,7 +52,7 @@ export function PipelineStageCard({
     : '';
 
   return (
-    <div className="border-b border-pablo-border last:border-b-0">
+    <div className="border-b border-pablo-border last:border-b-0" data-stage-id={stage.stage}>
       <button
         onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-pablo-hover"

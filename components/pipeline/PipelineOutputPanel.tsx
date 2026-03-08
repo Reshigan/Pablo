@@ -5,12 +5,13 @@
  * Extracted from RunCard in PipelineView.tsx (Task 28).
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { PipelineStageCard } from './PipelineStageCard';
 import { PIPELINE_STAGES, type PipelineStage, type PipelineRun } from '@/stores/pipeline';
 
 export function PipelineOutputPanel({ run, onRetryStage }: { run: PipelineRun; onRetryStage?: (stageName: PipelineStage) => void }) {
   const [expandedStages, setExpandedStages] = useState<Set<PipelineStage>>(new Set());
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const toggleStage = useCallback((stage: PipelineStage) => {
     setExpandedStages((prev) => {
@@ -20,6 +21,28 @@ export function PipelineOutputPanel({ run, onRetryStage }: { run: PipelineRun; o
       return next;
     });
   }, []);
+
+  // Auto-scroll to the currently running stage so user sees progress
+  const runningStageId = run.stages.find(s => s.status === 'running')?.stage;
+  useEffect(() => {
+    if (!runningStageId) return;
+    // Small delay to let the DOM update after stage status change
+    const timer = setTimeout(() => {
+      const el = document.querySelector(`[data-stage-id="${runningStageId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [runningStageId]);
+
+  // Also scroll to bottom when pipeline completes
+  const runStatus = run.status;
+  useEffect(() => {
+    if (runStatus === 'completed' || runStatus === 'failed') {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [runStatus]);
 
   return (
     <div>
@@ -37,6 +60,7 @@ export function PipelineOutputPanel({ run, onRetryStage }: { run: PipelineRun; o
           />
         );
       })}
+      <div ref={bottomRef} />
     </div>
   );
 }

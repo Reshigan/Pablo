@@ -525,6 +525,18 @@ export function LivePreview() {
     }
   }, [runtime, runtimeStatus, previewFiles, appendLog]);
 
+  // Auto-refresh srcdoc preview when previewFiles change (e.g. new diffs from pipeline)
+  const prevPreviewHashRef = useRef<string>('');
+  useEffect(() => {
+    if (runtime !== 'srcdoc' || previewFiles.length === 0) return;
+    const hash = JSON.stringify(previewFiles.map(f => f.path + ':' + f.content));
+    if (prevPreviewHashRef.current && prevPreviewHashRef.current !== hash) {
+      // Files changed — bump iframe key to force re-render
+      setIframeKey(k => k + 1);
+    }
+    prevPreviewHashRef.current = hash;
+  }, [previewFiles, runtime]);
+
   // Suppress unused variable warning - runs is used for reactivity
   void runs;
 
@@ -662,10 +674,10 @@ export function LivePreview() {
 
       {/* Preview area */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className={`flex items-start justify-center overflow-auto bg-pablo-bg p-2 ${showTerminal ? 'flex-1' : 'flex-1'}`}
+        <div className={`flex items-stretch justify-center overflow-auto bg-pablo-bg p-2 ${showTerminal ? 'flex-1' : 'flex-1'}`}
           style={{ minHeight: showTerminal ? '50%' : '100%' }}>
-          <div className="h-full rounded-lg border border-pablo-border bg-white transition-all duration-300"
-            style={{ width: viewportConfig.width, maxWidth: '100%' }}>
+          <div className="min-h-[300px] rounded-lg border border-pablo-border bg-white transition-all duration-300"
+            style={{ width: viewportConfig.width, maxWidth: '100%', height: '100%' }}>
 
             {/* WebContainer: show iframe pointing to dev server */}
             {runtime === 'webcontainer' && serverUrl ? (
