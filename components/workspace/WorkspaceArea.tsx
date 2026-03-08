@@ -77,7 +77,7 @@ export function WorkspaceArea() {
   const ActivePanel = panels[activeWorkspaceTab];
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-pablo-bg">
+    <div className="flex min-w-0 min-h-0 flex-1 flex-col overflow-hidden bg-pablo-bg">
       <ActivePanel />
     </div>
   );
